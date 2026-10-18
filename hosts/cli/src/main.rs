@@ -37,6 +37,10 @@ enum Cmd {
         #[arg(long)] no_ble: bool,
         /// Stream-binding TCP port (SPEC §8.2); 0 disables it.
         #[arg(long)] stream_port: Option<u16>,
+        /// Re-open the pairing window whenever it closes (unattended test rigs only).
+        #[arg(long)] keep_pairing_open: bool,
+        /// Print a JSON line of per-slot diagnostics every N seconds (0 = off).
+        #[arg(long, default_value_t = 0)] stats_every: u64,
     },
     /// Print the virtual-controller backend status for this OS.
     Status,
@@ -81,8 +85,8 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
-        Cmd::Host { mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port } =>
-            run_host(mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port).await,
+        Cmd::Host { mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open } =>
+            run_host(mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open).await,
         Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port } =>
             run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port).await,
     }
@@ -90,7 +94,7 @@ async fn main() -> Result<()> {
 
 #[allow(clippy::too_many_arguments)]
 async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
-                  no_ble: bool, stream_port: Option<u16>) -> Result<()> {
+                  no_ble: bool, stream_port: Option<u16>, stats_every: u64, keep_pairing_open: bool) -> Result<()> {
     let mut store = if ephemeral { Store::in_memory(Default::default()) } else {
         Store::open(&Store::default_dir().context("no config directory")?)?
     };
@@ -109,6 +113,33 @@ async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option
         host.stream_port().map(|p| p.to_string()).unwrap_or_else(|| "off".into()));
     for a in nine_host_core::netif::local_ipv4() { println!("  reachable on {} ({}, {})", a.ip, a.label, a.iface); }
     if pair { print_qr(&host.open_pairing(None).uri); }
+    if keep_pairing_open {
+        let h = host.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                if !h.snapshot().pairing_open { println!("pairing re-opened: {}", h.open_pairing(None).uri); }
+            }
+        });
+    }
+    if stats_every > 0 {
+        let h = host.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(stats_every)).await;
+                let snap = h.snapshot();
+                for s in &snap.slots {
+                    println!("stats: {}", serde_json::json!({
+                        "t": nine_host_core::time::rfc3339_now(), "slot": s.slot, "name": s.name, "link": s.link_label, "connected": s.connected, "silent_ms": s.silent_ms,
+                        "frames": s.frames, "rate_hz": s.rate_hz, "gap_p50_ms": s.interarrival_p50_ms, "gap_p95_ms": s.interarrival_p95_ms,
+                        "jitter_ms": s.jitter_ms, "lost": s.lost, "stale": s.stale, "invalid": s.invalid, "neutral_resets": s.neutral_resets,
+                        "phone_rtt_p50_ms": s.phone.rtt_p50_ms, "phone_rtt_p95_ms": s.phone.rtt_p95_ms, "phone_sensor_hz": s.phone.sensor_hz,
+                        "phone_send_hz": s.phone.send_hz, "battery": s.phone.battery_pct, "host_proc_p95_us": s.host_processing_p95_us,
+                        "motion": s.motion, "state": s.state }));
+                }
+            }
+        });
+    }
     let mut ev = host.subscribe();
     let h2 = host.clone();
     tokio::spawn(async move {

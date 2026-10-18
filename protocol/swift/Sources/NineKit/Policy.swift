@@ -67,8 +67,14 @@ public enum LinkPolicy {
         return v
     }
 
+    /// Unmeasured stream inherits the best measured IP RTT (same path) — see policy.rs `effective`.
+    public static func effective(_ c: [LinkStats]) -> [LinkStats] {
+        let ipBest = c.filter { $0.available && $0.kind.isIP }.compactMap(\.rttP95Ms).min()
+        return c.map { var x = $0; if x.kind == .stream && x.rttP95Ms == nil { x.rttP95Ms = ipBest }; return x }
+    }
+
     public static func rank(_ c: [LinkStats]) -> [LinkKind] {
-        c.compactMap { s in score(s).map { ($0, LinkKind.allCases.firstIndex(of: s.kind)!, s.kind) } }
+        effective(c).compactMap { s in score(s).map { ($0, LinkKind.allCases.firstIndex(of: s.kind)!, s.kind) } }
             .sorted { $0.0 != $1.0 ? $0.0 > $1.0 : $0.1 < $1.1 }.map(\.2)
     }
 
@@ -80,9 +86,11 @@ public enum LinkPolicy {
         }
         var order = rank(c)
         if let cur = st.current, st.currentHealthy {
-            guard let best = order.first else { return .stay }
+            // Planned switches only to measured links (see policy.rs); unmeasured links serve failover.
+            guard let best = order.first(where: { k in c.contains { $0.kind == k && $0.rttP95Ms != nil } }) else { return .stay }
             if best == cur { return .stay }
-            guard let sb = c.first(where: { $0.kind == best }).flatMap(score), let sc = c.first(where: { $0.kind == cur }).flatMap(score) else { return .stay }
+            let eff = effective(c)
+            guard let sb = eff.first(where: { $0.kind == best }).flatMap(score), let sc = eff.first(where: { $0.kind == cur }).flatMap(score) else { return .stay }
             return sb - sc >= switchMargin && st.betterForS >= betterForS && st.sinceSwitchS >= minDwellS ? .switchTo(best) : .stay
         }
         if let cur = st.current, let i = order.firstIndex(of: cur) { order.append(order.remove(at: i)) }

@@ -53,8 +53,11 @@ fun NineTheme(content: @Composable () -> Unit) {
             titleMedium = t.titleMedium.copy(fontWeight = FontWeight.Medium),
             bodyMedium = t.bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp),
         ),
-        content = content,
-    )
+    ) {
+        // No Material Surface wraps our screens, so set the default text colour explicitly
+        // (otherwise Text falls back to black on the dark background).
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Nine.text, content = content)
+    }
 }
 
 /** 11sp uppercase micro-label. */

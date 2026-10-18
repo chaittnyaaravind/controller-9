@@ -194,11 +194,6 @@ public final class ConnectionManager {
                     var r = hist[kind] ?? (0, 0, nil, [], nil); r.attempts += 1; hist[kind] = r
                     do {
                         let (link, info) = try await Transports.open(kind, host: h, id: IdentityStore.keyPair(), hello: hello, ble: ble, resume: lastSlot, profile: profileName)
-                        guard Data(link.conn.hostStatic).base64EncodedString() == h.pub else {
-                            link.close(sendBye: false); want = nil
-                            state = .failed("The computer that answered is not \(h.name) (its identity key changed). Pair again only if you trust it.")
-                            return
-                        }
                         var ok = hist[link.kind] ?? (0, 0, nil, [], nil); ok.successes += 1; hist[link.kind] = ok
                         lastSlot = info.slot
                         var seen = Set<String>()
@@ -214,6 +209,11 @@ public final class ConnectionManager {
                         stats.linkDetail = link.detail
                         state = .connected(host: link.conn.host.name, slot: info.slot, warning: nil, link: link.kind)
                         startLink(link)
+                        return
+                    } catch is IdentityChanged {
+                        // Never delete the pairing on an unverified host's word: it may be an impostor.
+                        want = nil
+                        state = .failed("The computer that answered is not \(h.name) (its identity key changed). Your pairing was kept. If \(h.name) was reinstalled, forget it and pair again.")
                         return
                     } catch ClientError.refused("not_paired") {
                         store.removeHost(h.id); want = nil; state = .failed("\(h.name) no longer knows this phone. Pair again."); return

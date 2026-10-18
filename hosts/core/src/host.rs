@@ -63,6 +63,8 @@ pub struct SlotSnapshot {
     pub platform: String,
     pub profile: Option<String>,
     pub connected_s: u64,
+    /// Milliseconds since the last valid datagram (None before the first one).
+    pub silent_ms: Option<u64>,
     pub frames: u64,
     pub rate_hz: Option<f64>,
     pub lost: u64,
@@ -360,6 +362,7 @@ impl Host {
                 grace_s_left: s.grace_until.map(|g| g.saturating_duration_since(now).as_secs() as u32),
                 name: s.name.clone(), platform: s.platform.clone(), profile: s.profile.clone(),
                 connected_s: now.duration_since(s.connected_at).as_secs(),
+                silent_ms: s.last_rx.map(|t| now.duration_since(t).as_millis() as u64),
                 frames: s.fresh.accepted(), rate_hz: p50.filter(|v| *v > 0.0).map(|v| 1000.0 / v),
                 lost: s.fresh.lost(), stale: s.fresh.stale(), invalid: s.invalid, jitter_ms: s.jitter.ms(),
                 interarrival_p50_ms: p50, interarrival_p95_ms: s.gaps.percentile(95.0),

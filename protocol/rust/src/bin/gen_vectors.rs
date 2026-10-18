@@ -169,6 +169,12 @@ fn policy_v() -> Value {
         (vec![LinkStats { kind: K::Lan, available: false, ..Default::default() }], PolicyState { current: Some(K::Lan), current_healthy: false, ..Default::default() }),
         (vec![l(K::Lan, 5.0), l(K::Ble, 30.0)], PolicyState { current: Some(K::Lan), current_healthy: true, override_kind: Some(K::Ble), ..Default::default() }),
         (vec![l(K::Lan, 5.0), l(K::Ble, 30.0)], PolicyState { current: None, current_healthy: false, override_kind: Some(K::Usb), ..Default::default() }),
+        // observed on a real phone after a Wi-Fi outage: both failed; unmeasured stream must not win
+        ({ let mut lan = l(K::Lan, 60.0); lan.last_failure_age_s = Some(2.0); vec![lan, LinkStats { kind: K::Stream, available: true, last_failure_age_s: Some(2.0), ..Default::default() }] },
+            PolicyState { current: Some(K::Lan), current_healthy: false, ..Default::default() }),
+        // observed on a real phone: measured noisy Wi-Fi vs never-measured TCP-only → stay
+        (vec![l(K::Lan, 110.0), LinkStats { kind: K::Stream, available: true, ..Default::default() }],
+            PolicyState { current: Some(K::Lan), current_healthy: true, since_switch_s: 60.0, better_for_s: 60.0, override_kind: None }),
     ];
     json!(cases.into_iter().map(|(c, st)| json!({
         "candidates": c, "state": st,

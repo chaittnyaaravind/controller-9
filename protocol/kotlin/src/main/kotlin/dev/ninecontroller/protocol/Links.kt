@@ -28,10 +28,15 @@ class UdpLink(host: InetAddress, port: Int) : DatagramLink {
     override fun receive(timeoutMs: Int): ByteArray? {
         socket.soTimeout = maxOf(timeoutMs, 1)
         val p = DatagramPacket(buf, buf.size)
-        return try { socket.receive(p); buf.copyOf(p.length) } catch (_: SocketTimeoutException) { null }
+        return try { socket.receive(p); buf.copyOf(p.length) }
+        catch (_: SocketTimeoutException) { null }
+        catch (e: java.net.SocketException) { if (socket.isClosed) throw LinkClosedException() else throw e }
     }
     override fun close() = socket.close()
 }
+
+/** Thrown by a link's receive after the link was closed (normal during failover). */
+class LinkClosedException : java.io.IOException("link closed")
 
 /** Blocking InputStream fed with byte chunks from any thread (safer than piped streams). */
 class QueueInputStream : InputStream() {

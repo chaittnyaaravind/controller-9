@@ -53,8 +53,25 @@ pub fn score(s: &LinkStats) -> Option<f64> {
     Some(v)
 }
 
+impl LinkKind {
+    /// Rides the phone's IP stack (UDP datagrams) — every kind except the TCP-only stream and BLE.
+    pub fn is_ip(self) -> bool { !matches!(self, LinkKind::Stream | LinkKind::Ble) }
+}
+
+/// The TCP-only stream shares the IP path, so an unmeasured stream inherits the best measured IP
+/// link's RTT instead of looking "perfect" (observed on a real phone after a Wi-Fi outage).
+pub fn effective(cands: &[LinkStats]) -> Vec<LinkStats> {
+    let ip_best = cands.iter().filter(|c| c.available && c.kind.is_ip()).filter_map(|c| c.rtt_p95_ms).fold(None, |m: Option<f64>, r| Some(m.map_or(r, |m| m.min(r))));
+    cands.iter().map(|c| {
+        let mut c = c.clone();
+        if c.kind == LinkKind::Stream && c.rtt_p95_ms.is_none() { c.rtt_p95_ms = ip_best; }
+        c
+    }).collect()
+}
+
 /// Available links, best first (ties broken by the fixed order of `LinkKind::ALL`).
 pub fn rank(cands: &[LinkStats]) -> Vec<LinkKind> {
+    let cands = &effective(cands);
     let mut v: Vec<(f64, usize, LinkKind)> = cands.iter()
         .filter_map(|s| score(s).map(|sc| (sc, LinkKind::ALL.iter().position(|k| *k == s.kind).unwrap(), s.kind)))
         .collect();
@@ -94,9 +111,14 @@ pub fn decide(cands: &[LinkStats], st: &PolicyState) -> Decision {
     let order = rank(cands);
     match st.current {
         Some(cur) if st.current_healthy => {
-            let Some(&best) = order.first() else { return Decision::Stay };
+            // Planned switches only target links with recent measurements: an unmeasured link has no
+            // RTT penalty and would otherwise "beat" a measured one on a noisy network (observed on a
+            // real phone: Wi-Fi → TCP-only over the same Wi-Fi). Unmeasured links are for failover only.
+            let measured = |k: &LinkKind| cands.iter().any(|c| c.kind == *k && c.rtt_p95_ms.is_some());
+            let Some(&best) = order.iter().find(|k| measured(k)) else { return Decision::Stay };
             if best == cur { return Decision::Stay; }
-            let (Some(sb), Some(sc)) = (cands.iter().find(|c| c.kind == best).and_then(score), cands.iter().find(|c| c.kind == cur).and_then(score)) else {
+            let eff = effective(cands);
+            let (Some(sb), Some(sc)) = (eff.iter().find(|c| c.kind == best).and_then(score), eff.iter().find(|c| c.kind == cur).and_then(score)) else {
                 return Decision::Stay;
             };
             if sb - sc >= SWITCH_MARGIN && st.better_for_s >= BETTER_FOR_S && st.since_switch_s >= MIN_DWELL_S { Decision::Switch { to: best } } else { Decision::Stay }
@@ -135,6 +157,25 @@ mod tests {
         let c2 = [l(LinkKind::Ble, 30.0), l(LinkKind::Usb, 2.0)];
         st.current = Some(LinkKind::Ble);
         assert_eq!(decide(&c2, &st), Decision::Switch { to: LinkKind::Usb });
+    }
+
+    #[test]
+    fn unmeasured_link_never_triggers_a_planned_switch() {
+        let lan = l(LinkKind::Lan, 110.0); // noisy but healthy, measured
+        let stream = LinkStats { kind: LinkKind::Stream, available: true, ..Default::default() }; // never measured
+        let st = PolicyState { current: Some(LinkKind::Lan), current_healthy: true, since_switch_s: 60.0, better_for_s: 60.0, override_kind: None };
+        assert_eq!(decide(&[lan.clone(), stream.clone()], &st), Decision::Stay);
+        // but it is still a failover candidate
+        let failed = PolicyState { current_healthy: false, ..st };
+        assert_eq!(decide(&[lan, stream], &failed), Decision::Failover { order: vec![LinkKind::Stream, LinkKind::Lan] });
+    }
+
+    #[test]
+    fn stream_never_outranks_a_measured_ip_link_on_the_same_path() {
+        // Both just failed in the same outage; LAN measured with a noisy p95, stream never measured.
+        let mut lan = l(LinkKind::Lan, 60.0); lan.last_failure_age_s = Some(2.0);
+        let stream = LinkStats { kind: LinkKind::Stream, available: true, last_failure_age_s: Some(2.0), ..Default::default() };
+        assert_eq!(rank(&[lan, stream]), vec![LinkKind::Lan, LinkKind::Stream]);
     }
 
     #[test]

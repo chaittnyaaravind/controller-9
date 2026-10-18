@@ -63,7 +63,7 @@ function bay(s, i, max) {
   }
   const loss = s.frames + s.lost > 0 ? (100 * s.lost) / (s.frames + s.lost) : null;
   const st = s.state;
-  const status = !s.connected ? `Reconnecting · ${s.graceSLeft ?? 0}s` : s.padOk ? `Live · ${s.linkLabel}` : `${s.linkLabel} · no virtual controller`;
+  const status = !s.connected ? `Reconnecting · ${s.graceSLeft ?? 0}s` : (s.silentMs ?? 0) > 1000 ? `No input · ${Math.round(s.silentMs / 1000)}s` : s.padOk ? `Live · ${s.linkLabel}` : `${s.linkLabel} · no virtual controller`;
   return `<div class="bay ${s.connected ? "" : "grace"}">
     <div class="bay-head">
       <div><div class="pindex">P${s.slot + 1} · ${esc(s.platform)}</div><div class="bay-title">${esc(s.name)}</div>

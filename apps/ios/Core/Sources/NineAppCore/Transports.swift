@@ -26,7 +26,14 @@ public enum LocalLinks {
     }
 }
 
+public struct IdentityChanged: Error { public let host: PairedHost }
+
 public enum Transports {
+    /// Verify the pinned host key right after the handshake — before anything is sent.
+    static func pin(_ c: ControlConnection, _ host: PairedHost) throws {
+        guard Data(c.hostStatic).base64EncodedString() == host.pub else { c.cancel(); throw IdentityChanged(host: host) }
+    }
+
     /// IP binding: race every known address; the first completed handshake wins immediately and any
     /// later winners are closed.
     public static func ip(_ host: PairedHost, id: KeyPair, hello: ControllerHello, timeout: TimeInterval) async throws -> ControlConnection {
@@ -63,6 +70,7 @@ public enum Transports {
                 do {
                     let sb = try await StreamBinding.connect(host: a, timeout: 1.5)
                     let c = try await ControlConnection.connect(over: sb.control, identity: id, hello: hello)
+                    do { try pin(c, host) } catch { sb.close(); throw error }
                     let info = try await c.open(resumeSlot: resume, profile: profile)
                     return (ActiveLink(kind: .stream, detail: "TCP \(a):\(LinkConst.streamTCPPort)", conn: c, channel: InputChannel(link: sb, info: info)), info)
                 } catch { last = error }
@@ -73,10 +81,12 @@ public enum Transports {
             let hint = stride(from: 0, to: 8, by: 2).compactMap { UInt8(host.id.dropFirst($0).prefix(2), radix: 16) }
             guard await ble.awaitHost(hint: hint, timeout: 8) else { throw ClientError.protocolError("No computer connected over Bluetooth within 8 s") }
             let c = try await ControlConnection.connect(over: ble.control, identity: id, hello: hello)
+            try pin(c, host)
             let info = try await c.open(resumeSlot: resume, profile: profile)
             return (ActiveLink(kind: .ble, detail: "Bluetooth LE", conn: c, channel: InputChannel(link: ble, info: info)), info)
         default:
             let c = try await ip(host, id: id, hello: hello, timeout: 1.5)
+            try pin(c, host)
             let info = try await c.open(resumeSlot: resume, profile: profile)
             let k = LocalLinks.classify(pathKinds: c.pathKinds, remote: c.remoteHost)
             return (ActiveLink(kind: k, detail: "\(c.remoteHost):\(host.port)", conn: c, channel: InputChannel(host: c.remoteHost, info: info)), info)

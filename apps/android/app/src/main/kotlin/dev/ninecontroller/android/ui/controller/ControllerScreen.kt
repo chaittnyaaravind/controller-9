@@ -66,6 +66,7 @@ import dev.ninecontroller.protocol.MotionMath
 import dev.ninecontroller.protocol.Orientation
 import dev.ninecontroller.protocol.Steering
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -116,7 +117,9 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     LaunchedEffect(Unit) {
         app.connection.setProfileName(profile.name)
         if (app.connection.state.value is ConnState.Idle || app.connection.state.value is ConnState.Failed) {
-            settings.lastHost?.let { app.hosts.byId(it) }?.let { app.connection.connect(it) }
+            // Read the stored settings: the collected `settings` is still the default on first composition.
+            val last = app.settings.flow.first().lastHost ?: app.hosts.hosts.value.firstOrNull()?.id
+            last?.let { app.hosts.byId(it) }?.let { app.connection.connect(it) }
         }
     }
 

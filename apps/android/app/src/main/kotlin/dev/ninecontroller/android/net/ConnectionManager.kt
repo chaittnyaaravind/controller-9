@@ -7,6 +7,7 @@ import android.net.NetworkRequest
 import android.os.BatteryManager
 import android.os.Process
 import android.util.Base64
+import android.util.Log
 import dev.ninecontroller.android.BuildConfig
 import dev.ninecontroller.android.data.HostStore
 import dev.ninecontroller.android.data.IdentityStore
@@ -239,6 +240,7 @@ class ConnectionManager(
     /** Called from link threads on failure (healthy=false) or by the evaluator for a planned switch. */
     private fun restart(reason: String, healthy: Boolean, to: LinkKind? = null) {
         val h = want ?: return
+        Log.i(TAG, "restart link=${active?.kind} healthy=$healthy to=$to reason=$reason")
         val old = active
         val failed = old?.kind
         if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
@@ -270,13 +272,6 @@ class ConnectionManager(
                     hs.attempts++
                     try {
                         val (link, info) = transports.open(kind, h, identity.keyPair(), hello(), lastSlot, profileName)
-                        val pinned = Base64.decode(h.pub, Base64.NO_WRAP)
-                        if (!link.conn.hostStatic.contentEquals(pinned)) {
-                            link.close(sendBye = false)
-                            want = null
-                            _state.value = ConnState.Failed("The computer that answered is not ${h.name} (its identity key changed). Pair again only if you trust it.")
-                            return@launch
-                        }
                         hist.getValue(link.kind).successes++
                         if (link.kind != kind) hs.successes++
                         lastSlot = info.slot
@@ -288,8 +283,15 @@ class ConnectionManager(
                         if (n > 0) { reconnects++; _stats.value = _stats.value.copy(reconnects = reconnects, lastReconnectMs = (System.nanoTime() - t0) / 1_000_000) }
                         if (failedKind != null && failedKind != link.kind) _stats.value = _stats.value.copy(lastSwitch = "${failedKind.label} → ${link.kind.label}: $reason")
                         _state.value = ConnState.Connected(link.conn.host.name, info.slot, null, link.kind, link.detail)
+                        Log.i(TAG, "connected link=${link.kind} slot=${info.slot} detail=${link.detail} attempt=$n")
                         lock.withLock { version++ } // resend current state on the new link
                         startThreads(link)
+                        return@launch
+                    } catch (e: Transports.IdentityChangedException) {
+                        // Never delete the pairing on an unverified host's word: another device may be impersonating it.
+                        Log.w(TAG, "pinned host key mismatch at ${kind}; pairing kept")
+                        want = null
+                        _state.value = ConnState.Failed("The computer that answered is not ${h.name} (its identity key changed). Your pairing was kept. If ${h.name} was reinstalled, forget it and pair again.")
                         return@launch
                     } catch (e: RefusedException) {
                         hs.lastFailureAt = now()
@@ -299,6 +301,7 @@ class ConnectionManager(
                         }
                     } catch (e: Exception) {
                         hs.lastFailureAt = now()
+                        Log.w(TAG, "attempt ${kind} failed: ${describe(e)}")
                         _state.value = ConnState.Reconnecting(h.name, ++n, "${kind.label}: ${describe(e)}")
                     }
                 }
@@ -360,7 +363,8 @@ class ConnectionManager(
             var lastPong = System.nanoTime(); var seen = 0L
             val deadMs = if (link.kind == LinkKind.BLE) 1500 else 1000
             while (active === link) {
-                ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) }
+                try { ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) } }
+                catch (e: Exception) { if (active === link) restart("input link: ${describe(e)}", healthy = false); return@Thread }
                 if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime() }
                 val age = (System.nanoTime() - lastPong) / 1_000_000
                 if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); restart("no response for $age ms on ${link.kind.label}", healthy = false); return@Thread }
@@ -402,6 +406,7 @@ class ConnectionManager(
         ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
 
     companion object {
+        private const val TAG = "C9Conn"
         fun describe(e: Throwable): String = when (e) {
             is RefusedException -> when (e.code) {
                 "pairing_closed" -> "Pairing isn’t open on the computer. Open “Pair a phone” there first."

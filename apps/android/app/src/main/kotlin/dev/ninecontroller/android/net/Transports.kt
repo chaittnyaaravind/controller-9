@@ -96,19 +96,30 @@ class Transports(private val context: Context, private val ble: BlePeripheral) {
         catch (e: Exception) { link.close(); throw e }
     }
 
+    /** Thrown before anything is sent when the host's static key differs from the one pinned at pairing. */
+    class IdentityChangedException(val host: PairedHost) : Exception("identity changed")
+
+    private fun pin(c: ControlConnection, host: PairedHost, close: () -> Unit) {
+        if (!c.hostStatic.contentEquals(android.util.Base64.decode(host.pub, android.util.Base64.NO_WRAP))) { close(); throw IdentityChangedException(host) }
+    }
+
+    /** Handshake, verify the pinned host key, THEN open the session (nothing is sent to an unverified host). */
     fun open(kind: LinkKind, host: PairedHost, id: KeyPair, hello: ControllerHello, resumeSlot: Int?, profile: String?): Pair<ActiveLink, SessionInfo> = when (kind) {
         LinkKind.STREAM -> {
             val (c, sb, k) = stream(host, id, hello, 1500)
+            pin(c, host) { c.abort(); sb.close() }
             val info = c.open(resumeSlot, profile)
             ActiveLink(k, "TCP ${c.host.name}:${LinkConst.STREAM_TCP_PORT}", c, InputChannel(sb, info), sb) to info
         }
         LinkKind.BLE -> {
             val (c, l) = ble(host, id, hello, 8000)
+            pin(c, host) { c.abort(); l.close() }
             val info = c.open(resumeSlot, profile)
             ActiveLink(LinkKind.BLE, "MTU ${l.mtu}", c, InputChannel(l, info), l) to info
         }
         else -> {
             val (c, k) = ip(host, id, hello, 1500)
+            pin(c, host) { c.abort() }
             val info = c.open(resumeSlot, profile)
             ActiveLink(k, "${c.remote?.hostAddress}:${host.port} via ${c.local?.hostAddress}", c, InputChannel(c.remote!!, info)) to info
         }

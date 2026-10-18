@@ -403,5 +403,93 @@
       "overrideKind": "usb",
       "sinceSwitchS": 0.0
     }
+  },
+  {
+    "candidates": [
+      {
+        "attempts": 0,
+        "available": true,
+        "disconnectsPerMin": 0.0,
+        "kind": "lan",
+        "lastFailureAgeS": 2.0,
+        "lossPct": 0.0,
+        "rttP95Ms": 60.0,
+        "successes": 0
+      },
+      {
+        "attempts": 0,
+        "available": true,
+        "disconnectsPerMin": 0.0,
+        "kind": "stream",
+        "lastFailureAgeS": 2.0,
+        "lossPct": 0.0,
+        "rttP95Ms": null,
+        "successes": 0
+      }
+    ],
+    "decision": {
+      "action": "failover",
+      "order": [
+        "stream",
+        "lan"
+      ]
+    },
+    "rank": [
+      "lan",
+      "stream"
+    ],
+    "scores": [
+      -5.0,
+      10.0
+    ],
+    "state": {
+      "betterForS": 0.0,
+      "current": "lan",
+      "currentHealthy": false,
+      "overrideKind": null,
+      "sinceSwitchS": 0.0
+    }
+  },
+  {
+    "candidates": [
+      {
+        "attempts": 0,
+        "available": true,
+        "disconnectsPerMin": 0.0,
+        "kind": "lan",
+        "lastFailureAgeS": null,
+        "lossPct": 0.0,
+        "rttP95Ms": 110.0,
+        "successes": 0
+      },
+      {
+        "attempts": 0,
+        "available": true,
+        "disconnectsPerMin": 0.0,
+        "kind": "stream",
+        "lastFailureAgeS": null,
+        "lossPct": 0.0,
+        "rttP95Ms": null,
+        "successes": 0
+      }
+    ],
+    "decision": {
+      "action": "stay"
+    },
+    "rank": [
+      "lan",
+      "stream"
+    ],
+    "scores": [
+      -5.0,
+      60.0
+    ],
+    "state": {
+      "betterForS": 60.0,
+      "current": "lan",
+      "currentHealthy": true,
+      "overrideKind": null,
+      "sinceSwitchS": 60.0
+    }
   }
 ]

@@ -60,7 +60,15 @@ object LinkPolicy {
         return v
     }
 
-    fun rank(c: List<LinkStats>): List<LinkKind> = c.mapNotNull { s -> score(s)?.let { Triple(it, s.kind.ordinal, s.kind) } }
+    val LinkKind.isIp get() = this != LinkKind.STREAM && this != LinkKind.BLE
+
+    /** Unmeasured stream inherits the best measured IP RTT (same path) — see policy.rs `effective`. */
+    fun effective(c: List<LinkStats>): List<LinkStats> {
+        val ipBest = c.filter { it.available && it.kind.isIp }.mapNotNull { it.rttP95Ms }.minOrNull()
+        return c.map { if (it.kind == LinkKind.STREAM && it.rttP95Ms == null) it.copy(rttP95Ms = ipBest) else it }
+    }
+
+    fun rank(c: List<LinkStats>): List<LinkKind> = effective(c).mapNotNull { s -> score(s)?.let { Triple(it, s.kind.ordinal, s.kind) } }
         .sortedWith(compareByDescending<Triple<Double, Int, LinkKind>> { it.first }.thenBy { it.second }).map { it.third }
 
     fun decide(c: List<LinkStats>, st: PolicyState): Decision {
@@ -75,9 +83,11 @@ object LinkPolicy {
         val order = rank(c)
         val cur = st.current
         if (cur != null && st.currentHealthy) {
-            val best = order.firstOrNull() ?: return Decision.Stay
+            // Planned switches only to measured links (see policy.rs); unmeasured links serve failover.
+            val best = order.firstOrNull { k -> c.any { it.kind == k && it.rttP95Ms != null } } ?: return Decision.Stay
             if (best == cur) return Decision.Stay
-            val sb = c.find { it.kind == best }?.let(::score); val sc = c.find { it.kind == cur }?.let(::score)
+            val eff = effective(c)
+            val sb = eff.find { it.kind == best }?.let(::score); val sc = eff.find { it.kind == cur }?.let(::score)
             if (sb == null || sc == null) return Decision.Stay
             return if (sb - sc >= SWITCH_MARGIN && st.betterForS >= BETTER_FOR_S && st.sinceSwitchS >= MIN_DWELL_S) Decision.Switch(best) else Decision.Stay
         }
