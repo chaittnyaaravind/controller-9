@@ -1,0 +1,43 @@
+# XcodeGen spec. Generate the project:  cd apps/ios && xcodegen generate
+name: NineController
+options:
+  bundleIdPrefix: dev.ninecontroller
+  deploymentTarget: { iOS: "17.0" }
+  createIntermediateGroups: true
+packages:
+  NineAppCore: { path: Core }
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""          # set your Apple team ID (see docs/BUILD.md)
+targets:
+  NineController:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: ../../protocol/profiles
+        type: folder              # bundled as "profiles/*.json" (shared presets)
+        buildPhase: resources
+    dependencies:
+      - package: NineAppCore
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: 9-controller
+        UILaunchScreen: { UIColorName: "" }
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSCameraUsageDescription: "Scan the pairing code shown on your computer."
+        NSLocalNetworkUsageDescription: "Find and connect to 9-controller on computers on your Wi-Fi network."
+        NSBonjourServices: [_ninectl._tcp]
+        ITSAppUsesNonExemptEncryption: false   # standard encryption only; see docs/RELEASE.md before App Store submission
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.ninecontroller.ios
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES

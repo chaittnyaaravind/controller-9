@@ -47,8 +47,13 @@ public final class ControlConnection: @unchecked Sendable {
     }
 
     public static func connect(host: String, port: UInt16, identity: KeyPair, hello: ControllerHello, timeout: TimeInterval = 3) async throws -> ControlConnection {
+        try await connect(endpoint: .hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!), identity: identity, hello: hello, timeout: timeout)
+    }
+
+    /// Connect to any endpoint, including a Bonjour service endpoint from NWBrowser.
+    public static func connect(endpoint: NWEndpoint, identity: KeyPair, hello: ControllerHello, timeout: TimeInterval = 3) async throws -> ControlConnection {
         let tcp = NWProtocolTCP.Options(); tcp.noDelay = true; tcp.connectionTimeout = Int(timeout)
-        let conn = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: NWParameters(tls: nil, tcp: tcp))
+        let conn = NWConnection(to: endpoint, using: NWParameters(tls: nil, tcp: tcp))
         let queue = DispatchQueue(label: "ninectl.control")
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             let once = Once()
@@ -66,11 +71,20 @@ public final class ControlConnection: @unchecked Sendable {
         try await writeFrame(conn, try hs.writeMessage(Array(try JSONEncoder().encode(InitHello(proto: [1])))))
         let host = try JSONDecoder().decode(HostHello.self, from: Data(try hs.readMessage(try await readFrame(conn))))
         try await writeFrame(conn, try hs.writeMessage(Array(try JSONEncoder().encode(hello))))
-        return ControlConnection(conn: conn, queue: queue, transport: try hs.intoTransport(), host: host, remoteHost: host.name.isEmpty ? hostString(conn) : hostString(conn))
+        return ControlConnection(conn: conn, queue: queue, transport: try hs.intoTransport(), host: host, remoteHost: resolvedHost(conn))
     }
 
-    private static func hostString(_ c: NWConnection) -> String {
-        if case let .hostPort(h, _) = c.endpoint { return "\(h)".components(separatedBy: "%").first ?? "\(h)" }
+    /// The numeric address actually connected to (works for Bonjour endpoints too); used for UDP and to remember the host.
+    private static func resolvedHost(_ c: NWConnection) -> String {
+        let ep = c.currentPath?.remoteEndpoint ?? c.endpoint
+        if case let .hostPort(h, _) = ep {
+            switch h {
+            case let .ipv4(a): return "\(a)"
+            case let .ipv6(a): return "\(a)".components(separatedBy: "%").first ?? "\(a)"
+            case let .name(n, _): return n
+            @unknown default: return "\(h)"
+            }
+        }
         return ""
     }
 
