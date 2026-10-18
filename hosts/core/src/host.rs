@@ -234,6 +234,19 @@ impl Host {
         Ok(Host { sh })
     }
 
+    pub fn config(&self) -> HostConfig { self.sh.store.lock().config.clone() }
+
+    /// Persist a new configuration. Ports, bind address and slot count apply on next start.
+    pub fn save_config(&self, mut cfg: HostConfig) -> Result<(), String> {
+        cfg.name = cfg.name.trim().chars().filter(|c| !c.is_control()).take(40).collect();
+        if cfg.name.is_empty() { return Err("Name cannot be empty".into()); }
+        if !(1..=4).contains(&cfg.max_slots) { return Err("Slots must be 1-4".into()); }
+        if !(100..=2000).contains(&cfg.timeout_ms) { return Err("Input timeout must be 100-2000 ms".into()); }
+        let mut s = self.sh.store.lock();
+        s.config = cfg;
+        s.save().map_err(|e| e.to_string())
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<HostEvent> { self.sh.events.subscribe() }
     pub fn tcp_port(&self) -> u16 { self.sh.tcp_port }
     pub fn udp_port(&self) -> u16 { self.sh.udp_port }
