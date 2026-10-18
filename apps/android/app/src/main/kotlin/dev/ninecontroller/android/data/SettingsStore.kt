@@ -1,17 +1,38 @@
 package dev.ninecontroller.android.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.ninecontroller.android.pad.PadPresets
+import dev.ninecontroller.protocol.MotionSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** Steering calibration measured on this phone. Every field is a measurement, never a default. */
+data class SteeringCalibration(
+    val centerDeg: Double,
+    val leftDeg: Double?,
+    val rightDeg: Double?,
+    /** Hand wobble while held still at centre: standard deviation of the measured angle. */
+    val noiseDeg: Double,
+    val measuredAt: Long,
+) {
+    /** Smaller of the two measured half-ranges: full lock in both directions. */
+    val lockDeg: Double? get() = if (leftDeg != null && rightDeg != null) minOf(kotlin.math.abs(leftDeg), kotlin.math.abs(rightDeg)) else null
+    /** Dead zone that hides 3σ of the measured wobble, as a fraction of the lock (null until the range is known). */
+    val suggestedDeadzone: Double? get() = lockDeg?.let { (3 * noiseDeg / it).coerceIn(0.0, 0.1) }
+}
+
 data class AppSettings(
-    val activeProfile: String = "racing",
+    /** `pad:<preset>` for a controller preset, otherwise a custom profile id (racing, …). */
+    val activeProfile: String = "pad:xbox",
     val lastHost: String? = null,
     val hapticsEnabled: Boolean = true,
     val hapticStrength: Double = 0.7,
@@ -22,7 +43,19 @@ data class AppSettings(
     val onboarded: Boolean = false,
     /** "auto" or a LinkKind name chosen by the user. */
     val linkOverride: String = "auto",
-)
+    /** Per-preset remaps, encoded by PadMapping.encode(); empty = preset defaults. */
+    val padMappings: Map<String, String> = emptyMap(),
+    val stickDeadzone: Double = 0.08,
+    /** Tilt steering on the left stick X for controller presets (profiles keep their own motion settings). */
+    val padTilt: Boolean = false,
+    val tiltSensitivity: Double = 1.0,
+    val tiltDeadzone: Double = 0.02,
+    val tiltLockDeg: Double = 45.0,
+    val calibration: SteeringCalibration? = null,
+) {
+    val padPreset get() = PadPresets.fromSelection(activeProfile)
+    fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
+}
 
 private val Context.store by preferencesDataStore("settings")
 
@@ -38,11 +71,22 @@ class SettingsStore(private val context: Context) {
         val stats = booleanPreferencesKey("show_stats")
         val onboarded = booleanPreferencesKey("onboarded")
         val link = stringPreferencesKey("link_override")
+        val stickDz = doublePreferencesKey("stick_deadzone")
+        val padTilt = booleanPreferencesKey("pad_tilt")
+        val tiltSens = doublePreferencesKey("tilt_sensitivity")
+        val tiltDz = doublePreferencesKey("tilt_deadzone")
+        val tiltLock = doublePreferencesKey("tilt_lock_deg")
+        val calLeft = doublePreferencesKey("cal_left_deg")
+        val calRight = doublePreferencesKey("cal_right_deg")
+        val calNoise = doublePreferencesKey("cal_noise_deg")
+        val calAt = longPreferencesKey("cal_measured_at")
+        fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
     }
 
-    val flow: Flow<AppSettings> = context.store.data.map { p ->
-        AppSettings(
-            activeProfile = p[K.profile] ?: "racing",
+    private fun read(p: Preferences): AppSettings {
+        val calAt = p[K.calAt]
+        return AppSettings(
+            activeProfile = p[K.profile] ?: "pad:xbox",
             lastHost = p[K.lastHost],
             hapticsEnabled = p[K.haptics] ?: true,
             hapticStrength = p[K.strength] ?: 0.7,
@@ -52,28 +96,45 @@ class SettingsStore(private val context: Context) {
             showStats = p[K.stats] ?: true,
             onboarded = p[K.onboarded] ?: false,
             linkOverride = p[K.link] ?: "auto",
+            padMappings = PadPresets.all.mapNotNull { pr -> p[K.map(pr.id)]?.takeIf { it.isNotEmpty() }?.let { pr.id to it } }.toMap(),
+            stickDeadzone = p[K.stickDz] ?: 0.08,
+            padTilt = p[K.padTilt] ?: false,
+            tiltSensitivity = p[K.tiltSens] ?: 1.0,
+            tiltDeadzone = p[K.tiltDz] ?: 0.02,
+            tiltLockDeg = p[K.tiltLock] ?: 45.0,
+            calibration = calAt?.let { SteeringCalibration(p[K.calibration] ?: 0.0, p[K.calLeft], p[K.calRight], p[K.calNoise] ?: 0.0, it) },
         )
     }
 
-    suspend fun update(f: (AppSettings) -> AppSettings) {
-        context.store.edit { p ->
-            val cur = AppSettings(
-                activeProfile = p[K.profile] ?: "racing", lastHost = p[K.lastHost], hapticsEnabled = p[K.haptics] ?: true,
-                hapticStrength = p[K.strength] ?: 0.7, keepScreenOn = p[K.screenOn] ?: true, sensorHz = p[K.sensorHz] ?: 200,
-                calibrationDeg = p[K.calibration] ?: 0.0, showStats = p[K.stats] ?: true, onboarded = p[K.onboarded] ?: false,
-                linkOverride = p[K.link] ?: "auto",
-            )
-            val n = f(cur)
-            p[K.profile] = n.activeProfile
-            if (n.lastHost != null) p[K.lastHost] = n.lastHost else p.remove(K.lastHost)
-            p[K.haptics] = n.hapticsEnabled
-            p[K.strength] = n.hapticStrength.coerceIn(0.0, 1.0)
-            p[K.screenOn] = n.keepScreenOn
-            p[K.sensorHz] = n.sensorHz.coerceIn(50, 400)
-            p[K.calibration] = n.calibrationDeg
-            p[K.stats] = n.showStats
-            p[K.onboarded] = n.onboarded
-            p[K.link] = n.linkOverride
+    private fun write(p: MutablePreferences, n: AppSettings) {
+        p[K.profile] = n.activeProfile
+        if (n.lastHost != null) p[K.lastHost] = n.lastHost else p.remove(K.lastHost)
+        p[K.haptics] = n.hapticsEnabled
+        p[K.strength] = n.hapticStrength.coerceIn(0.0, 1.0)
+        p[K.screenOn] = n.keepScreenOn
+        p[K.sensorHz] = n.sensorHz.coerceIn(50, 400)
+        p[K.calibration] = n.calibrationDeg
+        p[K.stats] = n.showStats
+        p[K.onboarded] = n.onboarded
+        p[K.link] = n.linkOverride
+        for (pr in PadPresets.all) n.padMappings[pr.id]?.takeIf { it.isNotEmpty() }?.let { p[K.map(pr.id)] = it } ?: p.remove(K.map(pr.id))
+        // Same ranges as the protocol profile validator (MotionSettings / StickSettings).
+        p[K.stickDz] = n.stickDeadzone.coerceIn(0.0, 0.5)
+        p[K.padTilt] = n.padTilt
+        p[K.tiltSens] = n.tiltSensitivity.coerceIn(0.25, 4.0)
+        p[K.tiltDz] = n.tiltDeadzone.coerceIn(0.0, 0.5)
+        p[K.tiltLock] = n.tiltLockDeg.coerceIn(10.0, 180.0)
+        val c = n.calibration
+        if (c == null) { p.remove(K.calAt); p.remove(K.calLeft); p.remove(K.calRight); p.remove(K.calNoise) } else {
+            p[K.calAt] = c.measuredAt; p[K.calNoise] = c.noiseDeg
+            c.leftDeg?.let { p[K.calLeft] = it } ?: p.remove(K.calLeft)
+            c.rightDeg?.let { p[K.calRight] = it } ?: p.remove(K.calRight)
         }
+    }
+
+    val flow: Flow<AppSettings> = context.store.data.map(::read)
+
+    suspend fun update(f: (AppSettings) -> AppSettings) {
+        context.store.edit { p -> write(p, f(read(p))) }
     }
 }

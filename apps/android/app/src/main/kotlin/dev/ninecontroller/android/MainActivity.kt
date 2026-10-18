@@ -36,6 +36,9 @@ class MainActivity : ComponentActivity() {
                     composable("diagnostics") { DiagnosticsScreen(app, nav) }
                     composable("connection") { ConnectionScreen(app, nav) }
                     composable("settings") { SettingsScreen(app, nav) }
+                    composable("layouts") { dev.ninecontroller.android.ui.layouts.LayoutsScreen(app, nav) }
+                    composable("layout/{id}") { dev.ninecontroller.android.ui.layouts.LayoutDetailScreen(app, nav, it.arguments?.getString("id") ?: "") }
+                    composable("calibrate") { dev.ninecontroller.android.ui.calibration.CalibrationScreen(app, nav) }
                 }
             }
         }

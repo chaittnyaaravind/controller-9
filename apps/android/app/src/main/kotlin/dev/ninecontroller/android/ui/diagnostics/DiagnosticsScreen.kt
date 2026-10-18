@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.ninecontroller.android.ui.fmt
@@ -14,6 +15,8 @@ import androidx.navigation.NavController
 import dev.ninecontroller.android.NineApp
 import dev.ninecontroller.android.net.ConnState
 import dev.ninecontroller.android.ui.Card
+import dev.ninecontroller.android.ui.ListRow
+import dev.ninecontroller.android.ui.Section
 import dev.ninecontroller.android.ui.Page
 import dev.ninecontroller.android.ui.Stat
 import dev.ninecontroller.android.ui.fmt
@@ -24,15 +27,32 @@ import dev.ninecontroller.android.ui.theme.Nine
 fun DiagnosticsScreen(app: NineApp, nav: NavController) {
     val s by app.connection.stats.collectAsState()
     val c by app.connection.state.collectAsState()
-    Page("Connection", "Diagnostics", nav) {
-        Card {
-            Micro("State"); Text(c.toString().substringBefore("("), color = Nine.text)
+    var now by androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(System.nanoTime()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { while (true) { now = System.nanoTime(); kotlinx.coroutines.delay(250) } }
+    fun ago(ns: Long) = if (ns <= 0L || c !is ConnState.Connected) "—" else "${(now - ns) / 1_000_000} ms ago"
+    Page("Diagnostics", "Advanced", nav) {
+        Section("Session") {
+            ListRow("State", detail = when (val st = c) {
+                is ConnState.Connected -> "Connected · player ${st.slot + 1} on ${st.hostName}"
+                is ConnState.Connecting -> "Connecting to ${st.hostName}"
+                is ConnState.Reconnecting -> "Reconnecting · attempt ${st.attempt}: ${st.reason}"
+                is ConnState.ConfirmCode -> "Waiting for code confirmation"
+                is ConnState.Failed -> "Failed · ${st.message}"
+                ConnState.Idle -> "Idle"
+            })
             (c as? ConnState.Connected)?.let {
-                Text("Player ${it.slot + 1} on ${it.hostName}", color = Nine.muted)
-                Text("Link: ${it.link.label} · ${it.linkDetail}", color = Nine.muted)
-                it.backendWarning?.let { w -> Text(w, color = Nine.warn) }
+                dev.ninecontroller.android.ui.Divider()
+                ListRow("Active link", detail = "${it.link.label} · ${it.linkDetail}")
+                it.backendWarning?.let { w -> dev.ninecontroller.android.ui.Divider(); ListRow("Computer", detail = "No virtual controller: $w", detailColor = Nine.warn) }
+                dev.ninecontroller.android.ui.Divider()
+                ListRow("Connected for", detail = if (app.connection.connectedAtNs > 0) "${(now - app.connection.connectedAtNs) / 1_000_000_000} s" else "—")
             }
-            (c as? ConnState.Reconnecting)?.let { Text("Attempt ${it.attempt}: ${it.reason}", color = Nine.warn) }
+            dev.ninecontroller.android.ui.Divider()
+            ListRow("Last host reply (freshness)", detail = ago(app.connection.lastAckNs))
+            dev.ninecontroller.android.ui.Divider()
+            ListRow("Last input frame sent", detail = ago(app.connection.lastSendNs))
+            dev.ninecontroller.android.ui.Divider()
+            ListRow("Last disconnect reason", detail = s.lastDisconnect ?: "None this session")
         }
         Card {
             Row(Modifier.fillMaxWidth()) { Stat(fmt(s.rttP50), "RTT p50 ms", Modifier.weight(1f)); Stat(fmt(s.rttP95), "RTT p95 ms", Modifier.weight(1f)) }
@@ -41,6 +61,7 @@ fun DiagnosticsScreen(app: NineApp, nav: NavController) {
             Text("Last reconnect took ${s.lastReconnectMs?.let { "$it ms" } ?: "—"}. Watchdog neutralizations: ${s.watchdogTrips}.", color = Nine.dim)
             s.lastSwitch?.let { Text("Last link switch: $it", color = Nine.dim) }
         }
+        Section(null) { ListRow("Links", detail = "Usable links, scores and preference", onClick = { nav.navigate("connection") }) }
         Card {
             Micro("What these mean")
             Text("RTT is the encrypted ping round trip between this phone and the computer. It covers the network and host only — not the screen, game or display delay.", color = Nine.dim)

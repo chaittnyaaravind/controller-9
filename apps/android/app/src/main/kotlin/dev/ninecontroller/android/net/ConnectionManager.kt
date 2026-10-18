@@ -58,6 +58,8 @@ data class LinkStatsUi(
     val sendHz: Double = 0.0, val sent: Long = 0, val sensorHz: Double = 0.0,
     val reconnects: Int = 0, val lastReconnectMs: Long? = null,
     val lastSwitch: String? = null, val watchdogTrips: Int = 0,
+    /** Why the previous link ended (failure, host bye, or the user), for the UI. */
+    val lastDisconnect: String? = null,
 )
 
 /** What the user sees per link: usable or not, why, and recent measurements. */
@@ -105,6 +107,11 @@ class ConnectionManager(
     @Volatile private var version = 0L
     @Volatile private var paused = false
     @Volatile var sensorHz = 0.0
+    /** System.nanoTime() of the last host reply (pong) on the active link — input freshness for the UI. */
+    @Volatile var lastAckNs = 0L; private set
+    /** System.nanoTime() of the last input frame sent. */
+    @Volatile var lastSendNs = 0L; private set
+    @Volatile var connectedAtNs = 0L; private set
     private var reconnects = 0
     private var watchdogTrips = 0
 
@@ -237,6 +244,7 @@ class ConnectionManager(
         session?.cancel()
         active?.close(sendBye = true)
         active = null
+        _stats.value = _stats.value.copy(lastDisconnect = "You disconnected")
         _state.value = ConnState.Idle
     }
 
@@ -247,6 +255,7 @@ class ConnectionManager(
         val old = active
         val failed = old?.kind
         if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
+        if (!healthy) _stats.value = _stats.value.copy(lastDisconnect = "${failed?.label ?: "Link"}: $reason")
         if (to == null) { active = null; old?.close(sendBye = false) }
         startSession(h, attempt = 1, reason = reason, failedKind = failed, preferred = to, makeBeforeBreak = old.takeIf { to != null })
     }
@@ -286,6 +295,7 @@ class ConnectionManager(
                         makeBeforeBreak?.close(sendBye = false)
                         active = link
                         switchedAt = now(); betterSince = 0
+                        connectedAtNs = System.nanoTime(); lastAckNs = connectedAtNs
                         if (n > 0) { reconnects++; _stats.value = _stats.value.copy(reconnects = reconnects, lastReconnectMs = (System.nanoTime() - t0) / 1_000_000) }
                         if (failedKind != null && failedKind != link.kind) _stats.value = _stats.value.copy(lastSwitch = "${failedKind.label} → ${link.kind.label}: $reason")
                         _state.value = ConnState.Connected(link.conn.host.name, info.slot, null, link.kind, link.detail)
@@ -376,7 +386,7 @@ class ConnectionManager(
                 if (link.isDown) { if (active === link) restart("Bluetooth link disconnected", healthy = false); return@Thread }
                 try { ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) } }
                 catch (e: Exception) { if (active === link) restart("input link: ${describe(e)}", healthy = false); return@Thread }
-                if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime() }
+                if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime(); lastAckNs = lastPong }
                 val age = (System.nanoTime() - lastPong) / 1_000_000
                 if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); restart("no response for $age ms on ${link.kind.label}", healthy = false); return@Thread }
             }
@@ -394,7 +404,7 @@ class ConnectionManager(
                 val (s, f, v) = lock.withLock { Triple(if (paused) InputState.NEUTRAL else latest, latestFlags or (if (paused) FLAG_PAUSED else 0), version) }
                 val hb = if (s.isNeutral) hbIdle else hbActive
                 try {
-                    if (v != sentVersion || now - lastSend >= hb) { ch.sendInput(s, f); sentVersion = v; lastSend = now; windowSent++ }
+                    if (v != sentVersion || now - lastSend >= hb) { ch.sendInput(s, f); sentVersion = v; lastSend = now; lastSendNs = now; windowSent++ }
                     if (now - lastPing >= pingNs) { ch.ping(); lastPing = now }
                     if (now - windowStart >= 1_000_000_000L) { sendHz = windowSent * 1e9 / (now - windowStart); windowStart = now; windowSent = 0 }
                     if (now - lastStats >= 2_000_000_000L) {

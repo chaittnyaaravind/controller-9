@@ -2,21 +2,25 @@ package dev.ninecontroller.android.ui.controller
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
-import android.os.Build
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +48,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -53,17 +61,27 @@ import dev.ninecontroller.android.data.AppSettings
 import dev.ninecontroller.android.input.ControllerEngine
 import dev.ninecontroller.android.input.MotionSensor
 import dev.ninecontroller.android.net.ConnState
-import dev.ninecontroller.android.ui.StatusDot
+import dev.ninecontroller.android.pad.PadGeometry
+import dev.ninecontroller.android.pad.PadMapping
+import dev.ninecontroller.android.pad.PadPresets
+import dev.ninecontroller.android.ui.Pill
+import dev.ninecontroller.android.ui.Tone
 import dev.ninecontroller.android.ui.fmt
+import dev.ninecontroller.android.ui.pad.Look
+import dev.ninecontroller.android.ui.pad.drawElement
 import dev.ninecontroller.android.ui.theme.Micro
 import dev.ninecontroller.android.ui.theme.Nine
-import dev.ninecontroller.android.ui.theme.primaryButtonColors
+import dev.ninecontroller.android.ui.theme.NineType
+import dev.ninecontroller.android.ui.PrimaryButton
 import dev.ninecontroller.protocol.Button as Btn
 import dev.ninecontroller.protocol.Calibrator
 import dev.ninecontroller.protocol.ControlDef
 import dev.ninecontroller.protocol.ControlKind
+import dev.ninecontroller.protocol.InputState
 import dev.ninecontroller.protocol.MotionMath
+import dev.ninecontroller.protocol.MotionSettings
 import dev.ninecontroller.protocol.Orientation
+import dev.ninecontroller.protocol.Profile
 import dev.ninecontroller.protocol.Steering
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -74,38 +92,62 @@ import kotlin.math.hypot
 /** Live per-control visual state (what the user is touching). */
 data class Visual(val pressed: Boolean = false, val x: Double = 0.0, val y: Double = 0.0, val value: Double = 0.0, val mask: Int = 0)
 
+/**
+ * What the surface shows: a controller preset (PadMapping) or a custom profile. Both feed the same
+ * ControllerEngine through the same touch handlers, so input safety is shared.
+ */
+private class SurfaceSpec(
+    val key: String,
+    val name: String,
+    val controls: List<ControlDef>,
+    val pad: PadMapping?,
+    val motion: MotionSettings,
+    val stickDeadzone: Double,
+    val orientation: Orientation,
+    val profileId: String?,
+    val hapticsEnabled: Boolean,
+    val hapticStrength: Double,
+)
+
 @Composable
 fun ControllerScreen(app: NineApp, nav: NavController) {
     val context = LocalContext.current
     val activity = context as Activity
     val view = LocalView.current
     val scope = rememberCoroutineScope()
-    val settings by app.settings.flow.collectAsState(AppSettings())
+    val settings by app.settings.flow.collectAsState(null)
     val profiles by app.profiles.profiles.collectAsState()
     val conn by app.connection.state.collectAsState()
     val stats by app.connection.stats.collectAsState()
-    val profile = profiles.find { it.id == settings.activeProfile } ?: profiles.firstOrNull() ?: return
+    val s = settings ?: return // wait for stored settings: never flash the wrong layout
 
-    val engine = remember { ControllerEngine { s, f -> app.connection.submit(s, f) } }
+    val spec = remember(s.activeProfile, s.padMappings, s.padTilt, s.tiltSensitivity, s.tiltDeadzone, s.tiltLockDeg, s.stickDeadzone, profiles) { surfaceFor(s, profiles) } ?: return
+
+    val engine = remember { ControllerEngine { st, f -> app.connection.submit(st, f) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }
+    var sent by remember { mutableStateOf(InputState.NEUTRAL) }
     var steeringValue by remember { mutableDoubleStateOf(0.0) }
     var calibrating by remember { mutableStateOf(false) }
     var calibrationMsg by remember { mutableStateOf<String?>(null) }
+    var showInputs by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf<String?>(null) }
+    var switcher by remember { mutableStateOf(false) }
     val sensor = remember { MotionSensor(context) }
     val lastAngle = remember { doubleArrayOf(Double.NaN) }
     val calibrator = remember { arrayOfNulls<Calibrator>(1) }
 
-    app.haptics.enabled = settings.hapticsEnabled && profile.haptics.enabled
-    app.haptics.strength = settings.hapticStrength * profile.haptics.strength / 0.7
+    app.haptics.enabled = s.hapticsEnabled && spec.hapticsEnabled
+    app.haptics.strength = s.hapticStrength * spec.hapticStrength / 0.7
 
-    // Window: orientation, immersive, keep-screen-on — restored on exit.
-    DisposableEffect(profile.orientation, settings.keepScreenOn) {
-        activity.requestedOrientation = if (profile.orientation == Orientation.LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    // Window: orientation, immersive, keep-screen-on — restored on exit. Controller presets are
+    // landscape (two-thumb grip; motion steering assumes it); either landscape rotation works.
+    DisposableEffect(spec.orientation, s.keepScreenOn) {
+        activity.requestedOrientation = if (spec.orientation == Orientation.LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         val ctl = WindowCompat.getInsetsController(activity.window, view)
         ctl.hide(WindowInsetsCompat.Type.systemBars())
         ctl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (settings.keepScreenOn) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (s.keepScreenOn) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             ctl.show(WindowInsetsCompat.Type.systemBars())
@@ -115,21 +157,20 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 
     // Connect to the last computer automatically.
     LaunchedEffect(Unit) {
-        app.connection.setProfileName(profile.name)
         if (app.connection.state.value is ConnState.Idle || app.connection.state.value is ConnState.Failed) {
-            // Read the stored settings: the collected `settings` is still the default on first composition.
             val last = app.settings.flow.first().lastHost ?: app.hosts.hosts.value.firstOrNull()?.id
             last?.let { app.hosts.byId(it) }?.let { app.connection.connect(it) }
         }
     }
+    LaunchedEffect(spec.name) { app.connection.setProfileName(spec.name) }
 
-    // Motion steering: only while this screen is visible and the profile enables it.
-    DisposableEffect(profile.id, profile.motion, settings.calibrationDeg, settings.sensorHz) {
-        engine.configure(profile.motion)
-        if (profile.motion.enabled) {
-            val steering = Steering(profile.motion).apply { setCenter(settings.calibrationDeg) }
+    // Motion steering: only while this screen is visible and the layout enables it.
+    DisposableEffect(spec.key, spec.motion, s.calibrationDeg, s.sensorHz) {
+        engine.configure(spec.motion)
+        if (spec.motion.enabled) {
+            val steering = Steering(spec.motion).apply { setCenter(s.calibrationDeg) }
             val display = androidx.core.content.ContextCompat.getDisplayOrDefault(context)
-            sensor.start(settings.sensorHz, { display.rotation }) { gx, gy, gz, t ->
+            sensor.start(s.sensorHz, { display.rotation }) { gx, gy, gz, t ->
                 MotionMath.wheelAngleDeg(gx, gy, gz)?.let { lastAngle[0] = it }
                 calibrator[0]?.add(gx, gy, gz)
                 val v = steering.update(gx, gy, gz, t)
@@ -140,7 +181,11 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         onDispose { sensor.stop(); engine.releaseAll() }
     }
     LaunchedEffect(Unit) { while (true) { app.connection.sensorHz = sensor.measuredHz; delay(1000) } }
-    DisposableEffect(profile.id) { visuals.clear(); toggles.clear(); engine.releaseAll(); onDispose { } }
+    // Any layout change releases every control first (nothing stays held across a switch).
+    DisposableEffect(spec.key) { visuals.clear(); toggles.clear(); engine.releaseAll(); onDispose { } }
+    // Inspector shows what is actually sent, not what the screen thinks is pressed.
+    LaunchedEffect(showInputs) { while (showInputs) { sent = engine.state; delay(50) } }
+    LaunchedEffect(hint) { if (hint != null) { delay(2400); hint = null } }
 
     fun runCalibration() {
         calibrating = true; calibrationMsg = "Hold the phone at your neutral steering position…"
@@ -163,11 +208,20 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg)) {
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
         val density = LocalDensity.current
-        fun rect(c: ControlDef) = floatArrayOf((c.x * wPx).toFloat(), (c.y * hPx).toFloat(), ((c.x + c.w) * wPx).toFloat(), ((c.y + c.h) * hPx).toFloat())
-        val controls = profile.controls
+        val minTarget = with(density) { Nine.target.toPx() }
+        // Screen boxes for every control: presets use uniform sizing, profiles their own rects.
+        val boxes: Map<String, PadGeometry.Box> = remember(spec.key, wPx, hPx, spec.controls) {
+            spec.pad?.active?.associate { (e, _) -> e.id to PadGeometry.place(e, wPx, hPx) }
+                ?: spec.controls.associate { c -> c.id to PadGeometry.Box((c.x * wPx).toFloat(), (c.y * hPx).toFloat(), ((c.x + c.w) * wPx).toFloat(), ((c.y + c.h) * hPx).toFloat()) }
+        }
+        val inert: Map<String, PadGeometry.Box> = remember(spec.key, wPx, hPx) {
+            spec.pad?.let { m -> m.preset.elements.filter { m.actionOf(it) == null }.associate { it.id to PadGeometry.place(it, wPx, hPx) } } ?: emptyMap()
+        }
+        val byId = remember(spec.controls) { spec.controls.associateBy { it.id } }
+        fun rect(id: String) = boxes.getValue(id).let { floatArrayOf(it.left, it.top, it.right, it.bottom) }
 
         // One multi-touch handler for the whole surface: each finger owns the control it landed on.
-        Box(Modifier.fillMaxSize().pointerInput(profile) {
+        Box(Modifier.fillMaxSize().pointerInput(spec.key, wPx, hPx) {
             val recenter = { val a = lastAngle[0]; if (!a.isNaN()) scope.launch { app.settings.update { it.copy(calibrationDeg = a) } }; Unit }
             val owner = HashMap<PointerId, ControlDef>()
             val origin = HashMap<PointerId, Offset>()
@@ -177,13 +231,21 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     for (ch in ev.changes) {
                         val p = ch.position
                         if (ch.pressed && !ch.previousPressed) {
-                            val hit = controls.lastOrNull { c -> val r = rect(c); p.x >= r[0] && p.x <= r[2] && p.y >= r[1] && p.y <= r[3] } ?: continue
+                            val id = PadGeometry.hit(boxes, p.x, p.y, if (spec.pad != null) minTarget else 0f)
+                            val hit = id?.let { byId[it] }
+                            if (hit == null) {
+                                // Tapping a control this protocol can't carry explains why instead of doing nothing silently.
+                                inert.entries.firstOrNull { it.value.contains(p.x, p.y) }?.let { (eid, _) ->
+                                    val e = spec.pad!!.preset.element(eid); hint = "${e.label}: ${e.unavailable}"
+                                }
+                                continue
+                            }
                             owner[ch.id] = hit; origin[ch.id] = p
-                            onTouch(hit, p, p, rect(hit), engine, visuals, toggles, app, profile.sticks.deadzone, down = true, recenter = recenter)
+                            onTouch(hit, p, p, rect(hit.id), engine, visuals, toggles, app, spec.stickDeadzone, down = true, recenter = recenter, fullTriggers = spec.pad != null)
                             ch.consume()
                         } else if (ch.pressed) {
                             val c = owner[ch.id] ?: continue
-                            onTouch(c, p, origin[ch.id]!!, rect(c), engine, visuals, toggles, app, profile.sticks.deadzone, down = false, recenter = recenter)
+                            onTouch(c, p, origin[ch.id]!!, rect(c.id), engine, visuals, toggles, app, spec.stickDeadzone, down = false, recenter = recenter, fullTriggers = spec.pad != null)
                             ch.consume()
                         } else {
                             val c = owner.remove(ch.id) ?: continue
@@ -194,66 +256,159 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 }
             }
         }) {
-            controls.forEach { c ->
-                val r = rect(c)
+            val pad = spec.pad
+            if (pad != null) {
+                val tm = rememberTextMeasurer()
+                val u = minOf(wPx / 200f, hPx / 100f)
+                Canvas(Modifier.fillMaxSize()) {
+                    for (e in pad.preset.elements) {
+                        val b = boxes[e.id] ?: inert.getValue(e.id)
+                        val v = visuals[e.id] ?: Visual(pressed = toggles[e.id] == true)
+                        drawElement(e, Rect(b.left, b.top, b.right, b.bottom), pad.actionOf(e),
+                            Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u)
+                    }
+                }
+            }
+            // Accessibility nodes (and the profile renderer): one box per control.
+            spec.controls.forEach { c ->
+                val b = boxes.getValue(c.id)
                 val v = visuals[c.id] ?: Visual(pressed = toggles[c.id] == true)
                 with(density) {
-                    Box(Modifier.offset(r[0].toDp(), r[1].toDp()).size((r[2] - r[0]).toDp(), (r[3] - r[1]).toDp())
+                    Box(Modifier.offset(b.left.toDp(), b.top.toDp()).size(b.width.toDp(), b.height.toDp())
                         .semantics {
                             role = Role.Button
-                            contentDescription = describe(c)
+                            contentDescription = describe(c, spec.pad)
+                            stateDescription = if (v.pressed) "pressed" else "released"
                             if (c.kind == ControlKind.BUTTON) onClick {
                                 val m = Btn.fromId(c.bind)!!.mask
                                 engine.setButtons(c.id, m); scope.launch { delay(120); engine.setButtons(c.id, 0) }; true
                             }
                         }) {
-                        ControlVisual(c, v, steeringValue)
+                        if (pad == null) ControlVisual(c, v, steeringValue)
                     }
                 }
             }
         }
 
-        // Status strip (top centre, small) — never covers controls' hit areas meaningfully.
-        Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).background(Nine.s1.copy(alpha = 0.85f), Nine.pill).padding(horizontal = 12.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val (label, color) = when (val s = conn) {
-                is ConnState.Connected -> "P${s.slot + 1} · ${s.hostName} · ${s.link.label}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
-                is ConnState.Reconnecting -> "Reconnecting…" to Nine.warn
-                is ConnState.Connecting -> "Connecting…" to Nine.warn
-                else -> "Offline" to Nine.bad
+        // ---------------------------------------------------------------- top bar (between the shoulders)
+        Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = with(density) { (wPx * 0.5f).toDp() }),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box {
+                Row(Modifier.heightIn(min = 36.dp).background(Nine.s1.copy(alpha = 0.92f), Nine.pill).border(1.dp, Nine.line, Nine.pill)
+                    .clickable(role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+                    Text("  ▾", style = NineType.small, color = Nine.dim)
+                }
+                DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
+                    Micro("Controller layouts", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    PadPresets.all.forEach { p ->
+                        val sel = PadPresets.selection(p)
+                        DropdownMenuItem(text = { Text(p.name + if (sel == s.activeProfile) "  ·  active" else "", color = if (sel == s.activeProfile) Nine.accent else Nine.text) },
+                            onClick = { switcher = false; scope.launch { app.settings.update { it.copy(activeProfile = sel) } } })
+                    }
+                    HorizontalDivider(color = Nine.line)
+                    Micro("Custom profiles", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    profiles.forEach { p ->
+                        DropdownMenuItem(text = { Text(p.name + if (p.id == s.activeProfile) "  ·  active" else "", color = if (p.id == s.activeProfile) Nine.accent else Nine.text) },
+                            onClick = { switcher = false; scope.launch { app.settings.update { it.copy(activeProfile = p.id) } } })
+                    }
+                }
             }
-            StatusDot(color)
-            Micro(label, color = Nine.text)
-            if (settings.showStats && conn is ConnState.Connected) Micro("${fmt(stats.rttP50)} ms", color = Nine.dim)
-            if (profile.motion.enabled) TextButton(onClick = { runCalibration() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Micro("Center", color = Nine.text) }
-            TextButton(onClick = { nav.navigate("edit/${profile.id}") }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Micro("Edit", color = Nine.text) }
-            TextButton(onClick = { nav.popBackStack() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Micro("Exit", color = Nine.text) }
+            val (label, tone) = when (val c = conn) {
+                is ConnState.Connected -> "P${c.slot + 1} · ${c.link.label}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
+                is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
+                is ConnState.Connecting -> "Connecting" to Tone.WARN
+                is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
+                is ConnState.Failed -> "Offline" to Tone.BAD
+                ConnState.Idle -> "Offline" to Tone.BAD
+            }
+            Pill(label, tone)
+            BarButton(if (showInputs) "Hide inputs" else "Inputs") { showInputs = !showInputs }
+            if (spec.motion.enabled) BarButton("Center") { runCalibration() }
+            if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
+            BarButton("Exit") { nav.popBackStack() }
+        }
+
+        // ---------------------------------------------------------------- inspector / hints (non-interactive)
+        val inspector = if (showInputs) describeSent(sent, spec.pad) else null
+        val warn = (conn as? ConnState.Connected)?.backendWarning
+        if (inspector != null || hint != null) {
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 50.dp).widthIn(max = with(density) { (wPx * 0.44f).toDp() })
+                .background(Nine.s1.copy(alpha = 0.94f), Nine.small).border(1.dp, Nine.line, Nine.small).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                androidx.compose.foundation.layout.Column {
+                    if (hint != null) Text(hint!!, style = NineType.small, color = Nine.warn)
+                    if (inspector != null) {
+                        Micro("Sending now", color = Nine.dim)
+                        Text(inspector, style = NineType.mono, color = Nine.text)
+                        if (warn != null) Text("Computer receives input; games can’t see a controller there yet.", style = NineType.small, color = Nine.warn)
+                    }
+                }
+            }
         }
     }
 
     if (calibrating) AlertDialog(
         onDismissRequest = {},
-        title = { Text("Calibrate steering") },
+        title = { Text("Center steering") },
         text = { Text(calibrationMsg ?: "") },
-        confirmButton = { if (calibrationMsg?.startsWith("Hold the phone at") != true) Button(onClick = { runCalibration() }, colors = primaryButtonColors()) { Text("Try again") } },
+        confirmButton = { if (calibrationMsg?.startsWith("Hold the phone at") != true) PrimaryButton("Try again", { runCalibration() }) },
         dismissButton = { TextButton(onClick = { calibrating = false; calibrator[0] = null; engine.setCalibrating(false) }) { Text("Cancel", color = Nine.text) } },
         containerColor = Nine.s1,
     )
 }
 
-private fun describe(c: ControlDef): String = when (c.kind) {
-    ControlKind.BUTTON -> "${c.label ?: c.bind.uppercase()} button"
-    ControlKind.STICK -> "${c.bind} stick"
-    ControlKind.DPAD -> "Direction pad"
-    ControlKind.TRIGGER -> "${c.label ?: c.bind.uppercase()} trigger"
-    ControlKind.PEDAL -> "${c.label ?: c.bind.uppercase()} pedal"
-    ControlKind.STEERING -> "Steering indicator. Tap to recenter."
+@Composable
+private fun BarButton(text: String, onClick: () -> Unit) =
+    Box(Modifier.heightIn(min = 36.dp).background(Nine.s1.copy(alpha = 0.92f), Nine.pill).border(1.dp, Nine.line, Nine.pill)
+        .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Micro(text, color = Nine.text)
+    }
+
+private fun surfaceFor(s: AppSettings, profiles: List<Profile>): SurfaceSpec? {
+    s.padPreset?.let { preset ->
+        val mapping = PadMapping.decode(preset, s.padMappings[preset.id]).first
+        return SurfaceSpec(s.activeProfile, preset.name, mapping.controls(), mapping, s.padMotion(), s.stickDeadzone, Orientation.LANDSCAPE, null, true, 0.7)
+    }
+    val p = profiles.find { it.id == s.activeProfile } ?: profiles.firstOrNull() ?: return null
+    return SurfaceSpec(p.id, p.name, p.controls, null, p.motion, p.sticks.deadzone, p.orientation, p.id, p.haptics.enabled, p.haptics.strength)
+}
+
+private fun describe(c: ControlDef, pad: PadMapping?): String {
+    pad?.let { m -> val e = m.preset.element(c.id); return "${e.label}, sends ${m.actionOf(e)?.title ?: "nothing"}" }
+    return when (c.kind) {
+        ControlKind.BUTTON -> "${c.label ?: c.bind.uppercase()} button"
+        ControlKind.STICK -> "${c.bind} stick"
+        ControlKind.DPAD -> "Direction pad"
+        ControlKind.TRIGGER -> "${c.label ?: c.bind.uppercase()} trigger"
+        ControlKind.PEDAL -> "${c.label ?: c.bind.uppercase()} pedal"
+        ControlKind.STEERING -> "Steering indicator. Tap to recenter."
+    }
+}
+
+/** Human-readable decode of the InputState actually being sent, with this layout's labels. */
+internal fun describeSent(st: InputState, pad: PadMapping?): String {
+    if (st.isNeutral) return "nothing — all released"
+    val names = Btn.entries.filter { st.pressed(it) }.map { b ->
+        pad?.active?.firstOrNull { (_, a) -> a.button == b }?.first?.let { if (it.part == dev.ninecontroller.android.pad.Part.DPAD) null else it.short }
+            ?: when (b) { Btn.UP -> "↑"; Btn.DOWN -> "↓"; Btn.LEFT -> "←"; Btn.RIGHT -> "→"; else -> b.id.uppercase() }
+    }
+    val parts = ArrayList(names)
+    fun axis(v: Int) = "%+.2f".format(v / 32767.0)
+    fun trig(v: Int) = "${(v * 100.0 / 65535).toInt()}%"
+    val lt = pad?.preset?.elements?.find { it.id == "trigger_l" }?.short ?: "LT"
+    val rt = pad?.preset?.elements?.find { it.id == "trigger_r" }?.short ?: "RT"
+    if (st.lt > 0) parts += "$lt ${trig(st.lt)}"
+    if (st.rt > 0) parts += "$rt ${trig(st.rt)}"
+    if (st.lx != 0 || st.ly != 0) parts += "L ${axis(st.lx)} ${axis(st.ly)}"
+    if (st.rx != 0 || st.ry != 0) parts += "R ${axis(st.rx)} ${axis(st.ry)}"
+    return parts.joinToString("  ·  ")
 }
 
 private fun onTouch(
     c: ControlDef, p: Offset, origin: Offset, r: FloatArray, engine: ControllerEngine,
     visuals: MutableMap<String, Visual>, toggles: MutableMap<String, Boolean>, app: NineApp, stickDz: Double, down: Boolean,
-    recenter: () -> Unit,
+    recenter: () -> Unit, fullTriggers: Boolean,
 ) {
     val w = r[2] - r[0]; val h = r[3] - r[1]
     when (c.kind) {
@@ -288,8 +443,10 @@ private fun onTouch(
             engine.setButtons(c.id, mask); visuals[c.id] = Visual(mask != 0, mask = mask)
         }
         ControlKind.TRIGGER, ControlKind.PEDAL -> {
-            // Depth from the top edge: deeper finger = more pressure. Small top band = 0 for clean release.
-            val v = (((p.y - r[1]) / h - 0.08f) / 0.84f).coerceIn(0f, 1f).toDouble()
+            // Preset triggers are thumb-tapped: full press. Profile triggers/pedals are analog by
+            // depth from the top edge (deeper finger = more pressure; small top band = 0).
+            val v = if (fullTriggers && c.kind == ControlKind.TRIGGER) 1.0
+                else (((p.y - r[1]) / h - 0.08f) / 0.84f).coerceIn(0f, 1f).toDouble()
             engine.setTrigger(c.id, c.bind, if (c.kind == ControlKind.PEDAL) maxOf(v, 0.02) else v)
             visuals[c.id] = Visual(true, value = v)
             if (down && c.haptic) app.haptics.click()
