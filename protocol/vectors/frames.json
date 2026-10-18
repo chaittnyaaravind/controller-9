@@ -1,0 +1,134 @@
+{
+  "freshness": {
+    "accepted": [
+      true,
+      true,
+      false,
+      true,
+      false,
+      true
+    ],
+    "counters": [
+      1,
+      2,
+      2,
+      5,
+      4,
+      6
+    ],
+    "lost": 2,
+    "stale": 2
+  },
+  "invalid": [
+    {
+      "datagram": "394301010100000001000000000000003113e2447e7f27e66725da168bf466",
+      "error": "too_short",
+      "name": "too_short"
+    },
+    {
+      "datagram": "394301010100000001000000000000003113e2443e7f27e66725da168bf466c4e630d3211f29f1f9c194db8d65bc39ad41625ca18ea7be58b0ff",
+      "error": "auth",
+      "name": "ciphertext_bit_flip"
+    },
+    {
+      "datagram": "584301010100000001000000000000003113e2447e7f27e66725da168bf466c4e630d3211f29f1f9c194db8d65bc39ad41625ca18ea7be58b0ff",
+      "error": "bad_magic",
+      "name": "bad_magic"
+    },
+    {
+      "datagram": "394302010100000001000000000000003113e2447e7f27e66725da168bf466c4e630d3211f29f1f9c194db8d65bc39ad41625ca18ea7be58b0ff",
+      "error": "bad_version",
+      "name": "bad_version"
+    },
+    {
+      "datagram": "394301100100000001000000000000003113e2447e7f27e66725da168bf466c4e630d3211f29f1f9c194db8d65bc39ad41625ca18ea7be58b0ff",
+      "error": "unknown_type",
+      "name": "unknown_type"
+    },
+    {
+      "datagram": "394301010100000000000000000000003113e2447e7f27e66725da168bf466c4e630d3211f29f1f9c194db8d65bc39ad41625ca18ea7be58b0ff",
+      "error": "auth",
+      "name": "header_tamper"
+    },
+    {
+      "datagram": "3943010101000000020000000000000090736e2acdd4aa21354491c9a4d2d910534eb42ed16e293974e435d61337a967001e9bd5dfe6d7723b94",
+      "error": "out_of_range",
+      "name": "axis_out_of_range"
+    },
+    {
+      "datagram": "39430101010000000300000000000000e769c587f2e9207ea9cee37da2606f36857d6d53e8a3e512398cbe285729018687c6fa2e27b5168a53",
+      "error": "bad_length",
+      "name": "payload_length"
+    }
+  ],
+  "key": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+  "valid": [
+    {
+      "counter": 3,
+      "datagram": "394301010d0c0b0a0300000000000000356b53cef2e9207eaceee37da3e08f187a0292ace8a31aed38d14e3ab31c8a69a37ae8c17fdca24a321e",
+      "fields": {
+        "buttons": 8197,
+        "flags": 1,
+        "lt": 0,
+        "lx": -32767,
+        "ly": 12000,
+        "rt": 65535,
+        "rx": 32767,
+        "ry": -1,
+        "t_us": 1234567890
+      },
+      "name": "input",
+      "payload": "d202964900000000052000000180e02eff7fffff0000ffff0100",
+      "session_id": 168496141,
+      "type": 1
+    },
+    {
+      "counter": 4,
+      "datagram": "394301020d0c0b0a0400000000000000c185870fc1a590a41f569d4a63265b58120afb8275da0b70d02c9acf",
+      "fields": {
+        "id": 7,
+        "t_us": 99
+      },
+      "name": "ping",
+      "payload": "630000000000000007000000",
+      "session_id": 168496141,
+      "type": 2
+    },
+    {
+      "counter": 5,
+      "datagram": "394301030d0c0b0a050000000000000050ecd39e805b7dc22bf40d36d43541cc7c0eb983797166fea1f280b7251fb95d64911490e69de58542fb1449",
+      "fields": {
+        "host_rx_us": 1000,
+        "host_tx_us": 1010,
+        "id": 7,
+        "t_us": 99
+      },
+      "name": "pong",
+      "payload": "630000000000000007000000e803000000000000f203000000000000",
+      "session_id": 168496141,
+      "type": 3
+    },
+    {
+      "counter": 6,
+      "datagram": "394301040d0c0b0a06000000000000009f2f26a79df164d51adaa276270c11f76cc2f6f71509",
+      "fields": {
+        "high": 65535,
+        "low": 1000,
+        "ms": 120
+      },
+      "name": "feedback",
+      "payload": "e803ffff7800",
+      "session_id": 168496141,
+      "type": 4
+    },
+    {
+      "counter": 7,
+      "datagram": "394301050d0c0b0a0700000000000000df50afd266f9e548c555fdffc63d47e8",
+      "fields": {},
+      "name": "bye",
+      "payload": "",
+      "session_id": 168496141,
+      "type": 5
+    }
+  ]
+}

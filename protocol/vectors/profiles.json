@@ -1,0 +1,91 @@
+{
+  "invalid": [
+    {
+      "json": "{\"schema\":1,\"id\":\"x\",\"name\":\"X\",\"orientation\":\"landscape\",\"controls\":[{\"id\":\"a\",\"type\":\"button\",\"bind\":\"a\",\"x\":0.99,\"y\":0,\"w\":0.1,\"h\":0.1}]}",
+      "why": "control past right edge"
+    },
+    {
+      "json": "{\"schema\":1,\"id\":\"x\",\"name\":\"X\",\"orientation\":\"landscape\",\"controls\":[{\"id\":\"a\",\"type\":\"stick\",\"bind\":\"a\",\"x\":0,\"y\":0,\"w\":0.1,\"h\":0.1}]}",
+      "why": "bad bind"
+    },
+    {
+      "json": "{\"schema\":1,\"id\":\"x\",\"name\":\"X\",\"orientation\":\"landscape\",\"controls\":[{\"id\":\"a\",\"type\":\"button\",\"bind\":\"a\",\"x\":0,\"y\":0,\"w\":0.1,\"h\":0.1},{\"id\":\"a\",\"type\":\"button\",\"bind\":\"b\",\"x\":0.5,\"y\":0,\"w\":0.1,\"h\":0.1}]}",
+      "why": "duplicate id"
+    },
+    {
+      "json": "{\"schema\":2,\"id\":\"x\",\"name\":\"X\",\"orientation\":\"landscape\",\"controls\":[]}",
+      "why": "newer schema"
+    },
+    {
+      "json": "{\"schema\":1,\"id\":\"x\",\"name\":\"X\",\"orientation\":\"landscape\",\"controls\":[],\"motion\":{\"lockDeg\":2}}",
+      "why": "lock too small"
+    }
+  ],
+  "migration": [
+    {
+      "expected": {
+        "controls": [
+          {
+            "bind": "dpad",
+            "h": 0.4,
+            "haptic": true,
+            "id": "c0",
+            "opacity": 1.0,
+            "toggle": false,
+            "type": "dpad",
+            "w": 0.25,
+            "x": 0.05,
+            "y": 0.5
+          },
+          {
+            "bind": "a",
+            "h": 0.2,
+            "haptic": true,
+            "id": "c1",
+            "opacity": 1.0,
+            "toggle": false,
+            "type": "button",
+            "w": 0.12,
+            "x": 0.8,
+            "y": 0.6
+          },
+          {
+            "bind": "rt",
+            "h": 0.4,
+            "haptic": true,
+            "id": "c2",
+            "opacity": 1.0,
+            "toggle": false,
+            "type": "trigger",
+            "w": 0.08,
+            "x": 0.9,
+            "y": 0.1
+          }
+        ],
+        "haptics": {
+          "enabled": true,
+          "strength": 0.7
+        },
+        "id": "old-kart",
+        "motion": {
+          "axis": "lx",
+          "beta": 0.03,
+          "curve": 1.0,
+          "deadzone": 0.02,
+          "enabled": true,
+          "invert": false,
+          "lockDeg": 60.0,
+          "minCutoff": 1.5,
+          "sensitivity": 1.0
+        },
+        "name": "Old Kart",
+        "orientation": "landscape",
+        "schema": 1,
+        "sticks": {
+          "deadzone": 0.08
+        }
+      },
+      "input": "{\"version\":0,\"name\":\"Old Kart\",\"layout\":[{\"kind\":\"pad\",\"rect\":[0.05,0.5,0.25,0.4]},{\"kind\":\"button\",\"action\":\"a\",\"rect\":[0.8,0.6,0.12,0.2]},{\"kind\":\"slider\",\"action\":\"rt\",\"rect\":[0.9,0.1,0.08,0.4]}],\"steer\":{\"enabled\":true,\"range\":120}}"
+    }
+  ]
+}

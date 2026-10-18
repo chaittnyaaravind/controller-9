@@ -1,0 +1,13 @@
+{
+  "commitment": "d89e93842a81c8983a5af8ec5eb56428bc3a8266d58f485a847598b4c92b9673",
+  "handshake_hash": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+  "host_id_of_uri_key": "ec071e0a0136c837",
+  "na": "101112131415161718191a1b1c1d1e1f",
+  "nb": "303132333435363738393a3b3c3d3e3f",
+  "qr_proof": "7a55bb613282ca8d0acc10ce51574c8f6dfcafccb897286fabd3bf7ab182366d",
+  "sas": 128983,
+  "sas_display": "128 983",
+  "token": "505152535455565758595a5b5c5d5e5f",
+  "uri": "ninectl://pair?v=1&a=192.168.1.20&p=47901&k=wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t8&t=UFFSU1RVVldYWVpbXF1eXw&n=Studio%20PC",
+  "uri_host_static": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
+}

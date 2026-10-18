@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://9-controller.local/schema/profile.v1.schema.json",
+  "title": "9-controller profile v1",
+  "type": "object",
+  "required": ["schema", "id", "name", "orientation", "controls"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9_-]{1,64}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "orientation": { "enum": ["landscape", "portrait"] },
+    "controls": {
+      "type": "array", "maxItems": 48,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "bind", "x", "y", "w", "h"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "type": { "enum": ["button", "stick", "dpad", "trigger", "pedal", "steering"] },
+          "bind": { "type": "string" },
+          "x": { "type": "number", "minimum": 0, "maximum": 1 },
+          "y": { "type": "number", "minimum": 0, "maximum": 1 },
+          "w": { "type": "number", "minimum": 0.03, "maximum": 1 },
+          "h": { "type": "number", "minimum": 0.03, "maximum": 1 },
+          "label": { "type": "string", "maxLength": 12 },
+          "opacity": { "type": "number", "minimum": 0.1, "maximum": 1, "default": 1 },
+          "toggle": { "type": "boolean", "default": false },
+          "haptic": { "type": "boolean", "default": true }
+        },
+        "allOf": [
+          { "if": { "properties": { "type": { "const": "button" } } }, "then": { "properties": { "bind": { "enum": ["a","b","x","y","lb","rb","view","menu","ls","rs","up","down","left","right","guide"] } } } },
+          { "if": { "properties": { "type": { "const": "stick" } } }, "then": { "properties": { "bind": { "enum": ["left", "right"] } } } },
+          { "if": { "properties": { "type": { "const": "dpad" } } }, "then": { "properties": { "bind": { "const": "dpad" } } } },
+          { "if": { "properties": { "type": { "enum": ["trigger", "pedal"] } } }, "then": { "properties": { "bind": { "enum": ["lt", "rt"] } } } },
+          { "if": { "properties": { "type": { "const": "steering" } } }, "then": { "properties": { "bind": { "const": "motion" } } } }
+        ]
+      }
+    },
+    "motion": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "axis": { "enum": ["lx", "rx"], "default": "lx" },
+        "lockDeg": { "type": "number", "minimum": 10, "maximum": 180, "default": 45 },
+        "deadzone": { "type": "number", "minimum": 0, "maximum": 0.5, "default": 0.02 },
+        "sensitivity": { "type": "number", "minimum": 0.25, "maximum": 4, "default": 1 },
+        "curve": { "type": "number", "minimum": 0.5, "maximum": 3, "default": 1 },
+        "invert": { "type": "boolean", "default": false },
+        "minCutoff": { "type": "number", "minimum": 0.05, "maximum": 20, "default": 1.5 },
+        "beta": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.03 }
+      }
+    },
+    "sticks": { "type": "object", "properties": { "deadzone": { "type": "number", "minimum": 0, "maximum": 0.5, "default": 0.08 } } },
+    "haptics": { "type": "object", "properties": { "enabled": { "type": "boolean", "default": true }, "strength": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 } } }
+  }
+}

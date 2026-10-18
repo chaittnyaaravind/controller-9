@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "classic",
+  "name": "Classic",
+  "orientation": "landscape",
+  "controls": [
+    { "id": "ls", "type": "stick", "bind": "left", "x": 0.03, "y": 0.3, "w": 0.24, "h": 0.45 },
+    { "id": "dpad", "type": "dpad", "bind": "dpad", "x": 0.27, "y": 0.58, "w": 0.18, "h": 0.38 },
+    { "id": "rs", "type": "stick", "bind": "right", "x": 0.55, "y": 0.58, "w": 0.2, "h": 0.38 },
+    { "id": "y", "type": "button", "bind": "y", "x": 0.82, "y": 0.2, "w": 0.08, "h": 0.15, "label": "Y" },
+    { "id": "x", "type": "button", "bind": "x", "x": 0.74, "y": 0.38, "w": 0.08, "h": 0.15, "label": "X" },
+    { "id": "b", "type": "button", "bind": "b", "x": 0.9, "y": 0.38, "w": 0.08, "h": 0.15, "label": "B" },
+    { "id": "a", "type": "button", "bind": "a", "x": 0.82, "y": 0.56, "w": 0.08, "h": 0.15, "label": "A" },
+    { "id": "lb", "type": "button", "bind": "lb", "x": 0.02, "y": 0.03, "w": 0.16, "h": 0.12, "label": "LB" },
+    { "id": "lt", "type": "trigger", "bind": "lt", "x": 0.2, "y": 0.03, "w": 0.1, "h": 0.24, "label": "LT" },
+    { "id": "rt", "type": "trigger", "bind": "rt", "x": 0.7, "y": 0.03, "w": 0.1, "h": 0.24, "label": "RT" },
+    { "id": "rb", "type": "button", "bind": "rb", "x": 0.82, "y": 0.03, "w": 0.16, "h": 0.12, "label": "RB" },
+    { "id": "view", "type": "button", "bind": "view", "x": 0.4, "y": 0.08, "w": 0.08, "h": 0.12, "label": "View", "opacity": 0.7 },
+    { "id": "menu", "type": "button", "bind": "menu", "x": 0.52, "y": 0.08, "w": 0.08, "h": 0.12, "label": "Menu", "opacity": 0.7 }
+  ],
+  "motion": { "enabled": false, "axis": "rx", "lockDeg": 30, "deadzone": 0.05, "sensitivity": 1.0, "curve": 1.0, "invert": false, "minCutoff": 1.0, "beta": 0.02 },
+  "sticks": { "deadzone": 0.08 },
+  "haptics": { "enabled": true, "strength": 0.6 }
+}

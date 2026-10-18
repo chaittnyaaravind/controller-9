@@ -1,0 +1,26 @@
+[package]
+name = "nine-proto"
+description = "9-controller protocol v1 reference implementation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chacha20poly1305.workspace = true
+x25519-dalek.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+subtle.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+snow = "=0.10.0"
+
+[[bin]]
+name = "gen-vectors"
+path = "src/bin/gen_vectors.rs"

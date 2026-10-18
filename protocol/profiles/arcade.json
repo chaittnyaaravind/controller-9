@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "arcade",
+  "name": "Arcade",
+  "orientation": "landscape",
+  "controls": [
+    { "id": "dpad", "type": "dpad", "bind": "dpad", "x": 0.04, "y": 0.3, "w": 0.3, "h": 0.6 },
+    { "id": "x", "type": "button", "bind": "x", "x": 0.56, "y": 0.34, "w": 0.12, "h": 0.24, "label": "X" },
+    { "id": "y", "type": "button", "bind": "y", "x": 0.7, "y": 0.3, "w": 0.12, "h": 0.24, "label": "Y" },
+    { "id": "rb", "type": "button", "bind": "rb", "x": 0.84, "y": 0.3, "w": 0.12, "h": 0.24, "label": "RB" },
+    { "id": "a", "type": "button", "bind": "a", "x": 0.56, "y": 0.64, "w": 0.12, "h": 0.24, "label": "A" },
+    { "id": "b", "type": "button", "bind": "b", "x": 0.7, "y": 0.6, "w": 0.12, "h": 0.24, "label": "B" },
+    { "id": "lb", "type": "button", "bind": "lb", "x": 0.84, "y": 0.6, "w": 0.12, "h": 0.24, "label": "LB" },
+    { "id": "view", "type": "button", "bind": "view", "x": 0.32, "y": 0.06, "w": 0.1, "h": 0.12, "label": "View", "opacity": 0.7 },
+    { "id": "menu", "type": "button", "bind": "menu", "x": 0.44, "y": 0.06, "w": 0.1, "h": 0.12, "label": "Menu", "opacity": 0.7 }
+  ],
+  "motion": { "enabled": false },
+  "sticks": { "deadzone": 0.08 },
+  "haptics": { "enabled": true, "strength": 0.8 }
+}
