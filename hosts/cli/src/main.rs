@@ -130,6 +130,7 @@ async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::Pat
             loop {
                 tokio::time::sleep(Duration::from_secs(stats_every)).await;
                 let snap = h.snapshot();
+                println!("ble: {}", serde_json::to_string(&snap.ble).unwrap_or_default());
                 for s in &snap.slots {
                     println!("stats: {}", serde_json::json!({
                         "t": nine_host_core::time::rfc3339_now(), "slot": s.slot, "name": s.name, "link": s.link_label, "connected": s.connected, "silent_ms": s.silent_ms,

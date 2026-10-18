@@ -93,6 +93,9 @@ class ConnectionManager(
     @Volatile private var lastSlot: Int? = null
     @Volatile private var profileName: String? = null
     private var session: Job? = null
+    /** Only the newest reconnect loop may change state or install a link: cancelling a coroutine does
+     *  not interrupt an attempt that is blocked inside Bluetooth/socket I/O (seen on a real device). */
+    @Volatile private var generation = 0L
     private var codeDecision: CompletableFuture<Boolean>? = null
 
     private val lock = ReentrantLock()
@@ -114,7 +117,7 @@ class ConnectionManager(
     init {
         context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(NetworkRequest.Builder().build(),
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { if (_state.value is ConnState.Reconnecting) restart("network available", healthy = false) }
+                override fun onAvailable(network: Network) { if (_state.value is ConnState.Reconnecting && active == null) restart("network available", healthy = false) }
                 override fun onLost(network: Network) {
                     val a = active ?: return
                     if (a.kind != LinkKind.BLE && LocalLinks.kindOf(a.conn.local) !in LocalLinks.available()) restart("network lost", healthy = false)
@@ -250,10 +253,12 @@ class ConnectionManager(
 
     private fun startSession(host: PairedHost, attempt: Int, reason: String, failedKind: LinkKind?, preferred: LinkKind? = null, makeBeforeBreak: ActiveLink? = null) {
         session?.cancel()
+        val gen = ++generation
         session = scope.launch {
             var n = attempt
             val t0 = System.nanoTime()
-            while (isActive && want?.id == host.id) {
+            fun current() = gen == generation && isActive && want?.id == host.id
+            while (current()) {
                 val h = hosts.byId(host.id) ?: host
                 publishReports(h)
                 val order: List<LinkKind> = preferred?.let { listOf(it) } ?: when (val d = LinkPolicy.decide(candidates(h).map { it.first },
@@ -266,12 +271,13 @@ class ConnectionManager(
                 if (order.isEmpty()) {
                     _state.value = ConnState.Reconnecting(h.name, ++n, "No usable link: " + candidates(h).mapNotNull { it.second }.distinct().joinToString("; "))
                 } else for (kind in attempts(order)) {
-                    if (!isActive || want?.id != host.id) return@launch
+                    if (!current()) return@launch
                     _state.value = if (n == 0) ConnState.Connecting(h.name, kind.label) else ConnState.Reconnecting(h.name, n, "trying ${kind.label}")
                     val hs = hist.getValue(kind)
                     hs.attempts++
                     try {
                         val (link, info) = transports.open(kind, h, identity.keyPair(), hello(), lastSlot, profileName)
+                        if (!current()) { Log.i(TAG, "stale attempt ${link.kind} finished after a newer loop started; closing it"); link.close(sendBye = false); return@launch }
                         hist.getValue(link.kind).successes++
                         if (link.kind != kind) hs.successes++
                         lastSlot = info.slot
@@ -302,6 +308,7 @@ class ConnectionManager(
                     } catch (e: Exception) {
                         hs.lastFailureAt = now()
                         Log.w(TAG, "attempt ${kind} failed: ${describe(e)}")
+                        if (!current()) return@launch
                         _state.value = ConnState.Reconnecting(h.name, ++n, "${kind.label}: ${describe(e)}")
                     }
                 }
@@ -361,8 +368,12 @@ class ConnectionManager(
 
         Thread({
             var lastPong = System.nanoTime(); var seen = 0L
-            val deadMs = if (link.kind == LinkKind.BLE) 1500 else 1000
+            // BLE: host→phone writes without response can stall for >1.5 s under load while the link is
+            // healthy (measured on a real phone), so rely on the GATT disconnect callback and allow 5 s
+            // of pong silence. The host's own 250 ms input timeout still neutralizes controls.
+            val deadMs = if (link.kind == LinkKind.BLE) 5000 else 1000
             while (active === link) {
+                if (link.isDown) { if (active === link) restart("Bluetooth link disconnected", healthy = false); return@Thread }
                 try { ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) } }
                 catch (e: Exception) { if (active === link) restart("input link: ${describe(e)}", healthy = false); return@Thread }
                 if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime() }
@@ -375,6 +386,7 @@ class ConnectionManager(
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
             val hbActive = ch.info.heartbeatMs.coerceIn(10, 1000) * 1_000_000L
             val hbIdle = ch.info.idleHeartbeatMs.coerceIn(50, 2000) * 1_000_000L
+            val pingNs = if (link.kind == LinkKind.BLE) 500_000_000L else 250_000_000L
             var sentVersion = -1L; var lastSend = 0L; var lastPing = 0L; var lastStats = System.nanoTime()
             var windowStart = System.nanoTime(); var windowSent = 0L; var sendHz = 0.0
             while (active === link) {
@@ -383,7 +395,7 @@ class ConnectionManager(
                 val hb = if (s.isNeutral) hbIdle else hbActive
                 try {
                     if (v != sentVersion || now - lastSend >= hb) { ch.sendInput(s, f); sentVersion = v; lastSend = now; windowSent++ }
-                    if (now - lastPing >= 250_000_000L) { ch.ping(); lastPing = now }
+                    if (now - lastPing >= pingNs) { ch.ping(); lastPing = now }
                     if (now - windowStart >= 1_000_000_000L) { sendHz = windowSent * 1e9 / (now - windowStart); windowStart = now; windowSent = 0 }
                     if (now - lastStats >= 2_000_000_000L) {
                         lastStats = now
@@ -394,7 +406,7 @@ class ConnectionManager(
                 lock.withLock {
                     if (version == sentVersion && active === link) {
                         val untilHb = (lastSend + hb - System.nanoTime()) / 1_000_000
-                        val untilPing = (lastPing + 250_000_000L - System.nanoTime()) / 1_000_000
+                        val untilPing = (lastPing + pingNs - System.nanoTime()) / 1_000_000
                         changed.await(minOf(untilHb, untilPing).coerceIn(1, 250), TimeUnit.MILLISECONDS)
                     }
                 }

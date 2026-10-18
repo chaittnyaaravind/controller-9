@@ -20,6 +20,8 @@ import java.util.concurrent.TimeUnit
 
 /** One established link: an authenticated control connection plus its input channel. */
 class ActiveLink(val kind: LinkKind, val detail: String, val conn: ControlConnection, val channel: InputChannel, private val extra: AutoCloseable? = null) {
+    /** True once the OS reports the underlying radio link as gone (BLE GATT disconnect). */
+    val isDown: Boolean get() = (extra as? BleLink)?.disconnected == true
     fun close(sendBye: Boolean) {
         if (sendBye) runCatching { channel.sendInput(dev.ninecontroller.protocol.InputState.NEUTRAL, 0); channel.bye() }
         runCatching { channel.close() }
@@ -57,6 +59,15 @@ object LocalLinks {
 
 class Transports(private val context: Context, private val ble: BlePeripheral) {
     private val pool = Executors.newCachedThreadPool { r -> Thread(r, "c9-connect").apply { isDaemon = true } }
+    private val timer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "c9-timeout").apply { isDaemon = true } }
+
+    /** Message links (stream/BLE) have no socket timeout: close the link if the handshake/open does not
+     *  finish in time, which unblocks the waiting reader. */
+    private fun <T> withDeadline(ms: Long, link: AutoCloseable, block: () -> T): T {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        val f = timer.schedule({ if (!done.get()) runCatching { link.close() } }, ms, TimeUnit.MILLISECONDS)
+        try { return block().also { done.set(true) } } finally { f.cancel(false) }
+    }
 
     /** IP binding: race every known address (Wi-Fi, hotspot, USB tethering, Wi-Fi Direct); first handshake wins. */
     fun ip(host: PairedHost, id: KeyPair, hello: ControllerHello, timeoutMs: Int): Pair<ControlConnection, LinkKind> {
@@ -82,7 +93,7 @@ class Transports(private val context: Context, private val ble: BlePeripheral) {
         for (a in host.allAddrs()) {
             try {
                 val sb = StreamBinding.tcp(a, LinkConst.STREAM_TCP_PORT, timeoutMs)
-                return Triple(ControlConnection.connectOver(sb.control.input, sb.control.output, sb, id, hello), sb, LinkKind.STREAM)
+                return Triple(withDeadline(timeoutMs + 3000L, sb) { ControlConnection.connectOver(sb.control.input, sb.control.output, sb, id, hello) }, sb, LinkKind.STREAM)
             } catch (e: Exception) { last = e }
         }
         throw last ?: java.net.SocketTimeoutException("stream binding unreachable")
@@ -92,7 +103,7 @@ class Transports(private val context: Context, private val ble: BlePeripheral) {
     fun ble(host: PairedHost, id: KeyPair, hello: ControllerHello, timeoutMs: Long): Pair<ControlConnection, BleLink> {
         val hint = host.id.chunked(2).take(4).map { it.toInt(16).toByte() }.toByteArray()
         val link = ble.awaitHost(hint, timeoutMs) ?: throw java.net.SocketTimeoutException("no computer connected over Bluetooth within ${timeoutMs / 1000} s")
-        return try { ControlConnection.connectOver(link.control.input, link.control.output, link, id, hello) to link }
+        return try { withDeadline(6000, link) { ControlConnection.connectOver(link.control.input, link.control.output, link, id, hello) } to link }
         catch (e: Exception) { link.close(); throw e }
     }
 
@@ -108,13 +119,13 @@ class Transports(private val context: Context, private val ble: BlePeripheral) {
         LinkKind.STREAM -> {
             val (c, sb, k) = stream(host, id, hello, 1500)
             pin(c, host) { c.abort(); sb.close() }
-            val info = c.open(resumeSlot, profile)
+            val info = withDeadline(4000, sb) { c.open(resumeSlot, profile) }
             ActiveLink(k, "TCP ${c.host.name}:${LinkConst.STREAM_TCP_PORT}", c, InputChannel(sb, info), sb) to info
         }
         LinkKind.BLE -> {
             val (c, l) = ble(host, id, hello, 8000)
             pin(c, host) { c.abort(); l.close() }
-            val info = c.open(resumeSlot, profile)
+            val info = withDeadline(6000, l) { c.open(resumeSlot, profile) }
             ActiveLink(LinkKind.BLE, "MTU ${l.mtu}", c, InputChannel(l, info), l) to info
         }
         else -> {

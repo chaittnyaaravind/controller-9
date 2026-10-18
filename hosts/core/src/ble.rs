@@ -59,7 +59,8 @@ async fn run(sh: Arc<Shared>) -> Result<(), String> {
             sh2.ble.lock().connected.push(label.clone());
             if let Err(e) = session(&sh2, &p, &label).await { tracing::info!(%label, "BLE session ended: {e}"); }
             let _ = p.disconnect().await;
-            sh2.ble.lock().connected.retain(|l| *l != label);
+            // Labels can repeat ("phone"); drop only this session's entry.
+            { let mut b = sh2.ble.lock(); if let Some(i) = b.connected.iter().position(|l| *l == label) { b.connected.remove(i); } }
             busy2.lock().remove(&key);
         });
     }
