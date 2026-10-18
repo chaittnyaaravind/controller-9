@@ -12,7 +12,7 @@ path = "src/main.rs"
 # Legacy name kept for existing scripts and docs (identical binary).
 [[bin]]
 name = "ninectl"
-path = "src/main.rs"
+path = "src/bin/ninectl.rs"
 
 [dependencies]
 nine-host-core.workspace = true

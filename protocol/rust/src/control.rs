@@ -58,7 +58,12 @@ impl Control {
 pub struct InitHello { pub proto: Vec<u8> }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct HostHello { pub proto: u8, pub name: String, pub id: String, pub os: String }
+pub struct HostHello {
+    pub proto: u8, pub name: String, pub id: String, pub os: String,
+    /// Supported bindings (SPEC §8): "ip", "stream", "ble". Additive; absent on older hosts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ControllerHello { pub proto: u8, pub name: String, pub platform: String, pub app: String }

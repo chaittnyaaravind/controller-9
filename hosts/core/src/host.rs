@@ -19,7 +19,8 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::io::{AsyncRead, AsyncWrite};
+use nine_proto::policy::LinkKind;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
@@ -54,6 +55,8 @@ pub struct StateDto { pub buttons: u32, pub lx: i16, pub ly: i16, pub rx: i16, p
 #[serde(rename_all = "camelCase")]
 pub struct SlotSnapshot {
     pub slot: u8,
+    pub link: LinkKind,
+    pub link_label: String,
     pub connected: bool,
     pub grace_s_left: Option<u32>,
     pub name: String,
@@ -81,6 +84,12 @@ pub struct SlotSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct HostSnapshot {
     pub name: String,
+    /// Every local IPv4 address with its classified link (Wi-Fi, Ethernet, USB network, hotspot…).
+    pub addresses: Vec<crate::netif::LocalAddr>,
+    /// Bindings this host is serving right now (SPEC §8).
+    pub links: Vec<String>,
+    pub stream_port: Option<u16>,
+    pub ble: crate::link::BleStatus,
     pub id: String,
     pub os: String,
     pub address: Option<String>,
@@ -102,7 +111,22 @@ pub struct HostSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct PairingInfo { pub uri: String, pub qr_svg: String, pub seconds_left: u32 }
 
+/// Where replies (pong, feedback) for a session go: the UDP source address, or a link-owned channel
+/// (stream / BLE bindings) that frames them for its medium.
+#[derive(Clone, Debug)]
+pub enum Reply { Udp(SocketAddr), Link(mpsc::UnboundedSender<Vec<u8>>) }
+
+impl Reply {
+    fn send(&self, sh: &Shared, bytes: Vec<u8>) {
+        match self {
+            Reply::Udp(a) => { let _ = sh.udp.try_send_to(&bytes, *a); }
+            Reply::Link(tx) => { let _ = tx.send(bytes); }
+        }
+    }
+}
+
 struct Slot {
+    link: LinkKind,
     key: [u8; 32],
     name: String,
     platform: String,
@@ -118,7 +142,7 @@ struct Slot {
     fresh: Freshness,
     last_rx: Option<Instant>,
     last_rx_us: Option<u64>,
-    reply: Option<SocketAddr>,
+    reply: Option<Reply>,
     state: InputState,
     flags: u16,
     submitted_once: bool,
@@ -154,13 +178,15 @@ struct State {
 
 struct PendingCode { conn_id: u64, tx: Option<oneshot::Sender<bool>> }
 
-struct Shared {
+pub(crate) struct Shared {
     secret: [u8; 32],
     public: [u8; 32],
     host_id: String,
     cfg: HostConfig,
     tcp_port: u16,
     udp_port: u16,
+    pub(crate) stream_port: Option<u16>,
+    pub(crate) ble: Mutex<crate::link::BleStatus>,
     store: Mutex<Store>,
     state: Mutex<State>,
     pairing: Mutex<Pairing>,
@@ -179,10 +205,16 @@ struct Shared {
 impl Shared {
     fn emit(&self, e: HostEvent) { let _ = self.events.send(e); }
     fn id(&self) -> u64 { self.next_id.fetch_add(1, Ordering::Relaxed) }
+    fn links(&self) -> Vec<String> {
+        let mut v = vec!["ip".to_string()];
+        if self.stream_port.is_some() { v.push("stream".into()); }
+        if self.ble.lock().active { v.push("ble".into()); }
+        v
+    }
 }
 
 #[derive(Clone)]
-pub struct Host { sh: Arc<Shared> }
+pub struct Host { pub(crate) sh: Arc<Shared> }
 
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
@@ -198,6 +230,11 @@ impl Host {
         let udp = UdpSocket::bind((cfg.bind.as_str(), cfg.udp_port)).await
             .map_err(|e| HostError::Bind(format!("udp/{}", cfg.udp_port), e))?;
         let (tcp_port, udp_port) = (tcp.local_addr().unwrap().port(), udp.local_addr().unwrap().port());
+        let stream_listener = match cfg.stream_port {
+            Some(p) => Some(TcpListener::bind((cfg.bind.as_str(), p)).await.map_err(|e| HostError::Bind(format!("tcp/{p} (stream binding)"), e))?),
+            None => None,
+        };
+        let stream_port = stream_listener.as_ref().map(|l| l.local_addr().unwrap().port());
         let max = (cfg.max_slots as usize).min(nine_proto::MAX_SLOTS).min(backend.status().max_pads.max(1));
         let state = State { slots: (0..max).map(|_| None).collect(), ..Default::default() };
         let (shutdown, _) = watch::channel(false);
@@ -205,7 +242,7 @@ impl Host {
             secret: store.identity.secret_bytes(),
             public: store.identity.public,
             host_id: nine_proto::host_id(&store.identity.public),
-            cfg: cfg.clone(), tcp_port, udp_port,
+            cfg: cfg.clone(), tcp_port, udp_port, stream_port, ble: Mutex::new(crate::link::BleStatus::default()),
             store: Mutex::new(store),
             state: Mutex::new(state),
             pairing: Mutex::new(Pairing::default()),
@@ -226,7 +263,10 @@ impl Host {
                 Err(e) => sh.emit(HostEvent::Notice { level: "warn".into(), message: format!("Network discovery unavailable ({e}); connect by QR or address") }),
             }
         }
-        tokio::spawn(accept_loop(sh.clone(), tcp));
+        tokio::spawn(accept_loop(sh.clone(), tcp, false));
+        if let Some(l) = stream_listener { tokio::spawn(accept_loop(sh.clone(), l, true)); }
+        #[cfg(feature = "ble")]
+        if cfg.ble { crate::ble::spawn(sh.clone()); }
         tokio::spawn(udp_loop(sh.clone()));
         tokio::spawn(tick_loop(sh.clone()));
         tracing::info!(host_id = %sh.host_id, tcp_port, udp_port, backend = %sh.backend.status().name, "host started");
@@ -258,7 +298,8 @@ impl Host {
             .or_else(|| (self.sh.cfg.bind != "0.0.0.0").then(|| self.sh.cfg.bind.clone()))
             .or_else(|| crate::discovery::primary_ipv4().map(|a| a.to_string()))
             .unwrap_or_else(|| "127.0.0.1".into());
-        let uri = PairUri { addr, port: self.sh.tcp_port, host_static: self.sh.public, token, name: self.sh.cfg.name.clone() }.to_uri();
+        let extra: Vec<String> = crate::netif::local_ipv4().into_iter().map(|a| a.ip.to_string()).filter(|a| *a != addr).take(6).collect();
+        let uri = PairUri { addr, port: self.sh.tcp_port, host_static: self.sh.public, token, name: self.sh.cfg.name.clone(), extra }.to_uri();
         let qr_svg = qrcode::QrCode::with_error_correction_level(uri.as_bytes(), qrcode::EcLevel::M)
             .map(|c| c.render::<qrcode::render::svg::Color>().min_dimensions(232, 232).quiet_zone(true)
                 .dark_color(qrcode::render::svg::Color("#0C0B09")).light_color(qrcode::render::svg::Color("#F2EDE4")).build())
@@ -310,7 +351,7 @@ impl Host {
         let slots = st.slots.iter().enumerate().filter_map(|(i, s)| s.as_ref().map(|s| {
             let p50 = s.gaps.percentile(50.0);
             SlotSnapshot {
-                slot: i as u8, connected: s.connected,
+                slot: i as u8, link: s.link, link_label: s.link.label().into(), connected: s.connected,
                 grace_s_left: s.grace_until.map(|g| g.saturating_duration_since(now).as_secs() as u32),
                 name: s.name.clone(), platform: s.platform.clone(), profile: s.profile.clone(),
                 connected_s: now.duration_since(s.connected_at).as_secs(),
@@ -325,6 +366,7 @@ impl Host {
         })).collect();
         HostSnapshot {
             name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into(),
+            addresses: crate::netif::local_ipv4(), links: sh.links(), stream_port: sh.stream_port, ble: sh.ble.lock().clone(),
             address: crate::discovery::primary_ipv4().map(|a| a.to_string()),
             tcp_port: sh.tcp_port, udp_port: sh.udp_port, advertising: sh.advertising.lock().is_some(),
             backend: sh.backend.status(), max_slots: st.slots.len() as u8, slots,
@@ -350,7 +392,7 @@ impl Host {
 
 // ---------------------------------------------------------------- TCP control
 
-async fn accept_loop(sh: Arc<Shared>, listener: TcpListener) {
+async fn accept_loop(sh: Arc<Shared>, listener: TcpListener, stream_binding: bool) {
     let mut stop = sh.shutdown.subscribe();
     loop {
         tokio::select! {
@@ -363,7 +405,11 @@ async fn accept_loop(sh: Arc<Shared>, listener: TcpListener) {
                 sh.conns.fetch_add(1, Ordering::Relaxed);
                 let sh2 = sh.clone();
                 tokio::spawn(async move {
-                    let r = handle_conn(&sh2, stream, peer).await;
+                    let r = if stream_binding {
+                        let link = crate::netif::kind_for_local(stream.local_addr().ok().map(|a| a.ip()));
+                        let _ = stream.set_nodelay(true);
+                        crate::link::serve_stream(&sh2, stream, format!("{peer} (stream)"), if link == LinkKind::Lan { LinkKind::Stream } else { link }).await
+                    } else { handle_conn(&sh2, stream, peer).await };
                     if let Err(e) = r { tracing::info!(%peer, "control connection ended: {e}"); }
                     sh2.conns.fetch_sub(1, Ordering::Relaxed);
                 });
@@ -384,7 +430,7 @@ fn allow_handshake(sh: &Shared, ip: IpAddr) -> bool {
     true
 }
 
-async fn read_frame(rd: &mut OwnedReadHalf, max: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) async fn read_frame<R: AsyncRead + Unpin>(rd: &mut R, max: usize) -> std::io::Result<Vec<u8>> {
     let len = rd.read_u16().await? as usize;
     if len == 0 || len > max {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "bad frame length"));
@@ -394,7 +440,7 @@ async fn read_frame(rd: &mut OwnedReadHalf, max: usize) -> std::io::Result<Vec<u
     Ok(b)
 }
 
-async fn send(wr: &mut OwnedWriteHalf, t: &mut Transport, m: &Control) -> std::io::Result<()> {
+async fn send<W: AsyncWrite + Unpin>(wr: &mut W, t: &mut Transport, m: &Control) -> std::io::Result<()> {
     let ct = t.encrypt(&m.to_json()).map_err(|e| std::io::Error::other(e.to_string()))?;
     wr.write_all(&control::frame(&ct)).await
 }
@@ -416,13 +462,21 @@ async fn recv_verdict(rx: &mut Option<oneshot::Receiver<bool>>) -> bool {
 
 async fn handle_conn(sh: &Arc<Shared>, stream: TcpStream, peer: SocketAddr) -> std::io::Result<()> {
     stream.set_nodelay(true)?;
-    let (mut rd, mut wr) = stream.into_split();
+    let link = crate::netif::kind_for_local(stream.local_addr().ok().map(|a| a.ip()));
+    let (rd, wr) = stream.into_split();
+    serve_control(sh, rd, wr, peer.to_string(), link).await
+}
+
+/// Runs one controller's control channel over any reliable framed byte stream (TCP, stream
+/// binding, BLE GATT pipes). Input datagrams arrive separately via [`handle_datagram`].
+pub(crate) async fn serve_control<R, W>(sh: &Arc<Shared>, mut rd: R, mut wr: W, peer: String, link: LinkKind) -> std::io::Result<()>
+where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
     let mut hs = Handshake::new(Role::Responder, KeyPair::from_secret(sh.secret));
     let (mut t, hello, supported) = tokio::time::timeout(HANDSHAKE_TIMEOUT, async {
         let m1 = read_frame(&mut rd, control::MAX_PREHANDSHAKE_FRAME).await?;
         let p1 = hs.read_message(&m1).map_err(io_err)?;
         let supported = serde_json::from_slice::<InitHello>(&p1).map(|h| h.proto.contains(&1)).unwrap_or(false);
-        let hh = HostHello { proto: 1, name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into() };
+        let hh = HostHello { proto: 1, name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into(), links: sh.links() };
         let m2 = hs.write_message(&serde_json::to_vec(&hh).unwrap()).map_err(io_err)?;
         wr.write_all(&control::frame(&m2)).await?;
         let m3 = read_frame(&mut rd, control::MAX_PREHANDSHAKE_FRAME).await?;
@@ -469,7 +523,7 @@ async fn handle_conn(sh: &Arc<Shared>, stream: TcpStream, peer: SocketAddr) -> s
                                 send(&mut wr, &mut t, &Control::PairRequired { modes: vec!["qr".into(), "code".into()] }).await?;
                                 continue;
                             }
-                            match open_session(sh, &remote, &name, &platform, profile, resume_slot, conn_id, &ctl_tx) {
+                            match open_session(sh, &remote, &name, &platform, profile, resume_slot, conn_id, &ctl_tx, link) {
                                 Some((idx, reply, pad_err)) => {
                                     slot_idx = Some(idx);
                                     send(&mut wr, &mut t, &reply).await?;
@@ -582,7 +636,7 @@ fn settle(sh: &Shared, flow: &mut PairFlow, key: &[u8; 32], name: &str, platform
 
 #[allow(clippy::too_many_arguments)]
 fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile: Option<String>, resume: Option<u8>,
-                conn_id: u64, ctl_tx: &mpsc::UnboundedSender<Control>) -> Option<(usize, Control, Option<String>)> {
+                conn_id: u64, ctl_tx: &mpsc::UnboundedSender<Control>, link: LinkKind) -> Option<(usize, Control, Option<String>)> {
     let mut st = sh.state.lock();
     let idx = st.slots.iter().position(|s| s.as_ref().is_some_and(|s| &s.key == key))
         .or_else(|| resume.map(|r| r as usize).filter(|&r| r < st.slots.len() && st.slots[r].is_none()))
@@ -602,6 +656,7 @@ fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile
     };
     st.sessions.insert(sid, idx);
     st.slots[idx] = Some(Slot {
+        link,
         key: *key, name: name.into(), platform: platform.into(), profile: profile.map(|p| p.chars().take(48).collect()),
         conn_id, connected: true, connected_at: Instant::now(), grace_until: None,
         session_id: sid, k_in, k_out, out_counter: Counter::default(), fresh: Freshness::default(),
@@ -652,14 +707,14 @@ async fn udp_loop(sh: Arc<Shared>) {
         tokio::select! {
             r = sh.udp.recv_from(&mut buf) => {
                 let Ok((n, from)) = r else { continue };
-                handle_datagram(&sh, &buf[..n], from, Instant::now());
+                handle_datagram(&sh, &buf[..n], Reply::Udp(from), Instant::now());
             }
             _ = stop.changed() => break,
         }
     }
 }
 
-fn handle_datagram(sh: &Shared, d: &[u8], from: SocketAddr, now: Instant) {
+pub(crate) fn handle_datagram(sh: &Shared, d: &[u8], from: Reply, now: Instant) {
     let rx_us = mono_us();
     let mut st = sh.state.lock();
     let Ok(hdr) = Header::peek(d) else { st.malformed += 1; return };
@@ -667,7 +722,7 @@ fn handle_datagram(sh: &Shared, d: &[u8], from: SocketAddr, now: Instant) {
     let Some(s) = st.slots[idx].as_mut() else { return };
     let Ok((hdr, pt)) = frame::open(&s.k_in, d) else { s.invalid += 1; return };
     if !s.fresh.accept(hdr.counter) { return; }
-    s.reply = Some(from);
+    s.reply = Some(from.clone());
     match hdr.ptype {
         PacketType::Input => {
             let Ok(f) = InputFrame::decode(&pt) else { s.invalid += 1; return };
@@ -684,7 +739,7 @@ fn handle_datagram(sh: &Shared, d: &[u8], from: SocketAddr, now: Instant) {
             s.last_rx = Some(now);
             let pong = Pong { t_us: p.t_us, id: p.id, host_rx_us: rx_us, host_tx_us: mono_us() };
             let out = frame::seal(&s.k_out, Header { ptype: PacketType::Pong, session_id: s.session_id, counter: s.out_counter.bump() }, &pong.encode());
-            let _ = sh.udp.try_send_to(&out, from);
+            from.send(sh, out);
         }
         PacketType::Bye => { s.apply(InputState::NEUTRAL); }
         PacketType::Pong | PacketType::Feedback => { s.invalid += 1; }
@@ -728,8 +783,8 @@ fn tick(sh: &Shared, now: Instant) {
 }
 
 fn send_feedback(sh: &Shared, s: &mut Slot, fb: Feedback) {
-    if let Some(to) = s.reply.filter(|_| s.connected) {
+    if let Some(to) = s.reply.clone().filter(|_| s.connected) {
         let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.bump() }, &fb.encode());
-        let _ = sh.udp.try_send_to(&out, to);
+        to.send(sh, out);
     }
 }

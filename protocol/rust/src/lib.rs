@@ -2,9 +2,11 @@
 pub mod control;
 pub mod frame;
 pub mod input;
+pub mod link;
 pub mod motion;
 pub mod noise;
 pub mod pairing;
+pub mod policy;
 pub mod profile;
 pub mod stats;
 

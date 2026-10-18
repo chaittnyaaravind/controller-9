@@ -9,5 +9,10 @@
   "sas_display": "128 983",
   "token": "505152535455565758595a5b5c5d5e5f",
   "uri": "ninectl://pair?v=1&a=192.168.1.20&p=47901&k=wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t8&t=UFFSU1RVVldYWVpbXF1eXw&n=Studio%20PC",
-  "uri_host_static": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
+  "uri_host_static": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+  "uri_multi": "ninectl://pair?v=1&a=192.168.1.20&p=47901&k=wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t8&t=UFFSU1RVVldYWVpbXF1eXw&n=Studio%20PC&x=172.20.10.2,192.168.42.10",
+  "uri_multi_extra": [
+    "172.20.10.2",
+    "192.168.42.10"
+  ]
 }

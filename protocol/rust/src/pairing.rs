@@ -42,6 +42,8 @@ pub struct PairUri {
     pub host_static: [u8; 32],
     pub token: [u8; 16],
     pub name: String,
+    /// Extra addresses of the host (other interfaces: hotspot, USB tethering, Ethernet). SPEC §8.1.
+    pub extra: Vec<String>,
 }
 
 fn pct_encode(s: &str) -> String {
@@ -67,13 +69,19 @@ fn pct_decode(s: &str) -> Option<String> {
 
 impl PairUri {
     pub fn to_uri(&self) -> String {
-        format!("ninectl://pair?v=1&a={}&p={}&k={}&t={}&n={}",
-            pct_encode(&self.addr), self.port, B64URL.encode(self.host_static), B64URL.encode(self.token), pct_encode(&self.name))
+        let mut u = format!("ninectl://pair?v=1&a={}&p={}&k={}&t={}&n={}",
+            pct_encode(&self.addr), self.port, B64URL.encode(self.host_static), B64URL.encode(self.token), pct_encode(&self.name));
+        if !self.extra.is_empty() {
+            u.push_str("&x=");
+            u.push_str(&self.extra.iter().map(|a| pct_encode(a)).collect::<Vec<_>>().join(","));
+        }
+        u
     }
 
     pub fn parse(uri: &str) -> Option<PairUri> {
         let q = uri.strip_prefix("ninectl://pair?")?;
         let (mut v, mut a, mut p, mut k, mut t, mut n) = (None, None, None, None, None, None);
+        let mut extra = Vec::new();
         for kv in q.split('&') {
             let (key, val) = kv.split_once('=')?;
             match key {
@@ -83,13 +91,14 @@ impl PairUri {
                 "k" => k = B64URL.decode(val).ok(),
                 "t" => t = B64URL.decode(val).ok(),
                 "n" => n = pct_decode(val),
+                "x" => extra = val.split(',').filter(|s| !s.is_empty()).filter_map(pct_decode).take(8).collect(),
                 _ => {} // unknown keys ignored for forward compatibility
             }
         }
         if v? != "1" { return None; }
         Some(PairUri {
             addr: a?, port: p?, host_static: k?.try_into().ok()?, token: t?.try_into().ok()?,
-            name: n.unwrap_or_default(),
+            name: n.unwrap_or_default(), extra,
         })
     }
 }
@@ -100,7 +109,10 @@ mod tests {
 
     #[test]
     fn uri_roundtrip_and_rejects() {
-        let u = PairUri { addr: "192.168.1.20".into(), port: 47901, host_static: [3; 32], token: [9; 16], name: "Studio PC & co".into() };
+        let u = PairUri { addr: "192.168.1.20".into(), port: 47901, host_static: [3; 32], token: [9; 16], name: "Studio PC & co".into(), extra: vec![] };
+        let multi = PairUri { extra: vec!["172.20.10.2".into(), "192.168.42.10".into()], ..u.clone() };
+        assert_eq!(PairUri::parse(&multi.to_uri()), Some(multi.clone()));
+        assert!(multi.to_uri().ends_with("&x=172.20.10.2,192.168.42.10"));
         assert_eq!(PairUri::parse(&u.to_uri()), Some(u.clone()));
         assert!(PairUri::parse(&u.to_uri().replace("v=1", "v=2")).is_none());
         assert!(PairUri::parse("https://evil/pair?v=1").is_none());

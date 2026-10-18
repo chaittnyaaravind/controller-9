@@ -9,8 +9,12 @@ use nine_proto::pairing::{commitment, qr_proof, sas_code, PairUri};
 use nine_proto::stats::Window;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
+use tokio::sync::mpsc;
+
+type Rd = Box<dyn AsyncRead + Unpin + Send>;
+type Wr = Box<dyn AsyncWrite + Unpin + Send>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -23,7 +27,8 @@ pub enum ClientError {
 fn proto(e: impl std::fmt::Display) -> ClientError { ClientError::Protocol(e.to_string()) }
 
 pub struct Connection {
-    stream: TcpStream,
+    rd: Rd,
+    wr: Wr,
     t: Transport,
     pub host: HostHello,
     pub host_static: [u8; 32],
@@ -44,28 +49,35 @@ pub struct SessionInfo {
 }
 
 impl Connection {
+    /// IP binding: TCP control channel.
     pub async fn connect(addr: SocketAddr, identity: &KeyPair, hello: &ControllerHello) -> Result<Connection, ClientError> {
-        let mut stream = TcpStream::connect(addr).await?;
+        let stream = TcpStream::connect(addr).await?;
         stream.set_nodelay(true)?;
+        let (rd, wr) = stream.into_split();
+        Self::connect_over(Box::new(rd), Box::new(wr), identity, hello).await
+    }
+
+    /// Any binding: run the handshake over an already-framed control stream (`len:u16be || frame`).
+    pub async fn connect_over(mut rd: Rd, mut wr: Wr, identity: &KeyPair, hello: &ControllerHello) -> Result<Connection, ClientError> {
         let mut hs = Handshake::new(Role::Initiator, KeyPair::from_secret(identity.secret_bytes()));
         let m1 = hs.write_message(&serde_json::to_vec(&InitHello { proto: vec![1] }).unwrap()).map_err(proto)?;
-        stream.write_all(&control::frame(&m1)).await?;
-        let m2 = read_frame(&mut stream).await?;
+        wr.write_all(&control::frame(&m1)).await?;
+        let m2 = read_frame(&mut rd).await?;
         let host: HostHello = serde_json::from_slice(&hs.read_message(&m2).map_err(proto)?).map_err(proto)?;
         let m3 = hs.write_message(&serde_json::to_vec(hello).unwrap()).map_err(proto)?;
-        stream.write_all(&control::frame(&m3)).await?;
+        wr.write_all(&control::frame(&m3)).await?;
         let t = hs.into_transport().map_err(proto)?;
-        Ok(Connection { stream, host_static: t.remote_static, handshake_hash: t.handshake_hash, t, host })
+        Ok(Connection { rd, wr, host_static: t.remote_static, handshake_hash: t.handshake_hash, t, host })
     }
 
     pub async fn send(&mut self, m: &Control) -> Result<(), ClientError> {
         let ct = self.t.encrypt(&m.to_json()).map_err(proto)?;
-        self.stream.write_all(&control::frame(&ct)).await?;
+        self.wr.write_all(&control::frame(&ct)).await?;
         Ok(())
     }
 
     pub async fn recv(&mut self) -> Result<Control, ClientError> {
-        let ct = read_frame(&mut self.stream).await?;
+        let ct = read_frame(&mut self.rd).await?;
         Control::from_json(&self.t.decrypt(&ct).map_err(proto)?).map_err(proto)
     }
 
@@ -127,7 +139,7 @@ impl Connection {
     }
 }
 
-async fn read_frame(s: &mut TcpStream) -> Result<Vec<u8>, ClientError> {
+async fn read_frame<R: AsyncRead + Unpin + ?Sized>(s: &mut R) -> Result<Vec<u8>, ClientError> {
     let n = s.read_u16().await? as usize;
     if n == 0 { return Err(proto("empty frame")); }
     let mut b = vec![0u8; n];
@@ -135,9 +147,39 @@ async fn read_frame(s: &mut TcpStream) -> Result<Vec<u8>, ClientError> {
     Ok(b)
 }
 
-/// UDP input sender with ping/pong RTT measurement.
+/// How input datagrams travel: UDP (IP binding) or a link channel (stream / BLE bindings).
+pub enum DatagramPath {
+    Udp(UdpSocket),
+    Link { tx: mpsc::UnboundedSender<Vec<u8>>, rx: mpsc::UnboundedReceiver<Vec<u8>> },
+}
+
+impl DatagramPath {
+    async fn send(&self, d: &[u8]) -> Result<(), ClientError> {
+        match self {
+            DatagramPath::Udp(s) => { s.send(d).await?; }
+            DatagramPath::Link { tx, .. } => tx.send(d.to_vec()).map_err(|_| ClientError::Io(std::io::ErrorKind::BrokenPipe.into()))?,
+        }
+        Ok(())
+    }
+    fn try_recv(&mut self) -> Option<Vec<u8>> {
+        let mut buf = [0u8; 512];
+        match self {
+            DatagramPath::Udp(s) => s.try_recv(&mut buf).ok().map(|n| buf[..n].to_vec()),
+            DatagramPath::Link { rx, .. } => rx.try_recv().ok(),
+        }
+    }
+    async fn recv(&mut self) -> Option<Vec<u8>> {
+        let mut buf = [0u8; 512];
+        match self {
+            DatagramPath::Udp(s) => s.recv(&mut buf).await.ok().map(|n| buf[..n].to_vec()),
+            DatagramPath::Link { rx, .. } => rx.recv().await,
+        }
+    }
+}
+
+/// Input sender with ping/pong RTT measurement, over any datagram path.
 pub struct InputSender {
-    pub sock: UdpSocket,
+    pub path: DatagramPath,
     pub info: SessionInfo,
     counter: Counter,
     fresh_in: Freshness,
@@ -153,8 +195,12 @@ impl InputSender {
         let bind: SocketAddr = if host.is_ipv4() { "0.0.0.0:0".parse().unwrap() } else { "[::]:0".parse().unwrap() };
         let sock = UdpSocket::bind(bind).await?;
         sock.connect(SocketAddr::new(host.ip(), info.udp_port)).await?;
-        Ok(Self { sock, info, counter: Counter::default(), fresh_in: Freshness::default(), pings: HashMap::new(), next_ping: 1,
-            rtt_ms: Window::new(4096), feedback: Vec::new(), epoch: std::time::Instant::now() })
+        Ok(Self::over(DatagramPath::Udp(sock), info))
+    }
+
+    pub fn over(path: DatagramPath, info: SessionInfo) -> Self {
+        Self { path, info, counter: Counter::default(), fresh_in: Freshness::default(), pings: HashMap::new(), next_ping: 1,
+            rtt_ms: Window::new(4096), feedback: Vec::new(), epoch: std::time::Instant::now() }
     }
 
     pub fn now_us(&self) -> u64 { self.epoch.elapsed().as_micros() as u64 }
@@ -166,9 +212,12 @@ impl InputSender {
     pub async fn send_input(&mut self, state: InputState, flags: u16) -> Result<(), ClientError> {
         let f = InputFrame { t_us: self.now_us(), state, flags };
         let d = self.seal(PacketType::Input, &f.encode());
-        self.sock.send(&d).await?;
+        self.path.send(&d).await?;
         Ok(())
     }
+
+    /// Send pre-built bytes (tests: replays, tampering).
+    pub async fn send_raw(&self, d: &[u8]) -> Result<(), ClientError> { self.path.send(d).await }
 
     pub async fn ping(&mut self) -> Result<(), ClientError> {
         let id = self.next_ping;
@@ -176,27 +225,25 @@ impl InputSender {
         let t = self.now_us();
         self.pings.insert(id, t);
         let d = self.seal(PacketType::Ping, &Ping { t_us: t, id }.encode());
-        self.sock.send(&d).await?;
+        self.path.send(&d).await?;
         Ok(())
     }
 
     pub async fn bye(&mut self) -> Result<(), ClientError> {
         let d = self.seal(PacketType::Bye, &[]);
-        self.sock.send(&d).await?;
+        self.path.send(&d).await?;
         Ok(())
     }
 
     /// Process every datagram already queued (non-blocking).
     pub fn drain(&mut self) {
-        let mut buf = [0u8; 512];
-        while let Ok(n) = self.sock.try_recv(&mut buf) { self.handle(&buf[..n]); }
+        while let Some(d) = self.path.try_recv() { self.handle(&d); }
     }
 
     /// Wait up to `dur` for host datagrams.
     pub async fn pump(&mut self, dur: std::time::Duration) {
-        let mut buf = [0u8; 512];
         let end = tokio::time::Instant::now() + dur;
-        while let Ok(Ok(n)) = tokio::time::timeout_at(end, self.sock.recv(&mut buf)).await { self.handle(&buf[..n]); }
+        while let Ok(Some(d)) = tokio::time::timeout_at(end, self.path.recv()).await { self.handle(&d); }
     }
 
     fn handle(&mut self, d: &[u8]) {
@@ -209,4 +256,52 @@ impl InputSender {
             _ => {}
         }
     }
+}
+
+/// Client side of the stream binding (SPEC §8.2) over any reliable byte stream: returns a framed
+/// control stream for [`Connection::connect_over`] and a datagram path for [`InputSender::over`].
+pub fn stream_link<S>(stream: S) -> (Rd, Wr, DatagramPath)
+where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
+    use nine_proto::link::{Record, RecordReader};
+    let (mut rd, mut wr) = tokio::io::split(stream);
+    let (mut ctl_in_w, ctl_in_r) = tokio::io::duplex(1 << 17);
+    let (ctl_out_w, mut ctl_out_r) = tokio::io::duplex(1 << 17);
+    let (up_tx, mut up_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (down_tx, down_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    tokio::spawn(async move {
+        let mut rr = RecordReader::default();
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = rd.read(&mut buf).await {
+            if n == 0 { break; }
+            rr.push(&buf[..n]);
+            while let Ok(Some(rec)) = rr.next_record() {
+                match rec {
+                    Record::Control(b) => { if ctl_in_w.write_all(&control::frame(&b)).await.is_err() { return; } }
+                    Record::Datagram(d) => { let _ = down_tx.send(d); }
+                }
+            }
+        }
+    });
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                f = read_frame(&mut ctl_out_r) => match f { Ok(b) => if wr.write_all(&Record::Control(b).encode()).await.is_err() { return }, Err(_) => return },
+                Some(first) = up_rx.recv() => {
+                    // Latest-state coalescing (SPEC §8.2): of the queued *input* datagrams only the newest
+                    // is written; pings, byes and other types are never dropped.
+                    let is_input = |d: &[u8]| d.get(3) == Some(&(nine_proto::frame::PacketType::Input as u8));
+                    // Order is preserved: all datagrams share one counter, so reordering would make
+                    // the receiver reject later-written frames as stale.
+                    let mut queue = vec![first];
+                    while let Ok(more) = up_rx.try_recv() { queue.push(more); }
+                    let last_input = queue.iter().rposition(|d| is_input(d));
+                    for (i, d) in queue.into_iter().enumerate() {
+                        if is_input(&d) && Some(i) != last_input { continue; }
+                        if wr.write_all(&Record::Datagram(d).encode()).await.is_err() { return }
+                    }
+                }
+            }
+        }
+    });
+    (Box::new(ctl_in_r), Box::new(ctl_out_w), DatagramPath::Link { tx: up_tx, rx: down_rx })
 }

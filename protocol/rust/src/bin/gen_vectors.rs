@@ -90,14 +90,16 @@ fn pairing_v() -> Value {
     let h = seq::<32>(0xA0);
     let (na, nb, token) = (seq::<16>(0x10), seq::<16>(0x30), seq::<16>(0x50));
     let code = pairing::sas_code(&h, &na, &nb);
-    let uri = pairing::PairUri { addr: "192.168.1.20".into(), port: 47901, host_static: seq::<32>(0xC0), token, name: "Studio PC".into() };
+    let uri = pairing::PairUri { addr: "192.168.1.20".into(), port: 47901, host_static: seq::<32>(0xC0), token, name: "Studio PC".into(), extra: vec![] };
+    let multi = pairing::PairUri { extra: vec!["172.20.10.2".into(), "192.168.42.10".into()], ..uri.clone() };
     json!({
         "handshake_hash": hex(&h), "na": hex(&na), "nb": hex(&nb), "token": hex(&token),
         "commitment": hex(&pairing::commitment(&h, &nb)),
         "sas": code, "sas_display": pairing::format_code(code),
         "qr_proof": hex(&pairing::qr_proof(&token, &h)),
         "uri": uri.to_uri(), "uri_host_static": hex(&uri.host_static),
-        "host_id_of_uri_key": nine_proto::host_id(&uri.host_static)
+        "host_id_of_uri_key": nine_proto::host_id(&uri.host_static),
+        "uri_multi": multi.to_uri(), "uri_multi_extra": multi.extra
     })
 }
 
@@ -134,10 +136,51 @@ fn profiles_v() -> Value {
     })
 }
 
+fn link_v() -> Value {
+    use nine_proto::link::{Record, Segmenter};
+    let control: Vec<u8> = (0..70u8).collect();
+    let dgram: Vec<u8> = (100..158u8).collect();
+    let recs = vec![Record::Control(control.clone()), Record::Datagram(dgram.clone())];
+    let stream: Vec<u8> = recs.iter().flat_map(Record::encode).collect();
+    let mut seg = Segmenter::default();
+    let s23 = seg.segment(&control, 23);
+    let s62 = seg.segment(&dgram, 62);
+    json!({
+        "control": hex(&control), "datagram": hex(&dgram), "stream": hex(&stream),
+        "segments_mtu23": s23.iter().map(|v| hex(v)).collect::<Vec<_>>(),
+        "segments_mtu62_after": s62.iter().map(|v| hex(v)).collect::<Vec<_>>(),
+        "uuids": {"service": nine_proto::link::BLE_SERVICE, "control_up": nine_proto::link::BLE_CONTROL_UP, "control_down": nine_proto::link::BLE_CONTROL_DOWN,
+                  "input_up": nine_proto::link::BLE_INPUT_UP, "input_down": nine_proto::link::BLE_INPUT_DOWN}
+    })
+}
+
+fn policy_v() -> Value {
+    use nine_proto::policy::{decide, rank, score, LinkKind as K, LinkStats, PolicyState};
+    let l = |kind, rtt: f64| LinkStats { kind, available: true, rtt_p95_ms: Some(rtt), ..Default::default() };
+    let mut lossy = l(K::Lan, 60.0); lossy.loss_pct = 6.0; lossy.disconnects_per_min = 1.0;
+    let mut flaky = l(K::Hotspot, 15.0); flaky.attempts = 4; flaky.successes = 1; flaky.last_failure_age_s = Some(3.0);
+    let cases: Vec<(Vec<LinkStats>, PolicyState)> = vec![
+        (vec![l(K::Ble, 30.0), l(K::Lan, 8.0), l(K::Usb, 2.0)], PolicyState::default()),
+        (vec![lossy.clone(), l(K::Ble, 25.0)], PolicyState { current: Some(K::Lan), current_healthy: true, since_switch_s: 60.0, better_for_s: 5.0, override_kind: None }),
+        (vec![l(K::Lan, 10.0), l(K::Usb, 2.0)], PolicyState { current: Some(K::Lan), current_healthy: true, since_switch_s: 60.0, better_for_s: 5.0, override_kind: None }),
+        (vec![l(K::Ble, 30.0), l(K::Usb, 2.0)], PolicyState { current: Some(K::Ble), current_healthy: true, since_switch_s: 5.0, better_for_s: 5.0, override_kind: None }),
+        (vec![l(K::Ble, 30.0), l(K::Usb, 2.0)], PolicyState { current: Some(K::Ble), current_healthy: true, since_switch_s: 12.0, better_for_s: 5.0, override_kind: None }),
+        (vec![l(K::Lan, 5.0), l(K::Ble, 30.0), flaky.clone()], PolicyState { current: Some(K::Lan), current_healthy: false, ..Default::default() }),
+        (vec![LinkStats { kind: K::Lan, available: false, ..Default::default() }], PolicyState { current: Some(K::Lan), current_healthy: false, ..Default::default() }),
+        (vec![l(K::Lan, 5.0), l(K::Ble, 30.0)], PolicyState { current: Some(K::Lan), current_healthy: true, override_kind: Some(K::Ble), ..Default::default() }),
+        (vec![l(K::Lan, 5.0), l(K::Ble, 30.0)], PolicyState { current: None, current_healthy: false, override_kind: Some(K::Usb), ..Default::default() }),
+    ];
+    json!(cases.into_iter().map(|(c, st)| json!({
+        "candidates": c, "state": st,
+        "scores": c.iter().map(score).collect::<Vec<_>>(),
+        "rank": rank(&c), "decision": decide(&c, &st)
+    })).collect::<Vec<_>>())
+}
+
 fn main() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../vectors");
     std::fs::create_dir_all(&dir).unwrap();
-    for (name, v) in [("noise_xx", noise()), ("frames", frames()), ("pairing", pairing_v()), ("motion", motion_v()), ("profiles", profiles_v())] {
+    for (name, v) in [("noise_xx", noise()), ("frames", frames()), ("pairing", pairing_v()), ("motion", motion_v()), ("profiles", profiles_v()), ("link", link_v()), ("policy", policy_v())] {
         let p = dir.join(format!("{name}.json"));
         std::fs::write(&p, serde_json::to_string_pretty(&v).unwrap() + "\n").unwrap();
         println!("wrote {}", p.display());

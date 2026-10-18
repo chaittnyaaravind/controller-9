@@ -5,6 +5,10 @@ pub mod client;
 pub mod discovery;
 pub mod hid;
 pub mod host;
+pub mod link;
+pub mod netif;
+#[cfg(feature = "ble")]
+pub mod ble;
 pub mod pairing;
 pub mod store;
 pub mod time;

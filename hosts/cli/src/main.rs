@@ -1,4 +1,4 @@
-//! `ninectl host` — headless host.  `ninectl sim` — simulated controller for tests and benchmarks.
+// `controller9 host` — headless host.  `controller9 sim` — simulated controller for tests and benchmarks.
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use nine_host_core::backend::{Backend, MockBackend};

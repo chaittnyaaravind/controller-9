@@ -23,6 +23,10 @@ pub struct HostConfig {
     pub advertise: bool,
     /// Bind address; default all interfaces. Use 127.0.0.1 for tests.
     pub bind: String,
+    /// TCP port for the stream binding (SPEC §8.2; for networks that block UDP). `None` disables it.
+    pub stream_port: Option<u16>,
+    /// Scan for phones offering the BLE GATT binding (SPEC §8.3), when built with BLE support.
+    pub ble: bool,
 }
 
 impl Default for HostConfig {
@@ -30,7 +34,7 @@ impl Default for HostConfig {
         HostConfig {
             name: default_name(), tcp_port: nine_proto::DEFAULT_TCP_PORT, udp_port: nine_proto::DEFAULT_UDP_PORT,
             max_slots: 4, timeout_ms: 250, heartbeat_ms: 50, idle_heartbeat_ms: 200, grace_s: 30,
-            advertise: true, bind: "0.0.0.0".into(),
+            advertise: true, bind: "0.0.0.0".into(), stream_port: Some(nine_proto::link::STREAM_TCP_PORT), ble: true,
         }
     }
 }

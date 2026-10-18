@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 fn cfg() -> HostConfig {
-    HostConfig { name: "Test Host".into(), tcp_port: 0, udp_port: 0, advertise: false, bind: "127.0.0.1".into(), grace_s: 2, ..Default::default() }
+    HostConfig { name: "Test Host".into(), tcp_port: 0, udp_port: 0, advertise: false, bind: "127.0.0.1".into(), grace_s: 2, stream_port: Some(0), ble: false, ..Default::default() }
 }
 
 async fn host() -> (Host, MockBackend, SocketAddr) {
@@ -109,17 +109,17 @@ async fn replay_stale_tamper_and_unknown_session_are_dropped() {
     let old = tx.seal(nine_proto::frame::PacketType::Input, &nine_proto::frame::InputFrame { t_us: 1, state: a, flags: 0 }.encode());
     tx.send_input(b, 0).await.unwrap(); // newer counter arrives first
     settle().await;
-    tx.sock.send(&old).await.unwrap(); // late frame: must not be applied
+    tx.send_raw(&old).await.unwrap(); // late frame: must not be applied
     let replay = tx.seal(nine_proto::frame::PacketType::Input, &nine_proto::frame::InputFrame { t_us: 2, state: b, flags: 0 }.encode());
-    tx.sock.send(&replay).await.unwrap();
-    tx.sock.send(&replay).await.unwrap(); // exact replay
+    tx.send_raw(&replay).await.unwrap();
+    tx.send_raw(&replay).await.unwrap(); // exact replay
     let mut tampered = replay.clone();
     tampered[20] ^= 1;
-    tx.sock.send(&tampered).await.unwrap();
-    tx.sock.send(b"garbage").await.unwrap();
+    tx.send_raw(&tampered).await.unwrap();
+    tx.send_raw(b"garbage").await.unwrap();
     let mut other = replay.clone();
     other[4..8].copy_from_slice(&(info.session_id ^ 1).to_le_bytes());
-    tx.sock.send(&other).await.unwrap();
+    tx.send_raw(&other).await.unwrap();
     settle().await;
     assert!(!mock.log.lock().iter().any(|(_, s)| *s == a), "stale frame applied");
     let s = h.snapshot();

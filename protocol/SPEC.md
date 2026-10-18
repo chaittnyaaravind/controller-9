@@ -208,7 +208,74 @@ on change (up to the sampling rate) plus heartbeats.
 A host offers up to 4 slots (backend permitting). Slot = player index = one virtual gamepad.
 `open.resumeSlot` is honoured if that slot is free or held in grace for the same controller key.
 
-## 8. Versioning
+## 8. Transport bindings
+
+The protocol has two **logical channels**, independent of the physical link:
+
+* **CONTROL** — reliable, ordered frames (the Noise handshake messages, then Noise transport
+  messages). Each frame is 1..65535 bytes.
+* **INPUT** — unreliable, unordered datagrams exactly as in §6.1 (same keys, counters and
+  freshness rules). Receivers never assume ordering or delivery.
+
+A binding maps both channels onto one physical link. Security is end-to-end Noise + AEAD on every
+binding; link-level pairing (Bluetooth bonding, Wi-Fi passwords) is never relied upon.
+
+### 8.1 IP binding (Wi-Fi/LAN, hotspot, Wi-Fi Direct group, USB tethering, Ethernet)
+CONTROL = TCP (§2 framing, port 47901). INPUT = UDP (port 47900). Works on any IP interface the
+OS exposes, without Internet access. The pairing URI may list extra addresses in `x`
+(comma-separated, percent-encoded); clients try `a` and every `x` address in parallel and keep the
+first that completes the handshake.
+
+### 8.2 Stream binding (any reliable byte stream: TCP-only networks, Bluetooth RFCOMM, USB accessory)
+One byte stream carries records `kind:u8 | len:u16 BE | bytes[len]`, `1 <= len <= 65535`:
+
+| kind | payload |
+|---|---|
+| 0x01 | one CONTROL frame (without the §2 length prefix) |
+| 0x02 | one INPUT datagram (§6.1), either direction |
+
+Unknown kinds close the link. A sender must not queue more than one pending input record: when the
+stream is congested it replaces the queued input datagram with the newest one (latest-state
+semantics), so delay never accumulates. Coalescing may drop superseded input datagrams but must never reorder
+datagrams: all types share one counter, and a reordered frame would be rejected as stale. TCP stream
+binding: port 47902.
+
+### 8.3 BLE GATT binding
+Roles: **phone = GATT server (peripheral)**, **host = GATT client (central)**. This is the only
+role assignment available on every target (iOS cannot be a host-side central for arbitrary phones
+in the background, and Windows/Linux/macOS hosts all support the central role).
+
+| UUID | Name | Properties | Direction |
+|---|---|---|---|
+| `c9c90001-1c3a-4e9d-8f2b-6c7a0b5d4e10` | service | — | — |
+| `c9c90002-1c3a-4e9d-8f2b-6c7a0b5d4e10` | control_up | notify | phone → host |
+| `c9c90003-1c3a-4e9d-8f2b-6c7a0b5d4e10` | control_down | write (with response) | host → phone |
+| `c9c90004-1c3a-4e9d-8f2b-6c7a0b5d4e10` | input_up | notify | phone → host |
+| `c9c90005-1c3a-4e9d-8f2b-6c7a0b5d4e10` | input_down | write without response | host → phone |
+
+Advertising: the service UUID plus service data `hint[4]` = the first 4 bytes of the target host id
+(all zero = "any host in pairing mode"). Hosts connect only to matching hints.
+
+**Segmentation.** Each characteristic value is `hdr:u8 | chunk`, with `hdr` bit 7 = FIRST, bit 6 =
+LAST, bits 0–5 = segment counter (mod 64, continuous per characteristic). A message is one CONTROL
+frame (control_*) or one INPUT datagram (input_*). The receiver discards a partial message on a
+counter gap or a FIRST without a preceding LAST. Chunk size = negotiated ATT MTU − 3 − 1.
+A 58-byte input datagram fits one notification when the ATT MTU ≥ 62; hosts request MTU 185.
+
+The phone starts the Noise handshake (msg1 on control_up) after the host subscribes to both
+notify characteristics. BLE is a fallback: input is coalesced to the latest state per connection
+event; achieved rates are measured per pair (TEST_PLAN), never assumed.
+
+### 8.4 Link selection and failover
+Clients use one link at a time per host and never send the same input over two links. On failover
+the client opens a new session on the next link (new handshake, new session keys, `resumeSlot`);
+the host's slot takeover rule (§7) neutralizes the slot before the new session's first frame, and
+the old session's datagrams are rejected because its session id is gone. Policy:
+`docs/CONNECTION_MANAGER.md`; reference implementation `protocol/rust/src/policy.rs`.
+
+`HostHello` may carry `"links": ["ip","stream","ble"]` (additive; older peers ignore it).
+
+## 9. Versioning
 
 `proto` integers are negotiated in the handshake payloads. Datagram `version` must equal the
 negotiated value. Additive control-message fields must be ignored by older receivers; anything

@@ -17,6 +17,15 @@ tracing.workspace = true
 mdns-sd.workspace = true
 directories.workspace = true
 qrcode.workspace = true
+if-addrs = "=0.15.0"
+btleplug = { version = "=0.13.5", optional = true }
+uuid = { version = "=1.28.0", optional = true }
+futures = { version = "=0.3.34", optional = true }
+
+[features]
+default = []
+# BLE GATT central (SPEC §8.3). Linux builds need libdbus-1-dev (BlueZ over D-Bus).
+ble = ["dep:btleplug", "dep:uuid", "dep:futures"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
