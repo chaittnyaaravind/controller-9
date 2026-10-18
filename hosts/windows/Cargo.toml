@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "nine-devnode"
+path = "src/bin/nine_devnode.rs"
+
 [dependencies]
 nine-host-core.workspace = true
 nine-proto.workspace = true
