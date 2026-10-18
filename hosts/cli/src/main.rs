@@ -25,6 +25,8 @@ enum Cmd {
         #[arg(long)] mock: bool,
         /// Keep identity and pairings in memory only.
         #[arg(long)] ephemeral: bool,
+        /// Use this directory for identity/pairings instead of the per-user config dir (test rigs).
+        #[arg(long)] config_dir: Option<std::path::PathBuf>,
         #[arg(long)] bind: Option<String>,
         #[arg(long)] tcp_port: Option<u16>,
         #[arg(long)] udp_port: Option<u16>,
@@ -85,18 +87,18 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
-        Cmd::Host { mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open } =>
-            run_host(mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open).await,
+        Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open } =>
+            run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open).await,
         Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port } =>
             run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port).await,
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
+async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::PathBuf>, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
                   no_ble: bool, stream_port: Option<u16>, stats_every: u64, keep_pairing_open: bool) -> Result<()> {
     let mut store = if ephemeral { Store::in_memory(Default::default()) } else {
-        Store::open(&Store::default_dir().context("no config directory")?)?
+        Store::open(&match config_dir { Some(d) => d, None => Store::default_dir().context("no config directory")? })?
     };
     if let Some(b) = bind { store.config.bind = b; }
     if let Some(p) = tcp { store.config.tcp_port = p; }

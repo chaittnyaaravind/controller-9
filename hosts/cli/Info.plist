@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>dev.ninecontroller.cli</string>
+    <key>CFBundleName</key><string>controller9</string>
+    <!-- Embedded in the CLI binary (__TEXT,__info_plist) so macOS can show a Bluetooth prompt
+         instead of terminating the process when the BLE central starts. -->
+    <key>NSBluetoothAlwaysUsageDescription</key><string>Connect to Controller-9 phones over Bluetooth LE when Wi-Fi is unavailable.</string>
+</dict>
+</plist>
