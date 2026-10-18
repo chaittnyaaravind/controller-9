@@ -10,3 +10,18 @@ local.properties
 xcuserdata/
 DerivedData/
 .build/
+
+# Secrets — never commit (signing, provisioning, credentials)
+*.jks
+*.keystore
+keystore.properties
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+release-secrets/
