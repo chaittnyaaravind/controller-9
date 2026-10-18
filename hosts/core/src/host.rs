@@ -80,6 +80,25 @@ pub struct SlotSnapshot {
     pub state: StateDto,
     pub pad_ok: bool,
     pub pad_error: Option<String>,
+    /// Stable per-phone identity: hex of the first 8 bytes of SHA-256 of its public static key
+    /// (same scheme as the host id; derived from a public key, not a secret).
+    pub device_id: String,
+    /// "live" | "stale" | "holding" | "waiting" — see [`slot_health`].
+    pub health: &'static str,
+}
+
+/// Input older than this is reported as stale in the UI. The controller is neutralized much
+/// earlier (config `timeout_ms`, 250 ms); this only labels the session for humans.
+pub const STALE_AFTER_MS: u64 = 1000;
+
+/// Classify a slot for display: a session only counts as live while frames keep arriving.
+pub fn slot_health(connected: bool, silent_ms: Option<u64>) -> &'static str {
+    match (connected, silent_ms) {
+        (false, _) => "holding",
+        (true, None) => "waiting",
+        (true, Some(ms)) if ms > STALE_AFTER_MS => "stale",
+        (true, Some(_)) => "live",
+    }
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -357,12 +376,14 @@ impl Host {
         let st = sh.state.lock();
         let slots = st.slots.iter().enumerate().filter_map(|(i, s)| s.as_ref().map(|s| {
             let p50 = s.gaps.percentile(50.0);
+            let silent_ms = s.last_rx.map(|t| now.duration_since(t).as_millis() as u64);
             SlotSnapshot {
+                device_id: nine_proto::host_id(&s.key), health: slot_health(s.connected, silent_ms),
                 slot: i as u8, link: s.link, link_label: s.link.label().into(), connected: s.connected,
                 grace_s_left: s.grace_until.map(|g| g.saturating_duration_since(now).as_secs() as u32),
                 name: s.name.clone(), platform: s.platform.clone(), profile: s.profile.clone(),
                 connected_s: now.duration_since(s.connected_at).as_secs(),
-                silent_ms: s.last_rx.map(|t| now.duration_since(t).as_millis() as u64),
+                silent_ms,
                 frames: s.fresh.accepted(), rate_hz: p50.filter(|v| *v > 0.0).map(|v| 1000.0 / v),
                 lost: s.fresh.lost(), stale: s.fresh.stale(), invalid: s.invalid, jitter_ms: s.jitter.ms(),
                 interarrival_p50_ms: p50, interarrival_p95_ms: s.gaps.percentile(95.0),
@@ -795,5 +816,21 @@ fn send_feedback(sh: &Shared, s: &mut Slot, fb: Feedback) {
     if let Some(to) = s.reply.clone().filter(|_| s.connected) {
         let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.bump() }, &fb.encode());
         to.send(sh, out);
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::{slot_health, STALE_AFTER_MS};
+
+    #[test]
+    fn a_session_is_live_only_while_frames_arrive() {
+        assert_eq!(slot_health(true, Some(0)), "live");
+        assert_eq!(slot_health(true, Some(STALE_AFTER_MS)), "live");
+        assert_eq!(slot_health(true, Some(STALE_AFTER_MS + 1)), "stale");
+        assert_eq!(slot_health(true, None), "waiting");
+        // Disconnected but within the reconnect grace: the slot is held, never "live".
+        assert_eq!(slot_health(false, Some(10)), "holding");
+        assert_eq!(slot_health(false, None), "holding");
     }
 }

@@ -55,7 +55,9 @@ async fn run(sh: Arc<Shared>) -> Result<(), String> {
         let Ok(p) = central.peripheral(&id).await else { busy.lock().remove(&key); continue };
         let (sh2, busy2) = (sh.clone(), busy.clone());
         tokio::spawn(async move {
-            let label = p.properties().await.ok().flatten().and_then(|pr| pr.local_name).unwrap_or_else(|| "phone".into());
+            // Never a shared generic name: fall back to the tail of the OS peripheral id.
+            let label = p.properties().await.ok().flatten().and_then(|pr| pr.local_name)
+                .unwrap_or_else(|| format!("phone {}", short_id(&key)));
             sh2.ble.lock().connected.push(label.clone());
             if let Err(e) = session(&sh2, &p, &label).await { tracing::info!(%label, "BLE session ended: {e}"); }
             let _ = p.disconnect().await;
@@ -65,6 +67,12 @@ async fn run(sh: Arc<Shared>) -> Result<(), String> {
         });
     }
     Err("Bluetooth event stream ended".into())
+}
+
+/// Last 6 hex digits of a peripheral id's debug form (UUID on macOS/Windows, MAC on Linux).
+pub(crate) fn short_id(key: &str) -> String {
+    let hex: Vec<char> = key.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    hex[hex.len().saturating_sub(6)..].iter().collect::<String>().to_lowercase()
 }
 
 /// `C9-<8 hex digits>` → 4-byte hint.
@@ -108,6 +116,15 @@ async fn session(sh: &Arc<Shared>, p: &Peripheral, label: &str) -> Result<(), St
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn short_ids_are_distinct_per_peripheral() {
+        let a = super::short_id("PeripheralId(4F2A9C1E-77B0-4E2D-9A51-0C3D5E6F7A81)");
+        let b = super::short_id("PeripheralId(4F2A9C1E-77B0-4E2D-9A51-0C3D5E6F7A92)");
+        assert_eq!(a, "6f7a81");
+        assert_ne!(a, b);
+        assert_eq!(super::short_id("PeripheralId(AA:BB:CC:DD:EE:FF)"), "ddeeff");
+    }
+
     #[test]
     fn name_hints() {
         assert_eq!(super::name_hint("C9-0a1b2c3d"), Some(vec![0x0a, 0x1b, 0x2c, 0x3d]));
