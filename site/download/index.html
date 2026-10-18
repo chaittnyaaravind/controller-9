@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controller-9 downloads</title>
+<style>
+:root { --bg:#0B0C0D; --s1:#111315; --text:#EEF0F1; --muted:rgb(238 240 241/.62); --dim:rgb(238 240 241/.42); --line:rgb(238 240 241/.08); --line2:rgb(238 240 241/.14);
+  --accent:#C6F432; --ink:#11140A; --warn:#F5B14C; --r:14px; --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif; --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace; color-scheme:dark; }
+* { box-sizing:border-box } [hidden]{display:none!important}
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 var(--ui); }
+main { max-width:1080px; margin:0 auto; padding:72px 24px 96px; }
+.micro { font-size:11px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.accent { color:var(--accent); }
+h1 { font-size:clamp(40px,6vw,64px); line-height:1; font-weight:500; letter-spacing:-.035em; margin:10px 0 16px; }
+.lede { color:var(--muted); max-width:58ch; margin:0 0 40px; }
+.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:24px; }
+.tab { height:34px; padding:0 14px; border-radius:999px; border:0; background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--line2); cursor:pointer; font:inherit; font-size:13.5px; transition:background 120ms cubic-bezier(.25,.46,.45,.94),color 120ms; }
+.tab:hover { color:var(--text); } .tab[aria-selected=true] { background:var(--text); color:var(--bg); box-shadow:none; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.card { background:var(--s1); border-radius:var(--r); box-shadow:inset 0 0 0 1px var(--line), inset 0 1px 0 rgb(238 240 241/.04); padding:22px; display:grid; gap:10px; align-content:start; }
+.card h2 { font-size:20px; font-weight:500; letter-spacing:-.015em; margin:0; }
+.role { font-size:12.5px; color:var(--dim); }
+.status { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--warn); }
+.status::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--warn); }
+.status.ok { color:var(--accent); } .status.ok::before { background:var(--accent); }
+ul { margin:0; padding-left:18px; color:var(--muted); display:grid; gap:4px; }
+.btn { display:inline-flex; align-items:center; height:38px; padding:0 16px; border-radius:999px; background:var(--accent); color:var(--ink); font-weight:500; text-decoration:none; width:max-content; }
+.sum { font:12px/1.4 var(--mono); color:var(--dim); word-break:break-all; }
+.note { margin-top:40px; color:var(--dim); font-size:13px; max-width:70ch; }
+@media (max-width:760px){ .grid{grid-template-columns:1fr} main{padding:48px 16px 72px} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<main>
+  <div class="micro accent">Downloads</div>
+  <h1>Controller-9</h1>
+  <p class="lede">Two parts: the <b>controller app</b> goes on your phone, the <b>host</b> goes on the computer you play on. They talk over your local Wi-Fi, a hotspot, a USB cable or Bluetooth — never the Internet.</p>
+  <div class="tabs" role="tablist" aria-label="Platform" id="tabs"></div>
+  <section class="grid" id="cards" aria-live="polite"></section>
+  <p class="note" id="note"></p>
+</main>
+<script>
+"use strict";
+// Platform facts are maintained by hand from docs/PLATFORM_SUPPORT.md; download links come ONLY from releases.json.
+const PLATFORMS = [
+  { id: "android", name: "Android", role: "Phone controller", needs: ["Android 8.0 or later", "Bluetooth LE peripheral support for the Bluetooth link"],
+    status: "Builds; not yet installed on a test phone" },
+  { id: "ios", name: "iPhone", role: "Phone controller", needs: ["iOS 17 or later", "Distributed through TestFlight / App Store only — Apple does not allow sideloading unsigned apps"],
+    status: "Source complete; needs full Xcode + an Apple developer team to build" },
+  { id: "windows", name: "Windows", role: "Desktop host", needs: ["Windows 11 x64", "Controller-9 virtual gamepad driver (signed, installed with the host)", "XInput-only games need Steam Input"],
+    status: "Host builds; driver not yet built or signed" },
+  { id: "macos", name: "macOS", role: "Desktop host", needs: ["macOS 13 or later", "Games can’t see the controller until Apple grants the virtual-HID entitlement"],
+    status: "Host runs; virtual controller blocked by Apple entitlement" },
+  { id: "linux", name: "Linux", role: "Desktop host", needs: ["x86_64, kernel uinput module", "udev rule (installed by the .deb)"],
+    status: "Compiles; not yet run on Linux" },
+];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function detect() {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Mac OS X/i.test(ua)) return "macos";
+  if (/Linux/i.test(ua)) return "linux";
+  return "all";
+}
+let releases = { artifacts: [] };
+function render(sel) {
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.id === sel)));
+  const list = sel === "all" ? PLATFORMS : PLATFORMS.filter((p) => p.id === sel);
+  document.getElementById("cards").innerHTML = list.map((p) => {
+    const arts = (releases.artifacts || []).filter((a) => a.platform === p.id && a.url && a.sha256 && a.signed && a.installTested);
+    return `<article class="card"><div class="role">${esc(p.role)}</div><h2>${esc(p.name)}</h2>
+      <span class="status ${arts.length ? "ok" : ""}">${arts.length ? `Version ${esc(releases.version)}` : "No public release yet"}</span>
+      <p class="role">${esc(arts.length ? "" : p.status)}</p>
+      <ul>${p.needs.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+      ${arts.map((a) => `<a class="btn" href="${esc(a.url)}">Download ${esc(a.label)}</a><div class="sum">SHA-256 ${esc(a.sha256)}</div>`).join("")}
+    </article>`;
+  }).join("");
+}
+const tabs = document.getElementById("tabs");
+tabs.innerHTML = [{ id: "all", name: "All" }, ...PLATFORMS].map((p) => `<button class="tab" role="tab" data-id="${p.id}">${esc(p.name)}</button>`).join("");
+tabs.addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (b) render(b.dataset.id); });
+const guess = detect();
+document.getElementById("note").textContent = (guess !== "all" ? `Showing ${PLATFORMS.find((p) => p.id === guess).name} because this looks like your device — pick another platform above. ` : "")
+  + "Builds appear here only after they are signed, install-tested and checksummed (see docs/RELEASES.md). Until then, build from source.";
+render(guess);
+fetch("releases.json").then((r) => r.json()).then((j) => { releases = j; render(document.querySelector('.tab[aria-selected="true"]')?.dataset.id || guess); }).catch(() => {});
+</script>
+</body>
+</html>

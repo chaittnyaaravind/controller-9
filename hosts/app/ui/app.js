@@ -63,7 +63,7 @@ function bay(s, i, max) {
   }
   const loss = s.frames + s.lost > 0 ? (100 * s.lost) / (s.frames + s.lost) : null;
   const st = s.state;
-  const status = !s.connected ? `Reconnecting · ${s.graceSLeft ?? 0}s` : s.padOk ? "Live" : "Connected · no virtual controller";
+  const status = !s.connected ? `Reconnecting · ${s.graceSLeft ?? 0}s` : s.padOk ? `Live · ${s.linkLabel}` : `${s.linkLabel} · no virtual controller`;
   return `<div class="bay ${s.connected ? "" : "grace"}">
     <div class="bay-head">
       <div><div class="pindex">P${s.slot + 1} · ${esc(s.platform)}</div><div class="bay-title">${esc(s.name)}</div>
@@ -90,6 +90,11 @@ function render() {
   $("#hostAddr").textContent = snap.address ? `${snap.address}:${snap.tcpPort}` : `port ${snap.tcpPort}`;
   $("#hostVersion").textContent = `v${snap.version || "0.1.0"} · ${snap.os}`;
   $("#manualAddr").textContent = snap.address ? `${snap.address}:${snap.tcpPort}` : "—";
+  $("#addrList").innerHTML = (snap.addresses || []).map((a) => `<li><span class="mono">${esc(a.ip)}</span> <span class="dim">${esc(a.label)} · ${esc(a.iface)}</span></li>`).join("")
+    || `<li class="dim">No network interface is up. Phones can still connect over Bluetooth.</li>`;
+  const ble = snap.ble || {};
+  $("#bleStatus").textContent = !ble.supported ? "Bluetooth: not available in this build" : ble.active ? `Bluetooth: ${ble.detail}${ble.connected && ble.connected.length ? " · " + ble.connected.join(", ") : ""}` : `Bluetooth: ${ble.detail || "off"}`;
+  $("#linkList").textContent = `Links: ${(snap.links || ["ip"]).join(", ")}${snap.streamPort ? ` · TCP-only port ${snap.streamPort}` : ""}`;
   $("#pairHostName").textContent = snap.name;
   const b = snap.backend;
   const chip = $("#backendChip");
@@ -121,7 +126,7 @@ function render() {
     $("#devicesEmpty").hidden = snap.paired.length > 0;
   }
   if (view === "diagnostics") {
-    $("#diag").innerHTML = snap.slots.length ? snap.slots.map((s) => `<tr><td>P${s.slot + 1} ${esc(s.name)}</td>
+    $("#diag").innerHTML = snap.slots.length ? snap.slots.map((s) => `<tr><td>P${s.slot + 1} ${esc(s.name)}<br><span class="dim">${esc(s.linkLabel)}</span></td>
       <td>${fmt(s.rateHz, 0, " Hz")}</td><td>${fmt(s.interarrivalP50Ms, 1)} / ${fmt(s.interarrivalP95Ms, 1)} ms</td><td>${fmt(s.jitterMs, 2)} ms</td>
       <td>${s.lost}</td><td>${s.stale}</td><td>${s.invalid}</td><td>${fmt(s.phone.rttP50Ms, 1)} / ${fmt(s.phone.rttP95Ms, 1)} ms</td>
       <td>${fmt(s.phone.sensorHz, 0, " Hz")}</td><td>${fmt(s.hostProcessingP95Us, 0, " µs")}</td><td>${s.neutralResets}</td></tr>`).join("")
@@ -225,7 +230,7 @@ function previewApi() {
   const cfg = { name: "Studio PC", tcpPort: 47901, udpPort: 47900, maxSlots: 4, timeoutMs: 250, heartbeatMs: 50, idleHeartbeatMs: 200, graceS: 30, advertise: true, bind: "0.0.0.0" };
   const slot = (i, name, platform, profile, motion) => {
     const t = (performance.now() - t0) / 1000 + i;
-    return { slot: i, connected: true, graceSLeft: null, name, platform, profile, connectedS: 300, frames: 36000, rateHz: 120 - i * 6, lost: 12 + i * 9, stale: 2, invalid: 0,
+    return { slot: i, link: i ? "ble" : "lan", linkLabel: i ? "Bluetooth LE" : "Wi-Fi / LAN", connected: true, graceSLeft: null, name, platform, profile, connectedS: 300, frames: 36000, rateHz: 120 - i * 6, lost: 12 + i * 9, stale: 2, invalid: 0,
       jitterMs: 0.8 + i * 0.4, interarrivalP50Ms: 8.3, interarrivalP95Ms: 11.9, hostProcessingP95Us: 41, neutralResets: 0, motion,
       phone: { rttP50Ms: 6.2 + i * 1.7, rttP95Ms: 13.8 + i * 2, sensorHz: 200, sendHz: 120, batteryPct: 81 },
       state: { buttons: (Math.sin(t * 3) > 0.6 ? 1 : 0) | (Math.sin(t * 2) > 0.8 ? 1 << 5 : 0), lx: Math.round(Math.sin(t) * 26000), ly: Math.round(Math.cos(t * 0.7) * 9000),
@@ -238,6 +243,8 @@ function previewApi() {
       snapshot: { name: cfg.name, id: "0000000000000000", os: "preview", address: "192.168.1.20", tcpPort: 47901, udpPort: 47900, advertising: true,
         backend: { name: "preview", kind: "native", available: true, maxPads: 4, detail: "Design preview — not connected to a host", remedy: null },
         maxSlots: 4, slots: [slot(0, "Pixel 9", "android", "Racing", true), slot(1, "iPhone 16", "ios", "Classic", false)],
+        addresses: [{ ip: "192.168.1.20", iface: "en0", label: "Wi-Fi / LAN" }, { ip: "192.168.42.10", iface: "en7", label: "USB network" }],
+        links: ["ip", "stream", "ble"], streamPort: 47902, ble: { supported: true, active: true, detail: "Scanning for phones offering Bluetooth", connected: ["iPhone 16"] },
         pairingOpen: true, pairingSecondsLeft: 104, uptimeS: 1260, malformedDatagrams: 0, unknownSessionDatagrams: 0, preview: true, version: "0.1.0",
         paired: [{ key: "a", name: "Pixel 9", platform: "android", pairedAt: "2026-10-17T12:00:00Z", lastSeen: "2026-10-17T13:02:11Z" },
                  { key: "b", name: "iPhone 16", platform: "ios", pairedAt: "2026-10-17T12:05:00Z", lastSeen: "2026-10-17T13:02:11Z" }] },

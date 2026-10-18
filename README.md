@@ -1,7 +1,8 @@
 # Controller-9
 
 Use your phone as a low-latency game controller for your computer — touch controls, motion
-steering, up to four players — over your local Wi-Fi, end-to-end encrypted, no account, no cloud.
+steering, up to four players — over local Wi-Fi, a hotspot, a USB cable or Bluetooth LE, with
+automatic failover. End-to-end encrypted, no Internet, no account, no cloud.
 
 | Part | Path | Tech |
 |---|---|---|
@@ -13,13 +14,14 @@ steering, up to four players — over your local Wi-Fi, end-to-end encrypted, no
 | Virtual controllers | `hosts/linux` (uinput), `hosts/windows` (KMDF VHF driver), `hosts/macos` (IOHIDUserDevice) | Rust, C |
 | Protocol v1 + vectors | `protocol/` (spec, Rust reference, Kotlin, Swift) | Noise XX, ChaCha20-Poly1305 |
 
-**Status:** see [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md) and the requirement map
+**Status:** see [`docs/PLATFORM_SUPPORT.md`](docs/PLATFORM_SUPPORT.md), [`docs/TRANSPORT_MATRIX.md`](docs/TRANSPORT_MATRIX.md),
+[`docs/ACCEPTANCE_STATUS.md`](docs/ACCEPTANCE_STATUS.md) and the requirement map
 [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md). Nothing is marked working until it ran.
 
 ```sh
 tests/run_all.sh                                   # every check that runs without devices
-cargo run --release -p ninectl -- host --pair      # headless host; prints a pairing QR
-cargo run --release -p ninectl -- sim --uri '…'    # simulated controller + RTT report
+cargo run --release -p ninectl --bin controller9 -- host --pair      # headless host; prints a pairing QR
+cargo run --release -p ninectl --bin controller9 -- sim --uri '…' [--link stream]   # simulated controller
 ```
 Build details: [`docs/BUILD.md`](docs/BUILD.md) · security: [`docs/SECURITY.md`](docs/SECURITY.md) ·
 tests and metric definitions: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).

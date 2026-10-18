@@ -57,6 +57,11 @@
             <li><span class="idx">03</span>No camera? Choose <b>Pair with code</b> on the phone. Both screens show the same six digits — confirm on both.</li>
           </ol>
           <div class="kv"><span class="micro">Manual address</span><span class="mono" id="manualAddr">—</span></div>
+          <div class="micro">Reachable on</div>
+          <ul class="addrs" id="addrList"></ul>
+          <p class="fine" id="bleStatus"></p>
+          <p class="fine" id="linkList"></p>
+          <p class="fine">No router? Join the phone's hotspot (or its “Create a local network” Wi-Fi), connect it by USB with tethering on, or use “Pair over Bluetooth” on the phone. The QR code lists every address above.</p>
           <div class="row">
             <button class="btn" id="renewQr">New code</button>
             <button class="btn ghost" id="closePair">Stop pairing</button>
@@ -119,12 +124,13 @@
         <article class="card"><div class="micro accent">First run</div>
           <ol class="steps">
             <li><span class="idx">01</span>Keep the phone and this computer on the same Wi-Fi network (5 GHz is best).</li>
-            <li><span class="idx">02</span>Allow Controller-9 through the firewall when asked (TCP 47901, UDP 47900).</li>
+            <li><span class="idx">02</span>Allow Controller-9 through the firewall when asked (TCP 47901 and 47902, UDP 47900). No Internet connection is needed.</li>
             <li><span class="idx">03</span>Pair, choose a layout on the phone, and press a button — the player bay lights up.</li>
           </ol></article>
         <article class="card"><div class="micro accent">Virtual controller</div><div id="helpBackend" class="help-body"></div></article>
         <article class="card"><div class="micro accent">Troubleshooting</div>
           <ul class="list">
+            <li><b>No Wi-Fi at all?</b> Turn Bluetooth on here; the phone falls back to Bluetooth LE automatically (slower — fine for most games, not ideal for fast racing). USB tethering is the lowest-latency option.</li>
             <li><b>Phone can’t find this computer.</b> Use the QR code or the manual address; some routers block discovery between devices (“client isolation”).</li>
             <li><b>Input stutters.</b> Check Lost and Jitter in Diagnostics. Move closer to the router or use 5 GHz.</li>
             <li><b>Game ignores the controller.</b> Confirm it appears in your OS game-controller panel. XInput-only games on Windows need Steam Input.</li>

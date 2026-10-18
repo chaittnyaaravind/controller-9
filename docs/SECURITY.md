@@ -25,6 +25,21 @@ access to an unlocked device, and malicious games.
 | Secret leakage | `SecretB64` / redacted `Debug`, `toString`, `description`; keys never logged | control types | redaction tests |
 | Key storage | host: per-user config dir, files 0600, dir 0700; Android: AES-GCM wrapped by a non-exportable Keystore key, excluded from backup; iOS: Keychain `ThisDeviceOnly`, not synchronizable | stores | Rust store test; device tests pending |
 
+## Transports (SPEC §8)
+Every link — IP, TCP-only stream, BLE GATT — carries the same Noise XX handshake and AEAD
+datagrams; link-layer security (Wi-Fi passwords, Bluetooth bonding) is never relied on.
+| Threat | Control | Evidence |
+|---|---|---|
+| Rogue BLE central connecting to a phone | phone completes Noise XX and pins the host key; unknown hosts get no session | same code path as IP; simulated-GATT tests |
+| BLE scanning noise / strangers' phones | hosts connect only to advertised hints matching their id (or zero hint while pairing is open) | `name_hint` unit test |
+| Malformed stream records / BLE segments | unknown record kind closes the link; length caps; partial segments dropped on gaps; oversize messages dropped | `link.rs` tests, `stream_binding_rejects_unknown_record_kind` |
+| Replay across links | session ids die with their link; freshness per session | `failover_…rejects_old_session` |
+| Duplicate input over two links | one active link per controller; host takeover rule | `takeover_while_old_link_alive…` |
+| Slot spoofing | slot bound to an authenticated session id; one identity ↔ one slot | e2e + links tests |
+| Downgrade | single protocol version 1; unsupported `proto` → explicit error; no plaintext fallback exists on any link | handshake code |
+| Resource exhaustion | connection, handshake and pairing limits apply to every binding; bounded queues on BLE (latest-input only) | host limits |
+| Wi-Fi Direct group | WPA2 passphrase generated per session (12 random chars); still treated as untrusted — Noise decides trust | Android `LocalNetwork` |
+
 ## Residual risks (documented, not hidden)
 - **Windows driver ACL** lets any interactive-user process create pads (`IU` read/write in the INF),
   as any USB gamepad would. Tighten to a service SID if a broker service is added.
@@ -34,6 +49,8 @@ access to an unlocked device, and malicious games.
 - The **phone's TCP control channel has no keepalive** beyond UDP ping health checks; a silently
   dead TCP connection is detected via missing pongs within 1 s.
 - **Anti-cheat**: some games refuse virtual devices. We do not attempt to evade that.
+- **BLE advertising reveals presence**: a phone advertising the Controller-9 service with a host hint
+  is visible to nearby scanners while it waits for its computer (only during connection attempts).
 
 ## Reporting
 Security issues: open a private advisory on the project repository (to be created) rather than a

@@ -5,6 +5,7 @@
 |---|---|
 | `NSCameraUsageDescription` | scan the pairing QR code |
 | `NSLocalNetworkUsageDescription` + `NSBonjourServices = [_ninectl._tcp]` | find and connect to hosts on the LAN |
+| `NSBluetoothAlwaysUsageDescription` | Bluetooth LE fallback link (iPhone is a GATT peripheral; works while the app is in the foreground) |
 
 Core Motion device motion does not require a permission prompt. No tracking, no analytics.
 

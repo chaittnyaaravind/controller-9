@@ -45,6 +45,23 @@ tests, Android debug APK, Swift vector + app-core tests, iOS UI parse, three-lan
 | A16 | Lifecycle / orientation / a11y | phones | background, rotate, TalkBack/VoiceOver, reduced motion | input released on background; controls labelled | — |
 | A17 | Repeated sessions | all | 50 connect/disconnect cycles | no leaks/crashes; slots released | — |
 
+## Transport campaign (Controller-9 master prompt §I) — all real-device
+| # | Scenario | Pairs | Pass criteria |
+|---|---|---|---|
+| T1 | Same LAN, Internet disabled at the router | each phone × host | connects, plays 10 min, metrics recorded |
+| T2 | Phone hotspot, Internet/mobile data off | each phone × host | as T1; record subnet + whether client isolation interferes |
+| T3 | Android Wi-Fi Direct local network | Android × each host | computer joins; QR lists 192.168.49.x; as T1 |
+| T4 | Bluetooth only — every Wi-Fi radio off on both devices | each phone × host | connects over BLE ≤ 15 s; report RTT/jitter/loss/input Hz; button + motion usable |
+| T5 | USB only — Wi-Fi and Bluetooth off | each phone × host where supported | USB tethering link; lowest RTT expected |
+| T6 | Kill the active link mid-input (holding throttle) | every link pair | host shows neutral ≤ 250 ms; next link up < 3 s; same slot; no stuck input; no flapping in 10 min |
+| T7 | Sleep/wake, background, route change, cable unplug, BT toggle, host restart, rotation | all | recovers; nothing stuck; diagnostics explain |
+| T8 | Bad code, unpaired peer, replayed capture, malformed packets, flood, revoked peer | all bindings | all rejected, no crash, limits hold |
+| T9 | 1–4 controllers, sustained 60 min, host load | all hosts | per-slot metrics; battery %/h |
+| T10 | OS controller detection + named games | each advertised host | gamepad tester + ≥3 titles; record refusals |
+
+Report separately: network RTT, one-way estimate, host processing, OS injection delay, and true
+end-to-end (camera/photodiode) latency. Anything not run is **UNVERIFIED**.
+
 ## Recording results
 Each run records: date, device model + OS version, host OS + version, backend, connection type
 (band, RSSI), duration, sample count, p50/p95/p99, jitter, loss, sensor Hz, battery, reconnect

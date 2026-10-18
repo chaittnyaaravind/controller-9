@@ -82,6 +82,22 @@ Last reviewed 2026-10-17 at the commit that adds this file.
 | Racing preset, distinct controls, haptics, sensitivity, calibration, live indicators, editor | presets + apps | screenshots of desktop UI (preview data); phones not yet run | 1 |
 | Desktop companion | `hosts/app/ui` | design-preview screenshots 1440 px | 1 |
 
+## Controller-9 transport requirements (master prompt §C–F)
+| Requirement | Files | Verification so far | State |
+|---|---|---|---|
+| Common transport interface, input model independent of link | `protocol/SPEC.md §8`, `protocol/rust/src/link.rs`, `hosts/core/src/link.rs`, Kotlin `Links.kt`, Swift `Client.swift` | 3-language vectors; host e2e over IP, stream, simulated GATT | 1 |
+| Local Wi-Fi/LAN without Internet, multi-interface, QR/manual fallback | `netif.rs`, multi-address URI, address racing (Android `Transports.kt`, iOS `Transports.swift`) | loopback live interop | 1 (device test pending) |
+| Hotspot mode | IP binding + subnet classification + in-app guidance | — | 1 (UNVERIFIED) |
+| Peer-to-peer Wi-Fi | Android `LocalNetwork.kt` (autonomous Wi-Fi Direct group); Apple peer-to-peer not used | compiles | 1 Android (UNVERIFIED) / 3 iPhone (no API) |
+| Bluetooth LE | host `ble.rs` (btleplug central), Android `BlePeripheral.kt`, iOS `BlePeripheral.swift` | segmentation vectors; simulated GATT e2e at MTU 23/185 | 1 (radio UNVERIFIED) |
+| Bluetooth Classic RFCOMM | — | — | 3 (stream binding ready to carry it) |
+| USB tethering / Ethernet | IP binding + "USB network"/"Ethernet" classification | — | 1 (UNVERIFIED) |
+| Android USB accessory, iPhone USB data channel | — | — | 3 (AOA not started; iPhone not possible for third-party apps) |
+| Connection manager: ranking, failover, anti-flap, override, diagnostics | `policy.rs/.kt/.swift`, Android + iOS `ConnectionManager` | policy vectors (9 scenarios × 3 languages); failover/takeover integration tests | 1 |
+| Safe neutral on transitions; one identity ↔ one slot | host takeover + watchdog | `links.rs` | 1 |
+| Name migration | `docs/NAME_MIGRATION.md` | suites green after rename | 1 |
+| Release workflows, checksums, download page | `.github/workflows/`, `tools/release/checksums.sh`, `site/download/` | YAML parses; page screenshot at 390 px | 1 (workflows never run) |
+
 ## Targets (not yet measurable here)
 Wi-Fi latency, USB latency, motion ≥ 100 Hz, reconnect < 3 s, battery < 8 %/h, setup < 2 min:
 all need devices (TEST_PLAN A12–A14). Loopback numbers in `tests/results/` are protocol overhead only.

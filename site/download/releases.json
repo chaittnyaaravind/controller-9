@@ -1,0 +1,5 @@
+{
+  "comment": "Only signed, install-tested artifacts may be listed here (docs/RELEASES.md). Empty until the first release passes acceptance.",
+  "version": null,
+  "artifacts": []
+}
