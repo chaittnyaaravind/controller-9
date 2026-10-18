@@ -37,3 +37,17 @@ final class Box: @unchecked Sendable { var v: [(InputState, UInt16)] = [] }
     #expect(s.hosts.isEmpty)
     #expect(throws: ProfileError.self) { _ = try s.importProfile(Data(#"{"schema":9}"#.utf8)) }
 }
+
+@Test func linkClassificationAndLegacyHostsFile() throws {
+    #expect(LocalLinks.classify(pathKinds: ["wifi"], remote: "192.168.1.20") == .lan)
+    #expect(LocalLinks.classify(pathKinds: ["wifi"], remote: "172.20.10.2") == .hotspot)
+    #expect(LocalLinks.classify(pathKinds: ["wiredEthernet"], remote: "10.0.0.2") == .ethernet)
+    #expect(LocalLinks.classify(pathKinds: ["other"], remote: "192.168.2.2") == .usb)
+    // hosts.json written before transport support (no addrs/links) still loads
+    let legacy = #"[{"id":"h1","name":"PC","pub":"x","addr":"10.0.0.2","port":47901,"pairedAt":"2026-10-17T12:00:00Z"}]"#
+    let hs = try JSONDecoder().decode([PairedHost].self, from: Data(legacy.utf8))
+    #expect(hs[0].allAddrs == ["10.0.0.2"] && hs[0].offers("ble"))
+    var h = hs[0]; h.addrs = ["172.20.10.3", "10.0.0.2"]; h.links = ["ip", "stream"]
+    #expect(h.allAddrs == ["10.0.0.2", "172.20.10.3"])
+    #expect(h.offers("stream") && !h.offers("ble"))
+}

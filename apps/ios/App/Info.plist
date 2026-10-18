@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Connect to your computer over Bluetooth when Wi-Fi is off or unavailable.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_ninectl._tcp</string>

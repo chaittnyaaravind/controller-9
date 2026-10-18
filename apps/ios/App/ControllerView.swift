@@ -78,7 +78,7 @@ struct ControllerView: View {
     private func statusStrip(_ p: Profile) -> some View {
         let (text, color): (String, Color) = {
             switch model.connection.state {
-            case let .connected(h, s, w): return ("P\(s + 1) · \(h)", w == nil ? Nine.accent : Nine.warn)
+            case let .connected(h, s, w, link): return ("P\(s + 1) · \(h) · \(link.label)", w == nil ? Nine.accent : Nine.warn)
             case .reconnecting: return ("Reconnecting…", Nine.warn)
             case .connecting: return ("Connecting…", Nine.warn)
             default: return ("Offline", Nine.bad)

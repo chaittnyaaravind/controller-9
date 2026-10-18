@@ -1,5 +1,6 @@
 import NineAppCore
 import NineKit
+import Network
 import SwiftUI
 
 struct RootView: View {
@@ -46,6 +47,7 @@ struct HomeView: View {
                     }.card()
                 }
                 HStack(spacing: 18) {
+                    NavigationLink("Connection") { ConnectionView() }
                     NavigationLink("Diagnostics") { DiagnosticsView() }
                     NavigationLink("Settings") { SettingsView() }
                 }.foregroundStyle(Nine.text).padding(.top, 4)
@@ -56,7 +58,7 @@ struct HomeView: View {
     @ViewBuilder private var statusCard: some View {
         let (label, color): (String, Color) = {
             switch model.connection.state {
-            case let .connected(h, slot, w): return ("Player \(slot + 1) on \(h)", w == nil ? Nine.accent : Nine.warn)
+            case let .connected(h, slot, w, link): return ("Player \(slot + 1) on \(h) · \(link.label)", w == nil ? Nine.accent : Nine.warn)
             case let .connecting(h): return ("Connecting to \(h)…", Nine.warn)
             case let .reconnecting(h, _, _): return ("Reconnecting to \(h)…", Nine.warn)
             case .confirmCode: return ("Confirm the code", Nine.warn)
@@ -67,7 +69,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) { Circle().fill(color).frame(width: 7, height: 7); Text(label).font(.headline) }
                 .accessibilityElement(children: .combine)
-            if case let .connected(_, _, w?) = model.connection.state {
+            if case let .connected(_, _, w?, _) = model.connection.state {
                 Text("The computer receives input but can’t create a game controller yet: \(w)").font(.footnote).foregroundStyle(Nine.warn)
             }
             if case .connected = model.connection.state {
@@ -124,6 +126,13 @@ struct AddHostView: View {
                             Spacer(); Text("Pair with code").foregroundStyle(Nine.muted) }.card()
                     }.accessibilityLabel("Pair with \(h.name) using a code")
                 }
+                Micro("No network?")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Pair over Bluetooth").font(.headline)
+                    Text("Works with Wi-Fi off. Open “Pair a phone” on the computer (it needs Bluetooth), keep this screen open, then compare codes.").foregroundStyle(Nine.muted)
+                    Button("Pair over Bluetooth") { error = nil; model.connection.pairWithCode(endpoint: nil, name: "computer over Bluetooth") }.foregroundStyle(Nine.text)
+                    Text("No router? Turn on this iPhone's Personal Hotspot and join it from the computer — or connect the iPhone by USB cable with Personal Hotspot on — then scan the computer's QR code.").font(.footnote).foregroundStyle(Nine.dim)
+                }.card()
                 Micro("Manual address")
                 TextField("192.168.1.20 or 192.168.1.20:47901", text: $manual)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()

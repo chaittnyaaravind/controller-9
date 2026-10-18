@@ -34,9 +34,14 @@ public enum IdentityStore {
 
 public struct PairedHost: Codable, Equatable, Identifiable, Sendable {
     public var id: String, name: String, pub: String, addr: String, port: UInt16, pairedAt: String, lastUsed: String?
-    public init(id: String, name: String, pub: String, addr: String, port: UInt16, pairedAt: String, lastUsed: String? = nil) {
+    /// Other host addresses (hotspot, USB, Wi-Fi Direct…) and advertised bindings; optional for older files.
+    public var addrs: [String]?, links: [String]?
+    public init(id: String, name: String, pub: String, addr: String, port: UInt16, pairedAt: String, lastUsed: String? = nil, addrs: [String] = [], links: [String] = []) {
         self.id = id; self.name = name; self.pub = pub; self.addr = addr; self.port = port; self.pairedAt = pairedAt; self.lastUsed = lastUsed
+        self.addrs = addrs; self.links = links
     }
+    public var allAddrs: [String] { var seen = Set<String>(); return ([addr] + (addrs ?? [])).filter { !$0.isEmpty && seen.insert($0).inserted } }
+    public func offers(_ link: String) -> Bool { (links ?? []).isEmpty || (links ?? []).contains(link) }
 }
 
 public struct AppSettings: Codable, Equatable, Sendable {
@@ -47,6 +52,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var sensorHz = 100
     public var calibrationDeg = 0.0
     public var showStats = true
+    /// "auto" or a LinkKind raw value.
+    public var linkOverride: String? = "auto"
     public init() {}
 }
 

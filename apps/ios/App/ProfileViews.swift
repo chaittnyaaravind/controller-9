@@ -213,6 +213,36 @@ struct MotionView: View {
     }
 }
 
+struct ConnectionView: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        Form {
+            Section("Active link") {
+                if case let .connected(_, _, _, link) = model.connection.state { Text("\(link.label) — \(model.connection.stats.linkDetail)") } else { Text("Not connected").foregroundStyle(Nine.muted) }
+                Text("Controller-9 never needs the Internet. It picks the best local link and moves to the next one if it fails, releasing every button first.").font(.footnote).foregroundStyle(Nine.dim)
+                if let s = model.connection.stats.lastSwitch { Text("Last switch: \(s)").font(.footnote).foregroundStyle(Nine.dim) }
+            }
+            Section("Links") {
+                if model.connection.links.isEmpty { Text("Connect to a computer to see link details.").foregroundStyle(Nine.muted) }
+                ForEach(model.connection.links) { l in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack { Circle().fill(l.available ? Nine.accent : Nine.dim).frame(width: 7, height: 7); Text(l.kind.label); Spacer(); Text(l.score.map { "score \(Int($0))" } ?? "unavailable").foregroundStyle(Nine.dim) }
+                        if let r = l.reason { Text(r).font(.footnote).foregroundStyle(Nine.muted) }
+                        if l.attempts > 0 { Text("\(l.successes)/\(l.attempts) recent connects ok").font(.footnote).foregroundStyle(Nine.dim) }
+                    }.accessibilityElement(children: .combine)
+                }
+            }
+            Section("Preferred link") {
+                Picker("Preferred link", selection: Binding(get: { model.settings.linkOverride ?? "auto" }, set: { model.settings.linkOverride = $0 })) {
+                    Text("Automatic").tag("auto")
+                    ForEach([LinkKind.lan, .stream, .ble], id: \.self) { Text($0.label).tag($0.rawValue) }
+                }
+                Text("Used whenever available; otherwise the automatic order applies.").font(.footnote).foregroundStyle(Nine.dim)
+            }
+        }.scrollContentBackground(.hidden).background(Nine.bg).navigationTitle("Connection")
+    }
+}
+
 struct DiagnosticsView: View {
     @Environment(AppModel.self) private var model
     var body: some View {
@@ -224,6 +254,7 @@ struct DiagnosticsView: View {
                 LabeledContent("Send rate", value: "\(fmt(s.sendHz, 0)) Hz"); LabeledContent("Sensor rate", value: "\(fmt(s.sensorHz, 0)) Hz")
                 LabeledContent("Frames sent", value: "\(s.sent)"); LabeledContent("Reconnects", value: "\(s.reconnects)")
                 LabeledContent("Last reconnect", value: s.lastReconnectMs.map { "\($0) ms" } ?? "—")
+                LabeledContent("Watchdog neutralizations", value: "\(s.watchdogTrips)")
             }
             Section("What these mean") {
                 Text("RTT is the encrypted ping round trip between this phone and the computer. It covers the network and host only — not the screen, game or display delay.").font(.footnote).foregroundStyle(Nine.dim)

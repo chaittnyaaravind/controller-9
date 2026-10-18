@@ -1,5 +1,6 @@
 import NineAppCore
 import NineKit
+import Network
 import SwiftUI
 import UIKit
 
