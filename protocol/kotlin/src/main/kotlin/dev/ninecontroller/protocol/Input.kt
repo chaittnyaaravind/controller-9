@@ -37,3 +37,6 @@ data class InputState(
 
 fun axisFromUnit(v: Double): Int = (v.coerceIn(-1.0, 1.0) * AXIS_MAX).roundToInt()
 fun triggerFromUnit(v: Double): Int = (v.coerceIn(0.0, 1.0) * TRIGGER_MAX).roundToInt()
+
+const val DEFAULT_TCP_PORT = 47901
+const val DEFAULT_UDP_PORT = 47900
