@@ -22,26 +22,26 @@ discarded; `tools/netprobe` stays as the v0 *test-only* instrument and is never 
 Status: `[ ]` todo · `[~]` in progress · `[x]` implemented (not yet acceptance-tested) · `[B]` blocked externally
 
 ### Protocol (`protocol/`)
-- [ ] SPEC.md v1 (discovery, control channel, handshake, pairing, UDP frames, timers, errors)
-- [ ] PROFILE.md + JSON schema v1, migration from v0, preset profiles
-- [ ] Rust reference crate `nine-proto` (frames, Noise XX, pairing SAS/QR proof, stale rejection, motion pipeline, profile)
-- [ ] Generated test vectors (`protocol/vectors/*.json`)
-- [ ] Kotlin implementation + JVM tests against vectors
-- [ ] Swift `NineKit` + `swift test` against vectors
+- [x] SPEC.md v1 (discovery, control channel, handshake, pairing, UDP frames, timers, errors)
+- [x] PROFILE.md + JSON schema v1, migration from v0, preset profiles
+- [x] Rust reference crate `nine-proto` (frames, Noise XX, pairing SAS/QR proof, stale rejection, motion pipeline, profile)
+- [x] Generated test vectors (`protocol/vectors/*.json`)
+- [x] Kotlin implementation + JVM tests against vectors
+- [x] Swift `NineKit` + `swift test` against vectors
 
 ### Hosts (`hosts/`)
-- [ ] `core`: identity store, pairing manager + rate limits, TCP control server, UDP input server, 4 slots, neutral-on-timeout, reconnect grace, diagnostics, DNS-SD advertise, backend trait
-- [ ] `linux`: uinput backend + udev rule + packaging notes
-- [ ] `macos`: IOHIDUserDevice backend (entitlement-gated) + entitlements + packaging notes
-- [ ] `windows`: VHF backend client (IOCTL) + KMDF driver source + INF + build/sign/install docs + installer
-- [ ] `cli`: headless host + simulated controller (`ninectl sim`) for tests
-- [ ] `app`: Tauri desktop companion (setup, pairing QR/code, slots, live latency, profiles, settings, troubleshooting)
+- [x] `core`: identity store, pairing manager + rate limits, TCP control server, UDP input server, 4 slots, neutral-on-timeout, reconnect grace, diagnostics, DNS-SD advertise, backend trait
+- [x] `linux` (not yet run on Linux): uinput backend + udev rule + packaging notes
+- [B] `macos` (entitlement): IOHIDUserDevice backend (entitlement-gated) + entitlements + packaging notes
+- [x] `windows` (not yet built/run on Windows): VHF backend client (IOCTL) + KMDF driver source + INF + build/sign/install docs + installer
+- [x] `cli`: headless host + simulated controller (`ninectl sim`) for tests
+- [x] `app`: Tauri desktop companion (setup, pairing QR/code, slots, live latency, profiles, settings, troubleshooting)
 
 ### Clients (`apps/`)
-- [ ] Android: dashboard, discovery, QR+code pairing, controller surface (buttons, sticks, D-pad, triggers, pedals, steering), motion + calibration + curves + lock, layout editor (move/resize), profiles + import/export, haptics, diagnostics, settings/privacy, reconnect, accessibility
-- [ ] iOS: same profile model + protocol, controller, Core Motion steering, calibration, profiles, Bonjour discovery, pairing, haptics, accessibility, reconnect
+- [x] Android (built; not yet on a device): dashboard, discovery, QR+code pairing, controller surface (buttons, sticks, D-pad, triggers, pedals, steering), motion + calibration + curves + lock, layout editor (move/resize), profiles + import/export, haptics, diagnostics, settings/privacy, reconnect, accessibility
+- [B] iOS (needs full Xcode to build): same profile model + protocol, controller, Core Motion steering, calibration, profiles, Bonjour discovery, pairing, haptics, accessibility, reconnect
 
 ### Tests (`tests/`) and docs
-- [ ] Rust integration test: real sockets + real crypto + mock backend; malformed/replay/stale/timeout/4 slots
-- [ ] Cross-language vector tests (Rust, Kotlin, Swift)
-- [ ] REQUIREMENTS.md (requirement → file → verification), SECURITY.md, TEST_PLAN.md, BUILD.md, TROUBLESHOOTING.md, SUPPORT_MATRIX.md
+- [x] Rust integration test: real sockets + real crypto + mock backend; malformed/replay/stale/timeout/4 slots
+- [x] Cross-language vector tests + live interop (Rust, Kotlin, Swift)
+- [x] REQUIREMENTS.md (requirement → file → verification), SECURITY.md, TEST_PLAN.md, BUILD.md, TROUBLESHOOTING.md, SUPPORT_MATRIX.md

@@ -1,6 +1,6 @@
 # 9-controller — Phase 0 Feasibility
 
-Status as of 2026-10-17. "Verified" means run on this machine with the output recorded here.
+Status as of 2026-10-17 (Phase 0). **Update:** JDK 21, Android SDK (36, 37.0), Gradle, Rust and XcodeGen are now installed; see docs/BUILD.md. VHF supports kernel-mode (KMDF) source drivers only — ADR 0007 corrects the earlier UMDF2 note. "Verified" means run on this machine with the output recorded here.
 Everything else is research or unverified and is labelled as such.
 
 ## Environment (verified)
