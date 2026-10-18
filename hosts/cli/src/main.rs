@@ -122,7 +122,7 @@ async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option
 
 fn sim_identity() -> KeyPair {
     let path = Store::default_dir().map(|d| d.join("sim_key"));
-    if let Some(Ok(b)) = path.as_ref().map(std::fs::read) { if let Ok(a) = <[u8; 32]>::try_from(b) { return KeyPair::from_secret(a); } }
+    if let Some(Ok(b)) = path.as_ref().map(std::fs::read) && let Ok(a) = <[u8; 32]>::try_from(b) { return KeyPair::from_secret(a); }
     let kp = KeyPair::generate();
     if let Some(p) = path { let _ = std::fs::create_dir_all(p.parent().unwrap()); let _ = std::fs::write(p, kp.secret_bytes()); }
     kp
@@ -161,7 +161,7 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
     while start.elapsed().as_secs_f64() < duration {
         let t = start.elapsed().as_secs_f64();
         let state = InputState {
-            buttons: if (t as u64) % 2 == 0 { Button::A.mask() } else { 0 },
+            buttons: if (t as u64).is_multiple_of(2) { Button::A.mask() } else { 0 },
             lx: axis_from_unit((t * std::f64::consts::PI).sin()),
             rt: (40000.0 + 20000.0 * (t * 2.0).sin()) as u16,
             ..Default::default()

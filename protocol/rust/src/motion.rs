@@ -148,7 +148,7 @@ mod tests {
     fn calibrator() {
         let mut c = Calibrator::default();
         for i in 0..50 {
-            let a = (5.0 + if i % 2 == 0 { 0.2 } else { -0.2 }) as f64;
+            let a: f64 = 5.0 + if i % 2 == 0 { 0.2 } else { -0.2 };
             c.add(a.to_radians().sin(), -a.to_radians().cos(), 0.0);
         }
         let cal = c.finish().unwrap();

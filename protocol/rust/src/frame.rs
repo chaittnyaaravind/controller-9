@@ -188,7 +188,7 @@ impl Feedback {
 #[derive(Debug, Default)]
 pub struct Counter(u64);
 impl Counter {
-    pub fn next(&mut self) -> u64 { self.0 += 1; self.0 }
+    pub fn bump(&mut self) -> u64 { self.0 += 1; self.0 }
 }
 
 /// Receiver-side freshness: accept only counters greater than the highest accepted one.

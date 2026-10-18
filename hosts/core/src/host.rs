@@ -138,9 +138,8 @@ impl Slot {
         if self.submitted_once && s == self.state { return false; }
         self.state = s;
         self.submitted_once = true;
-        if let Some(p) = self.pad.as_mut() {
-            if let Err(e) = p.submit(&s) { self.pad_error = Some(e.to_string()); }
-        }
+        if let Some(p) = self.pad.as_mut()
+            && let Err(e) = p.submit(&s) { self.pad_error = Some(e.to_string()); }
         true
     }
 }
@@ -684,7 +683,7 @@ fn handle_datagram(sh: &Shared, d: &[u8], from: SocketAddr, now: Instant) {
             let Ok(p) = Ping::decode(&pt) else { s.invalid += 1; return };
             s.last_rx = Some(now);
             let pong = Pong { t_us: p.t_us, id: p.id, host_rx_us: rx_us, host_tx_us: mono_us() };
-            let out = frame::seal(&s.k_out, Header { ptype: PacketType::Pong, session_id: s.session_id, counter: s.out_counter.next() }, &pong.encode());
+            let out = frame::seal(&s.k_out, Header { ptype: PacketType::Pong, session_id: s.session_id, counter: s.out_counter.bump() }, &pong.encode());
             let _ = sh.udp.try_send_to(&out, from);
         }
         PacketType::Bye => { s.apply(InputState::NEUTRAL); }
@@ -730,7 +729,7 @@ fn tick(sh: &Shared, now: Instant) {
 
 fn send_feedback(sh: &Shared, s: &mut Slot, fb: Feedback) {
     if let Some(to) = s.reply.filter(|_| s.connected) {
-        let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.next() }, &fb.encode());
+        let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.bump() }, &fb.encode());
         let _ = sh.udp.try_send_to(&out, to);
     }
 }

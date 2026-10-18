@@ -121,9 +121,8 @@ impl Connection {
             o => return Err(proto(format!("unexpected {o:?}"))),
         };
         // An optional backend warning follows immediately when the host could not create a pad.
-        if let Ok(Ok(Control::Error { code, message })) = tokio::time::timeout(std::time::Duration::from_millis(50), self.recv()).await {
-            if code == "backend_unavailable" { info.backend_warning = message.or(Some(code)); }
-        }
+        if let Ok(Ok(Control::Error { code, message })) = tokio::time::timeout(std::time::Duration::from_millis(50), self.recv()).await
+            && code == "backend_unavailable" { info.backend_warning = message.or(Some(code)); }
         Ok(info)
     }
 }
@@ -161,7 +160,7 @@ impl InputSender {
     pub fn now_us(&self) -> u64 { self.epoch.elapsed().as_micros() as u64 }
 
     pub fn seal(&mut self, ptype: PacketType, payload: &[u8]) -> Vec<u8> {
-        frame::seal(&self.info.k_in, Header { ptype, session_id: self.info.session_id, counter: self.counter.next() }, payload)
+        frame::seal(&self.info.k_in, Header { ptype, session_id: self.info.session_id, counter: self.counter.bump() }, payload)
     }
 
     pub async fn send_input(&mut self, state: InputState, flags: u16) -> Result<(), ClientError> {
@@ -204,9 +203,8 @@ impl InputSender {
         let Ok((h, pt)) = frame::open(&self.info.k_out, d) else { return };
         if !self.fresh_in.accept(h.counter) { return; }
         match h.ptype {
-            PacketType::Pong => if let Ok(p) = Pong::decode(&pt) {
-                if self.pings.remove(&p.id).is_some() { self.rtt_ms.push((self.now_us() - p.t_us) as f64 / 1000.0); }
-            },
+            PacketType::Pong => if let Ok(p) = Pong::decode(&pt)
+                && self.pings.remove(&p.id).is_some() { self.rtt_ms.push((self.now_us() - p.t_us) as f64 / 1000.0); },
             PacketType::Feedback => if let Ok(f) = Feedback::decode(&pt) { self.feedback.push(f); },
             _ => {}
         }
