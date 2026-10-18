@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 0 network probe for 9-controller (protocol v0, UNAUTHENTICATED - test only).
+"""Phase 0 network probe for Controller-9 (protocol v0, UNAUTHENTICATED - test only).
 
 Proves that input frames carry observable sequence numbers and timestamps, and
 that the receiver can measure rate, loss, stale/duplicate discards, jitter, RTT

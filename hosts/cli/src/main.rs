@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(name = "ninectl", version, about = "9-controller host and test tools")]
+#[command(name = "controller9", version, about = "Controller-9 host and test tools (legacy name: ninectl)")]
 struct Cli { #[command(subcommand)] cmd: Cmd }
 
 #[derive(Subcommand)]
@@ -48,7 +48,7 @@ enum Cmd {
         #[arg(long, default_value_t = 10.0)] duration: f64,
         /// Simulated send-side loss 0..1.
         #[arg(long, default_value_t = 0.0)] loss: f64,
-        #[arg(long, default_value = "ninectl sim")] name: String,
+        #[arg(long, default_value = "Controller-9 sim")] name: String,
         #[arg(long)] json: bool,
     },
 }

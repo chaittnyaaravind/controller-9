@@ -1,6 +1,6 @@
 [package]
 name = "nine-proto"
-description = "9-controller protocol v1 reference implementation"
+description = "Controller-9 protocol v1 reference implementation"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

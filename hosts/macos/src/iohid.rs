@@ -35,7 +35,7 @@ fn create_device(name: &str) -> IOHIDUserDeviceRef {
         (CFString::new("VendorID"), CFNumber::from(VENDOR_ID).as_CFType()),
         (CFString::new("ProductID"), CFNumber::from(PRODUCT_ID).as_CFType()),
         (CFString::new("Product"), CFString::new(name).as_CFType()),
-        (CFString::new("Manufacturer"), CFString::new("9-controller").as_CFType()),
+        (CFString::new("Manufacturer"), CFString::new("Controller-9").as_CFType()),
         (CFString::new("Transport"), CFString::new("Virtual").as_CFType()),
     ];
     let props = CFDictionary::from_CFType_pairs(&pairs);
@@ -46,7 +46,7 @@ fn create_device(name: &str) -> IOHIDUserDeviceRef {
 impl Backend for IoHidBackend {
     fn status(&self) -> BackendStatus {
         // Probe: create and immediately release a device.
-        let dev = create_device("9-controller probe");
+        let dev = create_device("Controller-9 probe");
         let ok = !dev.is_null();
         // SAFETY: release only a non-null device we created.
         if ok { unsafe { CFRelease(dev) } }
@@ -63,7 +63,7 @@ impl Backend for IoHidBackend {
     }
 
     fn create(&self, slot: u8, _name: &str) -> Result<Box<dyn VirtualPad>, BackendError> {
-        let dev = create_device(&format!("9-controller #{}", slot + 1));
+        let dev = create_device(&format!("Controller-9 #{}", slot + 1));
         if dev.is_null() {
             return Err(BackendError::Unavailable(format!("IOHIDUserDevice creation refused (missing {ENTITLEMENT})")));
         }

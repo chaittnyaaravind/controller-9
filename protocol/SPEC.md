@@ -1,4 +1,4 @@
-# 9-controller wire protocol — version 1
+# Controller-9 wire protocol — version 1
 
 Normative. Implementations: `protocol/rust` (reference), `protocol/kotlin`, `protocol/swift`.
 Byte-exact behaviour is pinned by `protocol/vectors/*.json`; every implementation's test suite

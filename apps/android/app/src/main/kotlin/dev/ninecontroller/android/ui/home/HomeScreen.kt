@@ -41,7 +41,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     val settings by app.settings.flow.collectAsState(AppSettings())
     val active = profiles.find { it.id == settings.activeProfile } ?: profiles.firstOrNull()
 
-    Page("Your controller", "9-controller", null) {
+    Page("Your controller", "Controller-9", null) {
         Card {
             val (label, color) = when (val s = state) {
                 is ConnState.Connected -> "Player ${s.slot + 1} on ${s.hostName}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
@@ -71,7 +71,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
         Micro("Computers")
         if (hosts.isEmpty()) {
             Card {
-                Text("Pair with the computer you want to play on. Open 9-controller on the computer and choose “Pair a phone”.", color = Nine.muted)
+                Text("Pair with the computer you want to play on. Open Controller-9 on the computer and choose “Pair a phone”.", color = Nine.muted)
                 Button(onClick = { nav.navigate("add") }, colors = primaryButtonColors()) { Text("Add a computer") }
             }
         } else {

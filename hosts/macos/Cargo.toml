@@ -1,6 +1,6 @@
 [package]
 name = "nine-pad-macos"
-description = "9-controller macOS backend: IOHIDUserDevice virtual gamepad (requires Apple's virtual-HID entitlement)"
+description = "Controller-9 macOS backend: IOHIDUserDevice virtual gamepad (requires Apple's virtual-HID entitlement)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

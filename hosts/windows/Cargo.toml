@@ -1,6 +1,6 @@
 [package]
 name = "nine-pad-windows"
-description = "9-controller Windows backend: client for the NineVhf KMDF virtual-HID driver"
+description = "Controller-9 Windows backend: client for the NineVhf KMDF virtual-HID driver"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

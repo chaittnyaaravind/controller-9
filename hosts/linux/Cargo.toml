@@ -1,6 +1,6 @@
 [package]
 name = "nine-pad-linux"
-description = "9-controller Linux backend: uinput evdev gamepads with force-feedback pass-through"
+description = "Controller-9 Linux backend: uinput evdev gamepads with force-feedback pass-through"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

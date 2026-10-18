@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the 9-controller app icon (original geometric mark) as PNG, ICO and ICNS.
+"""Generate the Controller-9 app icon (original geometric mark) as PNG, ICO and ICNS.
 No third-party dependencies. Usage: python3 tools/icons/make_icons.py <out_dir>"""
 import math, struct, sys, zlib, os
 

@@ -1,10 +1,15 @@
 [package]
 name = "ninectl"
-description = "9-controller headless host and simulated controller"
+description = "Controller-9 headless host and simulated controller"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "controller9"
+path = "src/main.rs"
+
+# Legacy name kept for existing scripts and docs (identical binary).
 [[bin]]
 name = "ninectl"
 path = "src/main.rs"

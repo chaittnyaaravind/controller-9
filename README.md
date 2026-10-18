@@ -1,4 +1,4 @@
-# 9-controller
+# Controller-9
 
 Use your phone as a low-latency game controller for your computer — touch controls, motion
 steering, up to four players — over your local Wi-Fi, end-to-end encrypted, no account, no cloud.

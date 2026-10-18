@@ -1,4 +1,4 @@
-# 9-controller — guide for coding agents
+# Controller-9 — guide for coding agents
 
 - Read `docs/PLAN.md`, `docs/REQUIREMENTS.md` and `protocol/SPEC.md` before changing behaviour.
 - The protocol is normative: change `SPEC.md` + `protocol/rust` first, regenerate vectors

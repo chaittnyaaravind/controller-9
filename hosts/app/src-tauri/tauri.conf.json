@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "9-controller",
+  "productName": "Controller-9",
   "version": "0.1.0",
   "identifier": "dev.ninecontroller.host",
   "build": { "frontendDist": "../ui" },
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      { "title": "9-controller", "width": 1180, "height": 760, "minWidth": 920, "minHeight": 600, "backgroundColor": "#0B0C0D" }
+      { "title": "Controller-9", "width": 1180, "height": 760, "minWidth": 920, "minHeight": 600, "backgroundColor": "#0B0C0D" }
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
@@ -18,7 +18,7 @@
     "targets": "all",
     "category": "Utility",
     "shortDescription": "Use your phone as a game controller",
-    "copyright": "9-controller contributors",
+    "copyright": "Controller-9 contributors",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "macOS": { "entitlements": "../macos/entitlements.plist", "minimumSystemVersion": "13.0" },
     "windows": { "nsis": { "installerHooks": "../windows/hooks.nsh", "installMode": "perMachine" } },

@@ -11,7 +11,7 @@ bcdedit /set testsigning on          & rem reboot afterwards (Secure Boot must b
 pnputil /add-driver NineVhf.inf /install
 cargo run -p nine-pad-windows --bin nine-devnode -- install Root\NineVhf NineVhf.inf
 ```
-Verify: Device Manager → Human Interface Devices → "9-controller virtual gamepad bus"; then run the
+Verify: Device Manager → Human Interface Devices → "Controller-9 virtual gamepad bus"; then run the
 host (`ninectl host`) — the backend status should read "NineVhf virtual HID driver ready".
 Remove: `nine-devnode remove Root\NineVhf` and `pnputil /delete-driver NineVhf.inf /uninstall`.
 

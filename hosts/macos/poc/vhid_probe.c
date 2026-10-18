@@ -26,7 +26,7 @@ int main(void) {
     CFDictionarySetValue(props, CFSTR(kIOHIDReportDescriptorKey), desc);
     CFDictionarySetValue(props, CFSTR(kIOHIDVendorIDKey), num(0x1209));   // pid.codes test VID
     CFDictionarySetValue(props, CFSTR(kIOHIDProductIDKey), num(0x0009));
-    CFDictionarySetValue(props, CFSTR(kIOHIDProductKey), CFSTR("9-controller probe"));
+    CFDictionarySetValue(props, CFSTR(kIOHIDProductKey), CFSTR("Controller-9 probe"));
 
     IOHIDUserDeviceRef dev = IOHIDUserDeviceCreateWithProperties(kCFAllocatorDefault, props, 0);
     if (!dev) {

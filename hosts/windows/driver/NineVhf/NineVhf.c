@@ -2,7 +2,7 @@
  * NineVhf — KMDF HID source driver built on the Microsoft Virtual HID Framework (VHF).
  *
  * One root-enumerated device (hardware id Root\NineVhf) exposes GUID_DEVINTERFACE_NINEVHF.
- * The 9-controller host opens it and creates up to four virtual HID gamepads (one VHF child
+ * The Controller-9 host opens it and creates up to four virtual HID gamepads (one VHF child
  * each). Reports are produced by the host (hosts/core/src/hid.rs) and passed through verbatim.
  * Every pad owned by a file handle is deleted when that handle closes, so a crashed host can
  * never leave a controller stuck with buttons held.

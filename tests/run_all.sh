@@ -1,5 +1,5 @@
 #!/bin/sh
-# 9-controller development test suite (Stage 2 safeguards). Runs everything that can run on a
+# Controller-9 development test suite (Stage 2 safeguards). Runs everything that can run on a
 # macOS dev machine without devices. Device, OS-driver and game tests are in docs/TEST_PLAN.md.
 #   tests/run_all.sh            # all suites
 #   SKIP_ANDROID=1 tests/run_all.sh

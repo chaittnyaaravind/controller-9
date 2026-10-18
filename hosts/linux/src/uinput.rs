@@ -152,8 +152,8 @@ impl Backend for UinputBackend {
             ioctl_ptr(raw, UI_ABS_SETUP, &mut a).map_err(io_err)?;
         }
         let (bustype, vendor, product, version, label) = match self.identity {
-            Identity::XboxCompatible => (BUS_USB, 0x045e, 0x028e, 0x0110, "9-controller (Xbox 360 compatible)"),
-            Identity::Generic => (BUS_VIRTUAL, 0, 0, 1, "9-controller virtual gamepad"),
+            Identity::XboxCompatible => (BUS_USB, 0x045e, 0x028e, 0x0110, "Controller-9 (Xbox 360 compatible)"),
+            Identity::Generic => (BUS_VIRTUAL, 0, 0, 1, "Controller-9 virtual gamepad"),
         };
         let mut name = [0u8; 80];
         let full = format!("{label} #{}", slot + 1);
@@ -302,7 +302,7 @@ mod tests {
         assert!(b.status().available, "{:?}", b.status());
         let mut pad = b.create(0, "test").unwrap();
         pad.submit(&InputState { buttons: Button::A.mask(), ..Default::default() }).unwrap();
-        let found = std::fs::read_to_string("/proc/bus/input/devices").unwrap().contains("9-controller");
+        let found = std::fs::read_to_string("/proc/bus/input/devices").unwrap().contains("Controller-9");
         assert!(found, "device not listed in /proc/bus/input/devices");
     }
 }

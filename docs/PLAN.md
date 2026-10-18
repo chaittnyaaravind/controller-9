@@ -1,4 +1,4 @@
-# 9-controller — implementation plan (Stage 1 build-out)
+# Controller-9 — implementation plan (Stage 1 build-out)
 
 Baseline: checkpoint `cc29be8` (Phase 0 feasibility, macOS vHID probe, UDP probe). Nothing in it is
 discarded; `tools/netprobe` stays as the v0 *test-only* instrument and is never promoted to production.

@@ -56,7 +56,7 @@ struct ProfilesView: View {
             }()
         }
         .fileExporter(isPresented: .constant(exporting != nil), document: exporting.map(ProfileFile.init), contentType: .json,
-                      defaultFilename: "\(exporting?.id ?? "layout").9ctl.json") { r in
+                      defaultFilename: "\(exporting?.id ?? "layout").controller9.json") { r in
             message = (try? r.get()) != nil ? "Exported." : "Export cancelled."
             exporting = nil
         }
@@ -246,7 +246,7 @@ struct SettingsView: View {
                 Picker("Motion sensor rate", selection: $model.settings.sensorHz) { Text("100 Hz").tag(100); Text("200 Hz").tag(200) }
             }
             Section("Privacy") {
-                Text("9-controller works only on your local network. No account, no cloud service, no analytics. Your controller identity stays in this iPhone’s Keychain and is never synced or backed up.").font(.footnote).foregroundStyle(Nine.muted)
+                Text("Controller-9 works only on your local network. No account, no cloud service, no analytics. Your controller identity stays in this iPhone’s Keychain and is never synced or backed up.").font(.footnote).foregroundStyle(Nine.muted)
                 Button("Forget all computers", role: .destructive) { confirm = "hosts" }
                 Button("Reset controller identity", role: .destructive) { confirm = "identity" }
             }

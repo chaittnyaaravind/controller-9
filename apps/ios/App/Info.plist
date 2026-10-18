@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>9-controller</string>
+	<string>Controller-9</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -29,7 +29,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the pairing code shown on your computer.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Find and connect to 9-controller on computers on your Wi-Fi network.</string>
+	<string>Find and connect to Controller-9 on computers on your Wi-Fi network.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

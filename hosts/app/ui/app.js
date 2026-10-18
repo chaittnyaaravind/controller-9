@@ -1,4 +1,4 @@
-// 9-controller companion UI. Talks to the Rust host through Tauri commands; when opened in a
+// Controller-9 companion UI. Talks to the Rust host through Tauri commands; when opened in a
 // plain browser (design review) it runs against a clearly labelled in-page preview instead.
 "use strict";
 const T = window.__TAURI__;

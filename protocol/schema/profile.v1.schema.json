@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://9-controller.local/schema/profile.v1.schema.json",
-  "title": "9-controller profile v1",
+  "$id": "https://controller-9.local/schema/profile.v1.schema.json",
+  "title": "Controller-9 profile v1",
   "type": "object",
   "required": ["schema", "id", "name", "orientation", "controls"],
   "properties": {

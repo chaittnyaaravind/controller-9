@@ -68,14 +68,14 @@ fun AddHostScreen(app: NineApp, nav: NavController) {
     LaunchedEffect(state) { if (state is ConnState.Connected) nav.navigate("home") { popUpTo("home") { inclusive = true } } }
 
     Page("Add a computer", "Pair", nav) {
-        Text("On the computer, open 9-controller and choose “Pair a phone”.", color = Nine.muted)
+        Text("On the computer, open Controller-9 and choose “Pair a phone”.", color = Nine.muted)
 
         if (scanning) {
             Card {
                 QrScanner(Modifier.fillMaxWidth().aspectRatio(1f).clip(Nine.card)) { text ->
                     scanning = false
                     val uri = PairUri.parse(text)
-                    if (uri == null) error = "That isn’t a 9-controller pairing code." else app.connection.pairWithQr(uri)
+                    if (uri == null) error = "That isn’t a Controller-9 pairing code." else app.connection.pairWithQr(uri)
                 }
                 TextButton(onClick = { scanning = false }) { Text("Cancel", color = Nine.text) }
             }

@@ -37,4 +37,4 @@ ones with a clear "update the app" message — they never silently drop fields. 
 pre-release draft (`version: 0`, `layout[].kind/action/rect`, `steer.range` lock-to-lock); its
 migration is defined in `profile.rs::migrate_v0` and pinned by `vectors/profiles.json`.
 
-Import/export is the plain JSON file (`.9ctl.json`). Imports are validated before they are saved.
+Import/export is the plain JSON file (`.controller9.json`). Imports are validated before they are saved.

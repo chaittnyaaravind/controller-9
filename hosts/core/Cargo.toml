@@ -1,6 +1,6 @@
 [package]
 name = "nine-host-core"
-description = "9-controller desktop host core: sessions, pairing, slots, diagnostics, backend interface"
+description = "Controller-9 desktop host core: sessions, pairing, slots, diagnostics, backend interface"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -12,7 +12,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "9-controller"
+rootProject.name = "Controller-9"
 include(":app")
 include(":protocol")
 project(":protocol").projectDir = file("../../protocol/kotlin")

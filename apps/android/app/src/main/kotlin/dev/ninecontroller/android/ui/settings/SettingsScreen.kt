@@ -36,7 +36,7 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
     @Composable fun toggle(label: String, value: Boolean, on: (Boolean) -> Unit) =
         Row(verticalAlignment = Alignment.CenterVertically) { Text(label, Modifier.weight(1f)); Switch(value, on) }
 
-    Page("Settings", "9-controller", nav) {
+    Page("Settings", "Controller-9", nav) {
         Card {
             Micro("Feel")
             toggle("Vibration", s.hapticsEnabled) { v -> set { it.copy(hapticsEnabled = v) } }
@@ -53,7 +53,7 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
         }
         Card {
             Micro("Privacy")
-            Text("9-controller works only on your local network. There is no account, no cloud service and no analytics. Your controller identity never leaves this phone and is excluded from backups.", color = Nine.muted)
+            Text("Controller-9 works only on your local network. There is no account, no cloud service and no analytics. Your controller identity never leaves this phone and is excluded from backups.", color = Nine.muted)
             TextButton(onClick = { confirm = "hosts" }) { Text("Forget all computers", color = Nine.bad) }
             TextButton(onClick = { confirm = "identity" }) { Text("Reset controller identity", color = Nine.bad) }
         }

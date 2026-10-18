@@ -75,7 +75,7 @@ fun ProfilesScreen(app: NineApp, nav: NavController) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { app.profiles.duplicate(p) }) { Text("Duplicate", color = Nine.muted) }
                     TextButton(onClick = { renaming = p }) { Text("Rename", color = Nine.muted) }
-                    TextButton(onClick = { exporting = p; exporter.launch("${p.id}.9ctl.json") }) { Text("Export", color = Nine.muted) }
+                    TextButton(onClick = { exporting = p; exporter.launch("${p.id}.controller9.json") }) { Text("Export", color = Nine.muted) }
                     if (profiles.size > 1) TextButton(onClick = { confirmDelete = p }) { Text("Delete", color = Nine.bad) }
                 }
             }

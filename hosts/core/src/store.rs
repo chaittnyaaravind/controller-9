@@ -40,7 +40,7 @@ fn default_name() -> String {
         .or_else(|| std::process::Command::new("hostname").output().ok().and_then(|o| String::from_utf8(o.stdout).ok()))
         .map(|s| s.trim().trim_end_matches(".local").to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "9-controller host".into())
+        .unwrap_or_else(|| "Controller-9 host".into())
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -84,9 +84,32 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
     std::fs::rename(&tmp, path).map_err(|e| StoreError::Io(path.display().to_string(), e))
 }
 
+/// Copy every regular file from `old` to `new` (permissions preserved), without removing `old`.
+pub fn migrate_dir(old: &Path, new: &Path) -> std::io::Result<usize> {
+    std::fs::create_dir_all(new)?;
+    #[cfg(unix)]
+    { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(new, std::fs::Permissions::from_mode(0o700))?; }
+    let mut n = 0;
+    for e in std::fs::read_dir(old)? {
+        let e = e?;
+        if e.file_type()?.is_file() { std::fs::copy(e.path(), new.join(e.file_name()))?; n += 1; }
+    }
+    Ok(n)
+}
+
 impl Store {
+    /// Per-user config dir. Data from the pre-rename location ("9-controller") is copied on first
+    /// use so identities and pairings survive the Controller-9 rename; the old dir is left intact.
     pub fn default_dir() -> Option<PathBuf> {
-        directories::ProjectDirs::from("dev", "9-controller", "9-controller").map(|d| d.config_dir().to_path_buf())
+        let new = directories::ProjectDirs::from("dev", "Controller-9", "Controller-9")?.config_dir().to_path_buf();
+        if !new.exists() {
+            if let Some(old) = directories::ProjectDirs::from("dev", "9-controller", "9-controller").map(|d| d.config_dir().to_path_buf()) {
+                if old.is_dir() {
+                    if let Err(e) = migrate_dir(&old, &new) { tracing::warn!("could not migrate legacy config from {}: {e}", old.display()); }
+                }
+            }
+        }
+        Some(new)
     }
 
     /// Ephemeral store (tests, `--ephemeral`): nothing touches disk.
@@ -174,7 +197,15 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(std::fs::metadata(dir.join("host_key")).unwrap().permissions().mode() & 0o777, 0o600);
         }
-        for f in ["host_key", "paired.json", "config.json"] { std::fs::remove_file(dir.join(f)).unwrap(); }
-        std::fs::remove_dir(&dir).unwrap();
+        // Legacy-dir migration keeps identity and pairings.
+        let migrated = std::env::temp_dir().join(format!("c9-store-migrated-{}", std::process::id()));
+        assert_eq!(migrate_dir(&dir, &migrated).unwrap(), 3);
+        let s3 = Store::open(&migrated).unwrap();
+        assert_eq!(s3.identity.public, pubkey);
+        assert!(s3.is_paired(&[1; 32]));
+        for d in [&dir, &migrated] {
+            for f in ["host_key", "paired.json", "config.json"] { std::fs::remove_file(d.join(f)).unwrap(); }
+            std::fs::remove_dir(d).unwrap();
+        }
     }
 }

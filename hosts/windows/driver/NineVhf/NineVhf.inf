@@ -1,5 +1,5 @@
 ;
-; NineVhf.inf — 9-controller virtual gamepad (KMDF HID source driver over VHF)
+; NineVhf.inf — Controller-9 virtual gamepad (KMDF HID source driver over VHF)
 ;
 [Version]
 Signature   = "$WINDOWS NT$"
@@ -58,7 +58,7 @@ KmdfService = NineVhf, NineVhf_wdfsect
 KmdfLibraryVersion = 1.15
 
 [Strings]
-ProviderName = "9-controller"
-DiskName     = "9-controller driver disk"
-DeviceDesc   = "9-controller virtual gamepad bus"
-ServiceName  = "9-controller virtual gamepad"
+ProviderName = "Controller-9"
+DiskName     = "Controller-9 driver disk"
+DeviceDesc   = "Controller-9 virtual gamepad bus"
+ServiceName  = "Controller-9 virtual gamepad"

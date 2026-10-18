@@ -1,4 +1,4 @@
-# Building 9-controller
+# Building Controller-9
 
 All commands from the repo root unless noted. Versions are pinned in `Cargo.toml`,
 `apps/android/gradle/libs.versions.toml`, and the Swift package manifests.
@@ -45,8 +45,8 @@ Release signing: create `apps/android/keystore.properties` (never commit) with `
 ## iOS
 Requires **full Xcode** (not installed on the dev Mac yet) and an Apple developer team.
 ```sh
-cd apps/ios && xcodegen generate && open NineController.xcodeproj
+cd apps/ios && xcodegen generate && open Controller9.xcodeproj
 # set DEVELOPMENT_TEAM in project.yml (or Signing & Capabilities), select a device, Run.
-xcodebuild -project NineController.xcodeproj -scheme NineController -destination 'generic/platform=iOS' -configuration Release archive -archivePath build/Nine.xcarchive
+xcodebuild -project Controller9.xcodeproj -scheme Controller9 -destination 'generic/platform=iOS' -configuration Release archive -archivePath build/Nine.xcarchive
 ```
 Logic packages test without Xcode: `tools/swift-test.sh protocol/swift`, `tools/swift-test.sh apps/ios/Core`.

@@ -1,6 +1,6 @@
 [package]
 name = "ninecontroller-app"
-description = "9-controller desktop companion (macOS, Windows, Linux)"
+description = "Controller-9 desktop companion (macOS, Windows, Linux)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

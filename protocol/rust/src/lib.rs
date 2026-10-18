@@ -1,4 +1,4 @@
-//! 9-controller protocol v1 — reference implementation. See `protocol/SPEC.md`.
+//! Controller-9 protocol v1 — reference implementation. See `protocol/SPEC.md`.
 pub mod control;
 pub mod frame;
 pub mod input;

@@ -67,5 +67,5 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![snapshot, open_pairing, close_pairing, answer, unpair, disconnect, test_rumble, get_config, save_config])
         .run(tauri::generate_context!())
-        .expect("failed to run 9-controller");
+        .expect("failed to run Controller-9");
 }

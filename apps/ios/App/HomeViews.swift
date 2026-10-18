@@ -14,13 +14,13 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Micro("9-controller", color: Nine.accent)
+                Micro("Controller-9", color: Nine.accent)
                 Text("Your controller").font(.system(size: 30, weight: .medium)).tracking(-0.6).accessibilityAddTraits(.isHeader)
                 statusCard
                 Micro("Computers")
                 if model.hosts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Pair with the computer you want to play on. Open 9-controller there and choose “Pair a phone”.").foregroundStyle(Nine.muted)
+                        Text("Pair with the computer you want to play on. Open Controller-9 there and choose “Pair a phone”.").foregroundStyle(Nine.muted)
                         NavigationLink("Add a computer") { AddHostView() }.buttonStyle(PrimaryButton())
                     }.card()
                 } else {
@@ -100,11 +100,11 @@ struct AddHostView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("On the computer, open 9-controller and choose “Pair a phone”.").foregroundStyle(Nine.muted)
+                Text("On the computer, open Controller-9 and choose “Pair a phone”.").foregroundStyle(Nine.muted)
                 if scanning {
                     QRScanner { text in
                         scanning = false
-                        if let uri = PairURI(parsing: text) { model.connection.pair(qr: uri) } else { error = "That isn’t a 9-controller pairing code." }
+                        if let uri = PairURI(parsing: text) { model.connection.pair(qr: uri) } else { error = "That isn’t a Controller-9 pairing code." }
                     }
                     .aspectRatio(1, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: 14))
                     Button("Cancel") { scanning = false }.foregroundStyle(Nine.text)

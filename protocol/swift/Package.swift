@@ -1,5 +1,5 @@
 // swift-tools-version:6.0
-// NineKit — 9-controller protocol v1 for Apple platforms (iOS app; testable on macOS with `swift test`).
+// NineKit — Controller-9 protocol v1 for Apple platforms (iOS app; testable on macOS with `swift test`).
 import PackageDescription
 
 let package = Package(

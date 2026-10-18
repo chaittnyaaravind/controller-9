@@ -56,7 +56,13 @@ func now() -> String { ISO8601DateFormatter().string(from: Date()) }
 public final class FileStore: @unchecked Sendable {
     public let dir: URL
     public init(dir: URL? = nil) {
-        let base = dir ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("9-controller")
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let base = dir ?? support.appendingPathComponent("Controller-9")
+        // Pre-rename data ("9-controller") moves to the new folder once, inside the app's own container.
+        let legacy = support.appendingPathComponent("9-controller")
+        if dir == nil, !FileManager.default.fileExists(atPath: base.path), FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.moveItem(at: legacy, to: base)
+        }
         try? FileManager.default.createDirectory(at: base.appendingPathComponent("profiles"), withIntermediateDirectories: true)
         var u = base
         var rv = URLResourceValues(); rv.isExcludedFromBackup = true

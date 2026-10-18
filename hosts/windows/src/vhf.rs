@@ -74,7 +74,7 @@ impl Backend for VhfBackend {
         match self.open() {
             Ok(_) => s(true, BackendKind::Native, "NineVhf virtual HID driver ready".into(), None),
             Err(e) => s(false, BackendKind::Blocked, e,
-                Some("Install the 9-controller driver from the installer, or see hosts/windows/README.md (test-signing builds need 'bcdedit /set testsigning on')")),
+                Some("Install the Controller-9 driver from the installer, or see hosts/windows/README.md (test-signing builds need 'bcdedit /set testsigning on')")),
         }
     }
 

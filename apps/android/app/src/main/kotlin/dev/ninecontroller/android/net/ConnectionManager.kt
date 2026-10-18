@@ -300,7 +300,7 @@ class ConnectionManager(
                 "unsupported_version" -> "The computer runs an incompatible version. Update both apps."
                 else -> "The computer refused: ${e.code}"
             }
-            is java.net.ConnectException -> "Can’t reach the computer. Is 9-controller running and on the same network?"
+            is java.net.ConnectException -> "Can’t reach the computer. Is Controller-9 running and on the same network?"
             is java.net.SocketTimeoutException -> "The computer didn’t answer in time."
             is java.net.NoRouteToHostException -> "No route to the computer. Check Wi-Fi."
             else -> e.message ?: e.javaClass.simpleName
