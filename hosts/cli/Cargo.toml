@@ -14,6 +14,11 @@ path = "src/main.rs"
 name = "ninectl"
 path = "src/bin/ninectl.rs"
 
+[features]
+default = ["ble"]
+# Bluetooth LE GATT link (SPEC §8.3). Linux builds need libdbus-1-dev.
+ble = ["nine-host-core/ble"]
+
 [dependencies]
 nine-host-core.workspace = true
 nine-proto.workspace = true

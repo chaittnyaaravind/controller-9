@@ -33,6 +33,10 @@ enum Cmd {
         /// Approve numeric-comparison requests without asking (test rigs only).
         #[arg(long)] auto_approve: bool,
         #[arg(long)] no_advertise: bool,
+        /// Do not scan for phones offering Bluetooth LE.
+        #[arg(long)] no_ble: bool,
+        /// Stream-binding TCP port (SPEC §8.2); 0 disables it.
+        #[arg(long)] stream_port: Option<u16>,
     },
     /// Print the virtual-controller backend status for this OS.
     Status,
@@ -50,6 +54,10 @@ enum Cmd {
         #[arg(long, default_value_t = 0.0)] loss: f64,
         #[arg(long, default_value = "Controller-9 sim")] name: String,
         #[arg(long)] json: bool,
+        /// Link to use: "ip" (TCP control + UDP input) or "stream" (single TCP stream, SPEC §8.2).
+        #[arg(long, default_value = "ip")] link: String,
+        /// Stream-binding port on the host (with --link stream).
+        #[arg(long, default_value_t = nine_proto::link::STREAM_TCP_PORT)] stream_port: u16,
     },
 }
 
@@ -73,14 +81,16 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
-        Cmd::Host { mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise } =>
-            run_host(mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise).await,
-        Cmd::Sim { host, uri, code, rate, duration, loss, name, json } => run_sim(host, uri, code, rate, duration, loss, name, json).await,
+        Cmd::Host { mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port } =>
+            run_host(mock, ephemeral, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port).await,
+        Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port } =>
+            run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port).await,
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool) -> Result<()> {
+async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
+                  no_ble: bool, stream_port: Option<u16>) -> Result<()> {
     let mut store = if ephemeral { Store::in_memory(Default::default()) } else {
         Store::open(&Store::default_dir().context("no config directory")?)?
     };
@@ -88,12 +98,16 @@ async fn run_host(mock: bool, ephemeral: bool, bind: Option<String>, tcp: Option
     if let Some(p) = tcp { store.config.tcp_port = p; }
     if let Some(p) = udp { store.config.udp_port = p; }
     if no_adv { store.config.advertise = false; }
+    if no_ble { store.config.ble = false; }
+    if let Some(p) = stream_port { store.config.stream_port = (p != 0).then_some(p); }
     let backend: Arc<dyn Backend> = if mock { Arc::new(MockBackend::default()) } else { native_backend() };
     let st = backend.status();
     println!("backend: {} [{:?}] {}", st.name, st.kind, st.detail);
     if let Some(r) = &st.remedy { println!("  fix: {r}"); }
     let host = Host::start(store, backend).await?;
-    println!("listening tcp/{} udp/{}", host.tcp_port(), host.udp_port());
+    println!("listening tcp/{} udp/{} stream/{}", host.tcp_port(), host.udp_port(),
+        host.stream_port().map(|p| p.to_string()).unwrap_or_else(|| "off".into()));
+    for a in nine_host_core::netif::local_ipv4() { println!("  reachable on {} ({}, {})", a.ip, a.label, a.iface); }
     if pair { print_qr(&host.open_pairing(None).uri); }
     let mut ev = host.subscribe();
     let h2 = host.clone();
@@ -129,7 +143,8 @@ fn sim_identity() -> KeyPair {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f64, duration: f64, loss: f64, name: String, json: bool) -> Result<()> {
+async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f64, duration: f64, loss: f64, name: String, json: bool,
+                 link: &str, stream_port: u16) -> Result<()> {
     let uri = uri.map(|u| PairUri::parse(&u).context("invalid ninectl:// pairing URI")).transpose()?;
     let target = match (&host, &uri) {
         (Some(h), _) => h.clone(),
@@ -140,7 +155,16 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
     let id = sim_identity();
     let hello = ControllerHello { proto: 1, name, platform: "sim".into(), app: env!("CARGO_PKG_VERSION").into() };
     let t_connect = Instant::now();
-    let mut c = Connection::connect(addr, &id, &hello).await?;
+    let (mut c, stream_path) = match link {
+        "stream" => {
+            let s = tokio::net::TcpStream::connect((addr.ip(), stream_port)).await.context("stream binding port unreachable")?;
+            s.set_nodelay(true)?;
+            let (rd, wr, path) = nine_host_core::client::stream_link(s);
+            (Connection::connect_over(rd, wr, &id, &hello).await?, Some(path))
+        }
+        "ip" => (Connection::connect(addr, &id, &hello).await?, None),
+        other => bail!("unknown --link {other} (use ip or stream)"),
+    };
     eprintln!("connected to \"{}\" ({})", c.host.name, c.host.id);
     if let Some(u) = &uri { c.pair_qr(u).await?; eprintln!("paired by QR"); }
     if code {
@@ -151,7 +175,7 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
     let setup_ms = t_connect.elapsed().as_secs_f64() * 1000.0;
     if let Some(w) = &info.backend_warning { eprintln!("warning: host has no virtual controller: {w}"); }
     eprintln!("session open: slot {} (handshake+session {setup_ms:.1} ms)", info.slot + 1);
-    let mut tx = InputSender::new(addr, info).await?;
+    let mut tx = match stream_path { Some(p) => InputSender::over(p, info), None => InputSender::new(addr, info).await? };
     let period = Duration::from_secs_f64(1.0 / rate);
     let start = Instant::now();
     let mut next = tokio::time::Instant::now();
@@ -181,7 +205,7 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
         "frames": frames, "seconds": elapsed, "rate_hz": frames as f64 / elapsed, "simulated_drops": dropped,
         "rtt_samples": r.len(), "rtt_p50_ms": r.percentile(50.0), "rtt_p95_ms": r.percentile(95.0), "rtt_p99_ms": r.percentile(99.0),
         "rtt_max_ms": r.percentile(100.0), "setup_ms": setup_ms, "feedback_events": tx.feedback.len(),
-        "note": "RTT is protocol ping/pong round trip, not end-to-end game input latency",
+        "link": link, "note": "RTT is protocol ping/pong round trip, not end-to-end game input latency",
     });
     if json { println!("{summary}"); } else { println!("{}", serde_json::to_string_pretty(&summary)?); }
     c.send(&nine_proto::control::Control::Bye { reason: None }).await.ok();

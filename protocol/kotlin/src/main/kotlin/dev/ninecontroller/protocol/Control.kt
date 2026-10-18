@@ -43,5 +43,5 @@ sealed class Control {
 }
 
 @Serializable data class InitHello(val proto: List<Int>)
-@Serializable data class HostHello(val proto: Int, val name: String, val id: String, val os: String)
+@Serializable data class HostHello(val proto: Int, val name: String, val id: String, val os: String, val links: List<String> = emptyList(), val addrs: List<String> = emptyList())
 @Serializable data class ControllerHello(val proto: Int, val name: String, val platform: String, val app: String)

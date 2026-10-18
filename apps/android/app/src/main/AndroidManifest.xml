@@ -13,7 +13,24 @@
     <!-- Button feedback and game rumble. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Bluetooth LE fallback link (SPEC §8.3): advertise + GATT server. Runtime permissions on
+         Android 12+; requested only when the user enables Bluetooth pairing/fallback. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- "Create a local network" (Wi-Fi Direct autonomous group). Android 13+: NEARBY_WIFI_DEVICES,
+         never used for location. Android 10–12 require fine location for Wi-Fi Direct; only
+         requested when the user taps "Create network". -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen.multitouch.distinct" android:required="false" />

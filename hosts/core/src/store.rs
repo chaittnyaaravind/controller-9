@@ -106,13 +106,10 @@ impl Store {
     /// use so identities and pairings survive the Controller-9 rename; the old dir is left intact.
     pub fn default_dir() -> Option<PathBuf> {
         let new = directories::ProjectDirs::from("dev", "Controller-9", "Controller-9")?.config_dir().to_path_buf();
-        if !new.exists() {
-            if let Some(old) = directories::ProjectDirs::from("dev", "9-controller", "9-controller").map(|d| d.config_dir().to_path_buf()) {
-                if old.is_dir() {
-                    if let Err(e) = migrate_dir(&old, &new) { tracing::warn!("could not migrate legacy config from {}: {e}", old.display()); }
-                }
-            }
-        }
+        if !new.exists()
+            && let Some(old) = directories::ProjectDirs::from("dev", "9-controller", "9-controller").map(|d| d.config_dir().to_path_buf())
+                && old.is_dir()
+                    && let Err(e) = migrate_dir(&old, &new) { tracing::warn!("could not migrate legacy config from {}: {e}", old.display()); }
         Some(new)
     }
 

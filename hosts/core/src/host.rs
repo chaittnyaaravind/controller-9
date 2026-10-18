@@ -205,6 +205,11 @@ pub(crate) struct Shared {
 impl Shared {
     fn emit(&self, e: HostEvent) { let _ = self.events.send(e); }
     fn id(&self) -> u64 { self.next_id.fetch_add(1, Ordering::Relaxed) }
+    /// BLE advert filter (SPEC §8.3): hint = first 4 bytes of our host id, or zeros while pairing is open.
+    pub(crate) fn ble_hint_ok(&self, hint: &[u8]) -> bool {
+        let ours: Vec<u8> = (0..4).filter_map(|i| u8::from_str_radix(self.host_id.get(2 * i..2 * i + 2)?, 16).ok()).collect();
+        hint.len() >= 4 && (hint[..4] == ours[..] || (hint[..4] == [0u8; 4] && self.pairing.lock().is_open(Instant::now())))
+    }
     fn links(&self) -> Vec<String> {
         let mut v = vec!["ip".to_string()];
         if self.stream_port.is_some() { v.push("stream".into()); }
@@ -476,7 +481,8 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
         let m1 = read_frame(&mut rd, control::MAX_PREHANDSHAKE_FRAME).await?;
         let p1 = hs.read_message(&m1).map_err(io_err)?;
         let supported = serde_json::from_slice::<InitHello>(&p1).map(|h| h.proto.contains(&1)).unwrap_or(false);
-        let hh = HostHello { proto: 1, name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into(), links: sh.links() };
+        let hh = HostHello { proto: 1, name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into(), links: sh.links(),
+            addrs: if sh.cfg.bind == "0.0.0.0" { crate::netif::local_ipv4().into_iter().map(|a| a.ip.to_string()).take(8).collect() } else { vec![sh.cfg.bind.clone()] } };
         let m2 = hs.write_message(&serde_json::to_vec(&hh).unwrap()).map_err(io_err)?;
         wr.write_all(&control::frame(&m2)).await?;
         let m3 = read_frame(&mut rd, control::MAX_PREHANDSHAKE_FRAME).await?;

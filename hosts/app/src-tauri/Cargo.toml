@@ -12,6 +12,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "=2.7.3", features = [] }
 
+[features]
+default = ["ble"]
+# Bluetooth LE GATT link (SPEC §8.3). Linux builds need libdbus-1-dev.
+ble = ["nine-host-core/ble"]
+
 [dependencies]
 tauri = { version = "=2.12.4", features = [] }
 nine-host-core.workspace = true

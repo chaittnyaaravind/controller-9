@@ -20,6 +20,8 @@ data class AppSettings(
     val calibrationDeg: Double = 0.0,
     val showStats: Boolean = true,
     val onboarded: Boolean = false,
+    /** "auto" or a LinkKind name chosen by the user. */
+    val linkOverride: String = "auto",
 )
 
 private val Context.store by preferencesDataStore("settings")
@@ -35,6 +37,7 @@ class SettingsStore(private val context: Context) {
         val calibration = doublePreferencesKey("calibration_deg")
         val stats = booleanPreferencesKey("show_stats")
         val onboarded = booleanPreferencesKey("onboarded")
+        val link = stringPreferencesKey("link_override")
     }
 
     val flow: Flow<AppSettings> = context.store.data.map { p ->
@@ -48,6 +51,7 @@ class SettingsStore(private val context: Context) {
             calibrationDeg = p[K.calibration] ?: 0.0,
             showStats = p[K.stats] ?: true,
             onboarded = p[K.onboarded] ?: false,
+            linkOverride = p[K.link] ?: "auto",
         )
     }
 
@@ -57,6 +61,7 @@ class SettingsStore(private val context: Context) {
                 activeProfile = p[K.profile] ?: "racing", lastHost = p[K.lastHost], hapticsEnabled = p[K.haptics] ?: true,
                 hapticStrength = p[K.strength] ?: 0.7, keepScreenOn = p[K.screenOn] ?: true, sensorHz = p[K.sensorHz] ?: 200,
                 calibrationDeg = p[K.calibration] ?: 0.0, showStats = p[K.stats] ?: true, onboarded = p[K.onboarded] ?: false,
+                linkOverride = p[K.link] ?: "auto",
             )
             val n = f(cur)
             p[K.profile] = n.activeProfile
@@ -68,6 +73,7 @@ class SettingsStore(private val context: Context) {
             p[K.calibration] = n.calibrationDeg
             p[K.stats] = n.showStats
             p[K.onboarded] = n.onboarded
+            p[K.link] = n.linkOverride
         }
     }
 }

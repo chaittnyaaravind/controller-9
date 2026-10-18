@@ -140,7 +140,7 @@ fn link_v() -> Value {
     use nine_proto::link::{Record, Segmenter};
     let control: Vec<u8> = (0..70u8).collect();
     let dgram: Vec<u8> = (100..158u8).collect();
-    let recs = vec![Record::Control(control.clone()), Record::Datagram(dgram.clone())];
+    let recs = [Record::Control(control.clone()), Record::Datagram(dgram.clone())];
     let stream: Vec<u8> = recs.iter().flat_map(Record::encode).collect();
     let mut seg = Segmenter::default();
     let s23 = seg.segment(&control, 23);

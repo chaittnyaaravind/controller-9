@@ -17,8 +17,8 @@ cargo test --workspace --quiet 2>&1 | grep -E "^test result|FAILED|panicked" || 
 cargo test --workspace --quiet >/dev/null 2>&1 && pass "cargo test --workspace"
 
 step "Rust: cross-target type checks (Linux uinput, Windows VHF client + devnode)"
-cargo check --quiet -p nine-pad-linux -p ninectl --target x86_64-unknown-linux-gnu --all-targets && pass "x86_64-unknown-linux-gnu"
-cargo check --quiet -p nine-pad-linux -p ninectl --target aarch64-unknown-linux-gnu && pass "aarch64-unknown-linux-gnu"
+cargo check --quiet -p nine-pad-linux -p ninectl --no-default-features --target x86_64-unknown-linux-gnu --all-targets && pass "x86_64-unknown-linux-gnu (BLE needs native libdbus build)"
+cargo check --quiet -p nine-pad-linux -p ninectl --no-default-features --target aarch64-unknown-linux-gnu && pass "aarch64-unknown-linux-gnu"
 cargo check --quiet -p nine-pad-windows -p ninectl --target x86_64-pc-windows-msvc --bins && pass "x86_64-pc-windows-msvc"
 
 step "Rust: regenerate vectors and confirm they are unchanged"
@@ -39,23 +39,26 @@ tools/swift-test.sh apps/ios/Core >"$LOG/swift-core.log" 2>&1 && pass "NineAppCo
 step "Live interop over loopback: Rust host <- Rust sim, Kotlin client, Swift client"
 cargo build --quiet --release -p ninectl
 BIN="$ROOT/target/release/ninectl"
-"$BIN" host --mock --ephemeral --bind 127.0.0.1 --tcp-port 47961 --udp-port 47960 --pair --no-advertise >"$LOG/host.log" 2>&1 &
+"$BIN" host --mock --ephemeral --bind 127.0.0.1 --tcp-port 47961 --udp-port 47960 --stream-port 47962 --no-ble --pair --no-advertise >"$LOG/host.log" 2>&1 &
 HOST_PID=$!
 trap 'kill -INT $HOST_PID 2>/dev/null || true' EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do grep -q "ninectl://" "$LOG/host.log" && break; sleep 0.3; done
 URI="$(grep -o 'ninectl://[^ ]*' "$LOG/host.log" | head -1)"
-"$BIN" sim --uri "$URI" --rate 120 --duration 5 --json >"$LOG/sim.json" 2>/dev/null && pass "Rust sim: $(cat "$LOG/sim.json")"
+"$BIN" sim --uri "$URI" --rate 120 --duration 5 --json >"$LOG/sim.json" 2>/dev/null && pass "Rust sim (IP): $(cat "$LOG/sim.json")"
+"$BIN" sim --host 127.0.0.1:47961 --link stream --stream-port 47962 --rate 120 --duration 3 --json >"$LOG/sim-stream.json" 2>/dev/null && pass "Rust sim (stream binding): $(cat "$LOG/sim-stream.json")"
 # A QR token is single-use; mint a fresh one per client by restarting pairing via a new host.
 kill -INT $HOST_PID; sleep 0.5
 for client in kotlin swift; do
-  "$BIN" host --mock --ephemeral --bind 127.0.0.1 --tcp-port 47961 --udp-port 47960 --pair --no-advertise >"$LOG/host-$client.log" 2>&1 &
+  "$BIN" host --mock --ephemeral --bind 127.0.0.1 --tcp-port 47961 --udp-port 47960 --stream-port 47962 --no-ble --pair --no-advertise >"$LOG/host-$client.log" 2>&1 &
   HOST_PID=$!
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do grep -q "ninectl://" "$LOG/host-$client.log" && break; sleep 0.3; done
   URI="$(grep -o 'ninectl://[^ ]*' "$LOG/host-$client.log" | head -1)"
   if [ "$client" = kotlin ] && [ -z "${SKIP_ANDROID:-}" ]; then
-    (cd apps/android && NINECTL_URI="$URI" ./gradlew :protocol:test --tests '*LiveInterop*' --rerun --console=plain >"$LOG/kotlin-live.log" 2>&1)
+    (cd apps/android && NINECTL_URI="$URI" NINECTL_STREAM_PORT=47962 ./gradlew :protocol:test --tests '*LiveInterop*' --rerun --console=plain >"$LOG/kotlin-live.log" 2>&1)
     grep -E "Kotlin->Rust interop" "$LOG/kotlin-live.log" && grep -q "LiveInteropTest > pairOpenStreamAndPing PASSED" "$LOG/kotlin-live.log" \
-      && pass "Kotlin client <-> Rust host" || { echo "  Kotlin live interop FAILED (see $LOG/kotlin-live.log)"; exit 1; }
+      && pass "Kotlin client <-> Rust host (IP)" || { echo "  Kotlin live interop FAILED (see $LOG/kotlin-live.log)"; exit 1; }
+    grep -E "Kotlin->Rust stream interop" "$LOG/kotlin-live.log" && grep -q "streamBindingWithSameIdentity PASSED" "$LOG/kotlin-live.log" \
+      && pass "Kotlin client <-> Rust host (stream binding)" || { echo "  Kotlin stream interop FAILED"; exit 1; }
   fi
   if [ "$client" = swift ]; then
     NINECTL_URI="$URI" perl -e 'alarm 150; exec @ARGV' tools/swift-test.sh protocol/swift >"$LOG/swift-live.log" 2>&1

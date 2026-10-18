@@ -3,11 +3,11 @@ package dev.ninecontroller.android.net
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
-import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.BatteryManager
 import android.os.Process
 import android.util.Base64
+import dev.ninecontroller.android.BuildConfig
 import dev.ninecontroller.android.data.HostStore
 import dev.ninecontroller.android.data.IdentityStore
 import dev.ninecontroller.android.data.PairedHost
@@ -16,14 +16,17 @@ import dev.ninecontroller.android.input.Haptics
 import dev.ninecontroller.protocol.Control
 import dev.ninecontroller.protocol.ControlConnection
 import dev.ninecontroller.protocol.ControllerHello
+import dev.ninecontroller.protocol.Decision
 import dev.ninecontroller.protocol.FLAG_PAUSED
-import dev.ninecontroller.protocol.InputChannel
 import dev.ninecontroller.protocol.InputState
+import dev.ninecontroller.protocol.LinkKind
+import dev.ninecontroller.protocol.LinkPolicy
+import dev.ninecontroller.protocol.LinkStats
 import dev.ninecontroller.protocol.PairUri
 import dev.ninecontroller.protocol.Pairing
+import dev.ninecontroller.protocol.PolicyState
 import dev.ninecontroller.protocol.RefusedException
 import dev.ninecontroller.protocol.WrongHostException
-import dev.ninecontroller.android.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,9 +34,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.net.InetSocketAddress
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -41,25 +44,30 @@ import kotlin.concurrent.withLock
 
 sealed interface ConnState {
     data object Idle : ConnState
-    data class Connecting(val hostName: String) : ConnState
+    data class Connecting(val hostName: String, val via: String = "") : ConnState
     /** Numeric comparison: show [code]; the user confirms here and on the computer. */
     data class ConfirmCode(val hostName: String, val code: String) : ConnState
-    data class Connected(val hostName: String, val slot: Int, val backendWarning: String?) : ConnState
+    data class Connected(val hostName: String, val slot: Int, val backendWarning: String?, val link: LinkKind, val linkDetail: String) : ConnState
     data class Reconnecting(val hostName: String, val attempt: Int, val reason: String) : ConnState
     data class Failed(val message: String) : ConnState
 }
 
-data class LinkStats(
-    val rttP50: Double? = null, val rttP95: Double? = null, val rttLast: Double? = null,
+data class LinkStatsUi(
+    val rttP50: Double? = null, val rttP95: Double? = null,
     val sendHz: Double = 0.0, val sent: Long = 0, val sensorHz: Double = 0.0,
-    val pongAgeMs: Long? = null, val reconnects: Int = 0, val lastReconnectMs: Long? = null,
+    val reconnects: Int = 0, val lastReconnectMs: Long? = null,
+    val lastSwitch: String? = null, val watchdogTrips: Int = 0,
 )
 
+/** What the user sees per link: usable or not, why, and recent measurements. */
+data class LinkReport(val kind: LinkKind, val available: Boolean, val reason: String?, val score: Double?, val rttP95: Double?, val attempts: Int, val successes: Int)
+
 /**
- * One connection to one host. Threads: control reader, UDP receiver, input sender (all
- * background, high priority for the sender). Input is sent on change plus heartbeats; the link
- * is declared dead after 1 s without a pong or on control-channel loss, then re-established with
- * the same slot (target: under 3 s).
+ * Connection manager with pluggable links (IP / stream / BLE) and the shared policy
+ * (protocol LinkPolicy, docs/CONNECTION_MANAGER.md). One link at a time; input is never duplicated
+ * across links. A failed link is retried last; a healthy link is replaced only by a clearly better
+ * one after the hysteresis window. Every transition goes through the host's slot takeover, which
+ * neutralizes the controller before the new link's first frame.
  */
 class ConnectionManager(
     private val context: Context,
@@ -71,11 +79,15 @@ class ConnectionManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow<ConnState>(ConnState.Idle)
     val state: StateFlow<ConnState> = _state
-    private val _stats = MutableStateFlow(LinkStats())
-    val stats: StateFlow<LinkStats> = _stats
+    private val _stats = MutableStateFlow(LinkStatsUi())
+    val stats: StateFlow<LinkStatsUi> = _stats
+    private val _links = MutableStateFlow<List<LinkReport>>(emptyList())
+    val links: StateFlow<List<LinkReport>> = _links
 
-    @Volatile private var control: ControlConnection? = null
-    @Volatile private var input: InputChannel? = null
+    val ble = BlePeripheral(context)
+    private val transports = Transports(context, ble)
+
+    @Volatile private var active: ActiveLink? = null
     @Volatile private var want: PairedHost? = null
     @Volatile private var lastSlot: Int? = null
     @Volatile private var profileName: String? = null
@@ -90,25 +102,71 @@ class ConnectionManager(
     @Volatile private var paused = false
     @Volatile var sensorHz = 0.0
     private var reconnects = 0
+    private var watchdogTrips = 0
+
+    // Per-link history for the policy.
+    private class Hist { var attempts = 0; var successes = 0; var lastFailureAt = 0L; val disconnects = ArrayDeque<Long>(); var rttP95: Double? = null }
+    private val hist = LinkKind.entries.associateWith { Hist() }
+    private var switchedAt = 0L
+    private var betterSince = 0L
 
     init {
-        context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(
-            NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),
+        context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(NetworkRequest.Builder().build(),
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { if (_state.value is ConnState.Reconnecting) restart("Wi-Fi back") }
-                override fun onLost(network: Network) { if (_state.value is ConnState.Connected) restart("Wi-Fi lost") }
+                override fun onAvailable(network: Network) { if (_state.value is ConnState.Reconnecting) restart("network available", healthy = false) }
+                override fun onLost(network: Network) {
+                    val a = active ?: return
+                    if (a.kind != LinkKind.BLE && LocalLinks.kindOf(a.conn.local) !in LocalLinks.available()) restart("network lost", healthy = false)
+                }
             })
+        scope.launch { evaluateLoop() }
     }
 
     private fun hello() = ControllerHello(1, identity.deviceName.take(40), "android", BuildConfig.VERSION_NAME)
 
-    /** Called by the controller engine on every state change (any thread). */
-    fun submit(state: InputState, flags: Int) {
-        lock.withLock { latest = state; latestFlags = flags; version++; changed.signalAll() }
-    }
-
+    fun submit(state: InputState, flags: Int) { lock.withLock { latest = state; latestFlags = flags; version++; changed.signalAll() } }
     fun setPaused(p: Boolean) { lock.withLock { paused = p; version++; changed.signalAll() } }
     fun setProfileName(name: String) { profileName = name }
+
+    // ------------------------------------------------------------------ candidates & policy
+
+    private fun now() = System.currentTimeMillis()
+
+    private suspend fun overrideKind(): LinkKind? = settings.flow.first().linkOverride.let { o -> LinkKind.entries.find { it.name == o } }
+
+    private fun candidates(host: PairedHost): List<Pair<LinkStats, String?>> {
+        val ipKinds = LocalLinks.available()
+        val hasAddr = host.allAddrs().isNotEmpty()
+        val knows = { l: String -> host.links.isEmpty() || l in host.links }
+        val bleReason = ble.unavailableReason() ?: if (!knows("ble")) "${host.name} doesn't offer Bluetooth" else null
+        return LinkKind.entries.map { k ->
+            val reason: String? = when (k) {
+                LinkKind.BLE -> bleReason
+                LinkKind.STREAM -> when { ipKinds.isEmpty() -> "No network interface is up"; !hasAddr -> "No address known for ${host.name}"; !knows("stream") -> "${host.name} doesn't offer TCP-only mode"; else -> null }
+                else -> when { k !in ipKinds -> "Not connected to a ${k.label} network"; !hasAddr -> "No address known for ${host.name}"; else -> null }
+            }
+            val h = hist.getValue(k)
+            val cutoff = now() - 60_000
+            while (h.disconnects.isNotEmpty() && h.disconnects.first() < cutoff) h.disconnects.removeFirst()
+            LinkStats(k, reason == null, h.rttP95, 0.0, h.disconnects.size.toDouble(),
+                if (h.lastFailureAt == 0L) null else (now() - h.lastFailureAt) / 1000.0, h.attempts, h.successes) to reason
+        }
+    }
+
+    private fun publishReports(host: PairedHost) {
+        _links.value = candidates(host).map { (s, r) -> LinkReport(s.kind, s.available, r, LinkPolicy.score(s), s.rttP95Ms, s.attempts, s.successes) }
+    }
+
+    /** Collapse the policy order to attempts: all IP kinds are one attempt (it races every address). */
+    private fun attempts(order: List<LinkKind>): List<LinkKind> {
+        val out = ArrayList<LinkKind>()
+        for (k in order) {
+            val ip = k != LinkKind.BLE && k != LinkKind.STREAM
+            if (ip && out.any { it != LinkKind.BLE && it != LinkKind.STREAM }) continue
+            out += k
+        }
+        return out
+    }
 
     // ------------------------------------------------------------------ pairing
 
@@ -116,10 +174,9 @@ class ConnectionManager(
         scope.launch {
             _state.value = ConnState.Connecting(uri.name.ifEmpty { uri.addr })
             try {
-                val host = ControlConnection.connect(InetSocketAddress(uri.addr, uri.port), identity.keyPair(), hello()).use { c ->
-                    c.pairQr(uri)
-                    remember(c, uri.addr, uri.port)
-                }
+                val tmp = PairedHost(Pairing.hostId(uri.hostStatic), uri.name, "", uri.addr, uri.port, "", addrs = uri.extra)
+                val (c, _) = transports.ip(tmp, identity.keyPair(), hello(), 2000)
+                val host = c.use { it.pairQr(uri); remember(it, uri.addr, uri.port, uri.extra) }
                 connect(host)
             } catch (e: WrongHostException) {
                 _state.value = ConnState.Failed("This QR code belongs to a different computer than the one that answered. Pairing stopped.")
@@ -127,137 +184,196 @@ class ConnectionManager(
         }
     }
 
-    fun pairWithCode(addr: String, port: Int, name: String) {
+    /** Numeric-comparison pairing over IP (address known) or Bluetooth (no network at all). */
+    fun pairWithCode(addr: String?, port: Int, name: String) {
         scope.launch {
-            _state.value = ConnState.Connecting(name)
+            _state.value = ConnState.Connecting(name, if (addr == null) "Bluetooth" else addr)
             try {
-                val host = ControlConnection.connect(InetSocketAddress(addr, port), identity.keyPair(), hello()).use { c ->
-                    c.pairCode { code ->
+                val id = identity.keyPair()
+                val (c, viaAddr) = if (addr != null) {
+                    ControlConnection.connect(java.net.InetSocketAddress(addr, port), id, hello()) to addr
+                } else {
+                    val (conn, _) = transports.ble(PairedHost("00000000", name, "", "", port, ""), id, hello(), 30_000)
+                    conn to ""
+                }
+                val host = c.use { conn ->
+                    conn.pairCode { code ->
                         val f = CompletableFuture<Boolean>()
                         codeDecision = f
-                        _state.value = ConnState.ConfirmCode(c.host.name, Pairing.formatCode(code))
+                        _state.value = ConnState.ConfirmCode(conn.host.name, Pairing.formatCode(code))
                         runCatching { f.get(120, TimeUnit.SECONDS) }.getOrDefault(false)
                     }
-                    remember(c, addr, port)
+                    remember(conn, viaAddr, port, emptyList())
                 }
                 connect(host)
             } catch (e: Exception) { _state.value = ConnState.Failed(describe(e)) } finally { codeDecision = null }
         }
     }
 
-    /** Phone-side verdict for numeric comparison. */
     fun confirmCode(matches: Boolean) { codeDecision?.complete(matches) }
 
-    private fun remember(c: ControlConnection, addr: String, port: Int): PairedHost =
-        PairedHost(Pairing.hostId(c.hostStatic), c.host.name, Base64.encodeToString(c.hostStatic, Base64.NO_WRAP), addr, port, HostStore.now())
-            .also { hosts.upsert(it) }
+    private fun remember(c: ControlConnection, addr: String, port: Int, extra: List<String>): PairedHost {
+        val h = PairedHost(Pairing.hostId(c.hostStatic), c.host.name, Base64.encodeToString(c.hostStatic, Base64.NO_WRAP),
+            addr.ifEmpty { c.host.addrs.firstOrNull() ?: "" }, port, HostStore.now(),
+            addrs = (extra + c.host.addrs).distinct(), links = c.host.links)
+        hosts.upsert(h)
+        return h
+    }
 
-    // ------------------------------------------------------------------ session
+    // ------------------------------------------------------------------ session lifecycle
 
     fun connect(host: PairedHost) {
         want = host
         scope.launch { settings.update { it.copy(lastHost = host.id) } }
-        startSession(host, attempt = 0)
+        startSession(host, attempt = 0, reason = "", failedKind = null)
     }
 
     fun disconnect() {
         want = null
         session?.cancel()
-        teardown(sendBye = true)
+        active?.close(sendBye = true)
+        active = null
         _state.value = ConnState.Idle
     }
 
-    private fun restart(reason: String) {
+    /** Called from link threads on failure (healthy=false) or by the evaluator for a planned switch. */
+    private fun restart(reason: String, healthy: Boolean, to: LinkKind? = null) {
         val h = want ?: return
-        teardown(sendBye = false)
-        startSession(h, attempt = 1, reason = reason)
+        val old = active
+        val failed = old?.kind
+        if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
+        if (to == null) { active = null; old?.close(sendBye = false) }
+        startSession(h, attempt = 1, reason = reason, failedKind = failed, preferred = to, makeBeforeBreak = old.takeIf { to != null })
     }
 
-    private fun startSession(host: PairedHost, attempt: Int, reason: String = "") {
+    private fun startSession(host: PairedHost, attempt: Int, reason: String, failedKind: LinkKind?, preferred: LinkKind? = null, makeBeforeBreak: ActiveLink? = null) {
         session?.cancel()
         session = scope.launch {
             var n = attempt
             val t0 = System.nanoTime()
-            while (isActive && want == host) {
-                _state.value = if (n == 0) ConnState.Connecting(host.name) else ConnState.Reconnecting(host.name, n, reason)
-                try {
-                    openSession(host)
-                    if (n > 0) { reconnects++; _stats.value = _stats.value.copy(reconnects = reconnects, lastReconnectMs = (System.nanoTime() - t0) / 1_000_000) }
-                    return@launch
-                } catch (e: RefusedException) {
-                    if (e.code == "not_paired") { hosts.remove(host.id); want = null; _state.value = ConnState.Failed("${host.name} no longer knows this phone. Pair again."); return@launch }
-                    if (e.code == "slots_full") { want = null; _state.value = ConnState.Failed("${host.name} already has four controllers connected."); return@launch }
-                    _state.value = ConnState.Reconnecting(host.name, ++n, describe(e))
-                } catch (e: SecurityException) {
-                    want = null; _state.value = ConnState.Failed(e.message ?: "Host identity changed"); return@launch
-                } catch (e: Exception) {
-                    _state.value = ConnState.Reconnecting(host.name, ++n, describe(e))
+            while (isActive && want?.id == host.id) {
+                val h = hosts.byId(host.id) ?: host
+                publishReports(h)
+                val order: List<LinkKind> = preferred?.let { listOf(it) } ?: when (val d = LinkPolicy.decide(candidates(h).map { it.first },
+                    PolicyState(current = failedKind, currentHealthy = false, overrideKind = overrideKind()))) {
+                    is Decision.Failover -> d.order
+                    is Decision.Switch -> listOf(d.to)
+                    Decision.Stay -> listOfNotNull(failedKind)
+                    Decision.Unavailable -> emptyList()
+                }
+                if (order.isEmpty()) {
+                    _state.value = ConnState.Reconnecting(h.name, ++n, "No usable link: " + candidates(h).mapNotNull { it.second }.distinct().joinToString("; "))
+                } else for (kind in attempts(order)) {
+                    if (!isActive || want?.id != host.id) return@launch
+                    _state.value = if (n == 0) ConnState.Connecting(h.name, kind.label) else ConnState.Reconnecting(h.name, n, "trying ${kind.label}")
+                    val hs = hist.getValue(kind)
+                    hs.attempts++
+                    try {
+                        val (link, info) = transports.open(kind, h, identity.keyPair(), hello(), lastSlot, profileName)
+                        val pinned = Base64.decode(h.pub, Base64.NO_WRAP)
+                        if (!link.conn.hostStatic.contentEquals(pinned)) {
+                            link.close(sendBye = false)
+                            want = null
+                            _state.value = ConnState.Failed("The computer that answered is not ${h.name} (its identity key changed). Pair again only if you trust it.")
+                            return@launch
+                        }
+                        hist.getValue(link.kind).successes++
+                        if (link.kind != kind) hs.successes++
+                        lastSlot = info.slot
+                        hosts.upsert(h.copy(lastUsed = HostStore.now(), addrs = (h.addrs + link.conn.host.addrs).distinct().take(12),
+                            links = link.conn.host.links.ifEmpty { h.links }))
+                        makeBeforeBreak?.close(sendBye = false)
+                        active = link
+                        switchedAt = now(); betterSince = 0
+                        if (n > 0) { reconnects++; _stats.value = _stats.value.copy(reconnects = reconnects, lastReconnectMs = (System.nanoTime() - t0) / 1_000_000) }
+                        if (failedKind != null && failedKind != link.kind) _stats.value = _stats.value.copy(lastSwitch = "${failedKind.label} → ${link.kind.label}: $reason")
+                        _state.value = ConnState.Connected(link.conn.host.name, info.slot, null, link.kind, link.detail)
+                        lock.withLock { version++ } // resend current state on the new link
+                        startThreads(link)
+                        return@launch
+                    } catch (e: RefusedException) {
+                        hs.lastFailureAt = now()
+                        when (e.code) {
+                            "not_paired" -> { hosts.remove(h.id); want = null; _state.value = ConnState.Failed("${h.name} no longer knows this phone. Pair again."); return@launch }
+                            "slots_full" -> { want = null; _state.value = ConnState.Failed("${h.name} already has four controllers connected."); return@launch }
+                        }
+                    } catch (e: Exception) {
+                        hs.lastFailureAt = now()
+                        _state.value = ConnState.Reconnecting(h.name, ++n, "${kind.label}: ${describe(e)}")
+                    }
+                }
+                if (preferred != null) { // planned switch failed: keep the old link
+                    makeBeforeBreak?.let { active = it; return@launch }
                 }
                 delay(minOf(100L shl minOf(n, 4), 2000L))
             }
         }
     }
 
-    private fun openSession(host: PairedHost) {
-        val c = ControlConnection.connect(InetSocketAddress(host.addr, host.port), identity.keyPair(), hello(), timeoutMs = 1500)
-        val pinned = Base64.decode(host.pub, Base64.NO_WRAP)
-        if (!c.hostStatic.contentEquals(pinned)) {
-            c.close()
-            throw SecurityException("The computer at ${host.addr} is not ${host.name} (its identity key changed). Pair again only if you trust it.")
+    /** Planned switches: re-evaluate every second; switch only on a clear, sustained improvement. */
+    private suspend fun evaluateLoop() {
+        while (true) {
+            delay(1000)
+            val a = active ?: continue
+            val h = want ?: continue
+            hist.getValue(a.kind).rttP95 = a.channel.rttMs.percentile(95.0)
+            publishReports(h)
+            val cands = candidates(h).map { it.first }
+            val best = LinkPolicy.rank(cands).firstOrNull()
+            val cur = cands.find { it.kind == a.kind }?.let(LinkPolicy::score)
+            val bs = cands.find { it.kind == best }?.let(LinkPolicy::score)
+            val better = best != null && best != a.kind && cur != null && bs != null && bs - cur >= LinkPolicy.SWITCH_MARGIN
+            if (!better) betterSince = 0 else if (betterSince == 0L) betterSince = now()
+            val st = PolicyState(a.kind, true, (now() - switchedAt) / 1000.0, if (betterSince == 0L) 0.0 else (now() - betterSince) / 1000.0, overrideKind())
+            val d = LinkPolicy.decide(cands, st)
+            if (d is Decision.Switch) {
+                // Same IP binding, different interface (e.g. LAN → USB): the IP attempt already prefers it by racing.
+                val ipToIp = d.to != LinkKind.BLE && d.to != LinkKind.STREAM && a.kind != LinkKind.BLE && a.kind != LinkKind.STREAM
+                if (!ipToIp) restart("better link available", healthy = true, to = d.to)
+            }
         }
-        val info = c.open(lastSlot, profileName)
-        lastSlot = info.slot
-        val ch = InputChannel(c.remote, info)
-        control = c; input = ch
-        hosts.touch(host.id, host.addr, host.port)
-        _state.value = ConnState.Connected(c.host.name, info.slot, info.backendWarning)
-        startThreads(c, ch)
     }
 
-    private fun teardown(sendBye: Boolean) {
-        val ch = input; val c = control
-        input = null; control = null
-        if (sendBye) runCatching { ch?.sendInput(InputState.NEUTRAL, 0); ch?.bye() }
-        runCatching { ch?.close() }
-        runCatching { if (sendBye) c?.close() else c?.let { it.setReadTimeout(1); it.close() } }
-        lock.withLock { changed.signalAll() }
-    }
-
-    private fun startThreads(c: ControlConnection, ch: InputChannel) {
-        // Control reader: rumble, bye, errors. Any failure means the link is gone.
+    private fun startThreads(link: ActiveLink) {
+        val c = link.conn; val ch = link.channel
         Thread({
             try {
-                while (control === c) {
+                while (active === link) {
                     when (val m = c.recv()) {
                         is Control.Rumble -> haptics.rumble(m.low, m.high, m.ms)
-                        is Control.Bye -> { if (m.reason == "unpaired") { want?.let { hosts.remove(it.id) }; want = null; teardown(false); _state.value = ConnState.Failed("This phone was removed on the computer.") } else throw java.io.EOFException(m.reason ?: "host closed") ; return@Thread }
+                        is Control.Error -> if (m.code == "backend_unavailable") (_state.value as? ConnState.Connected)?.let { _state.value = it.copy(backendWarning = m.message ?: m.code) }
+                        is Control.Bye -> {
+                            when {
+                                m.reason == "unpaired" -> { want?.let { hosts.remove(it.id) }; want = null; active = null; link.close(false); _state.value = ConnState.Failed("This phone was removed on the computer.") }
+                                m.reason?.startsWith("replaced") == true -> Unit // our own newer link took over
+                                else -> if (active === link) restart(m.reason ?: "host closed", healthy = false)
+                            }
+                            return@Thread
+                        }
                         else -> Unit
                     }
                 }
-            } catch (e: Exception) { if (control === c) restart(describe(e)) }
-        }, "ninectl-control").start()
+            } catch (e: Exception) { if (active === link) restart(describe(e), healthy = false) }
+        }, "c9-control").start()
 
-        // UDP receiver: pongs (RTT) and game rumble.
         Thread({
-            var lastPong = System.nanoTime()
-            var seen = 0L
-            while (input === ch) {
-                val fb = runCatching { ch.receive(100) }.getOrNull()
-                fb?.let { haptics.rumble(it.low, it.high, it.ms) }
+            var lastPong = System.nanoTime(); var seen = 0L
+            val deadMs = if (link.kind == LinkKind.BLE) 1500 else 1000
+            while (active === link) {
+                ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) }
                 if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime() }
                 val age = (System.nanoTime() - lastPong) / 1_000_000
-                if (age > 1000 && input === ch) { restart("no response for ${age} ms"); return@Thread }
+                if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); restart("no response for $age ms on ${link.kind.label}", healthy = false); return@Thread }
             }
-        }, "ninectl-udp-rx").start()
+        }, "c9-rx").start()
 
-        // Sender: on change, plus heartbeats; ping every 250 ms; stats every 2 s.
         Thread({
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
             val hbActive = ch.info.heartbeatMs.coerceIn(10, 1000) * 1_000_000L
             val hbIdle = ch.info.idleHeartbeatMs.coerceIn(50, 2000) * 1_000_000L
             var sentVersion = -1L; var lastSend = 0L; var lastPing = 0L; var lastStats = System.nanoTime()
             var windowStart = System.nanoTime(); var windowSent = 0L; var sendHz = 0.0
-            while (input === ch) {
+            while (active === link) {
                 val now = System.nanoTime()
                 val (s, f, v) = lock.withLock { Triple(if (paused) InputState.NEUTRAL else latest, latestFlags or (if (paused) FLAG_PAUSED else 0), version) }
                 val hb = if (s.isNeutral) hbIdle else hbActive
@@ -267,22 +383,19 @@ class ConnectionManager(
                     if (now - windowStart >= 1_000_000_000L) { sendHz = windowSent * 1e9 / (now - windowStart); windowStart = now; windowSent = 0 }
                     if (now - lastStats >= 2_000_000_000L) {
                         lastStats = now
-                        val st = LinkStats(ch.rttMs.percentile(50.0), ch.rttMs.percentile(95.0), null, sendHz, ch.sent, sensorHz,
-                            null, reconnects, _stats.value.lastReconnectMs)
-                        _stats.value = st
-                        runCatching { c.send(Control.Stats(st.rttP50?.toFloat(), st.rttP95?.toFloat(), sensorHz.toFloat().takeIf { it > 0 }, sendHz.toFloat(), battery())) }
+                        _stats.value = _stats.value.copy(rttP50 = ch.rttMs.percentile(50.0), rttP95 = ch.rttMs.percentile(95.0), sendHz = sendHz, sent = ch.sent, sensorHz = sensorHz)
+                        runCatching { c.send(Control.Stats(ch.rttMs.percentile(50.0)?.toFloat(), ch.rttMs.percentile(95.0)?.toFloat(), sensorHz.toFloat().takeIf { it > 0 }, sendHz.toFloat(), battery())) }
                     }
-                } catch (e: Exception) { if (input === ch) restart(describe(e)); return@Thread }
+                } catch (e: Exception) { if (active === link) restart(describe(e), healthy = false); return@Thread }
                 lock.withLock {
-                    if (version == sentVersion && input === ch) {
+                    if (version == sentVersion && active === link) {
                         val untilHb = (lastSend + hb - System.nanoTime()) / 1_000_000
                         val untilPing = (lastPing + 250_000_000L - System.nanoTime()) / 1_000_000
-                        val waitMs = minOf(untilHb, untilPing).coerceIn(1, 250)
-                        changed.await(waitMs, TimeUnit.MILLISECONDS)
+                        changed.await(minOf(untilHb, untilPing).coerceIn(1, 250), TimeUnit.MILLISECONDS)
                     }
                 }
             }
-        }, "ninectl-sender").start()
+        }, "c9-sender").start()
     }
 
     private fun battery(): Int? = context.getSystemService(BatteryManager::class.java)
@@ -300,9 +413,10 @@ class ConnectionManager(
                 "unsupported_version" -> "The computer runs an incompatible version. Update both apps."
                 else -> "The computer refused: ${e.code}"
             }
-            is java.net.ConnectException -> "Can’t reach the computer. Is Controller-9 running and on the same network?"
-            is java.net.SocketTimeoutException -> "The computer didn’t answer in time."
-            is java.net.NoRouteToHostException -> "No route to the computer. Check Wi-Fi."
+            is java.net.ConnectException -> "Can’t reach the computer on this network"
+            is java.net.SocketTimeoutException -> e.message ?: "The computer didn’t answer in time"
+            is java.net.NoRouteToHostException -> "No route to the computer"
+            is IllegalStateException -> e.message ?: "Unavailable"
             else -> e.message ?: e.javaClass.simpleName
         }
     }

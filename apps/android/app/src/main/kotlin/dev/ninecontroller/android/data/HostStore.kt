@@ -20,7 +20,13 @@ data class PairedHost(
     val port: Int,
     val pairedAt: String,
     val lastUsed: String? = null,
-)
+    /** Other host addresses learned from the QR code / handshake (hotspot, USB, Wi-Fi Direct…). */
+    val addrs: List<String> = emptyList(),
+    /** Bindings the host advertised ("ip", "stream", "ble"); empty = unknown (older host). */
+    val links: List<String> = emptyList(),
+) {
+    fun allAddrs(): List<String> = (listOf(addr) + addrs).filter { it.isNotBlank() }.distinct()
+}
 
 class HostStore(context: Context) {
     private val file = File(context.filesDir, "hosts.json")

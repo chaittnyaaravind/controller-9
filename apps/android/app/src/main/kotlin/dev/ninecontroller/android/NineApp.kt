@@ -8,6 +8,7 @@ import dev.ninecontroller.android.data.SettingsStore
 import dev.ninecontroller.android.input.Haptics
 import dev.ninecontroller.android.net.ConnectionManager
 import dev.ninecontroller.android.net.Discovery
+import dev.ninecontroller.android.net.LocalNetwork
 
 /** Manual dependency container; one instance per process. */
 class NineApp : Application() {
@@ -18,6 +19,7 @@ class NineApp : Application() {
     lateinit var haptics: Haptics; private set
     lateinit var discovery: Discovery; private set
     lateinit var connection: ConnectionManager; private set
+    lateinit var localNetwork: LocalNetwork; private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,5 +30,6 @@ class NineApp : Application() {
         haptics = Haptics(this)
         discovery = Discovery(this)
         connection = ConnectionManager(this, identity, hosts, settings, haptics)
+        localNetwork = LocalNetwork(this)
     }
 }

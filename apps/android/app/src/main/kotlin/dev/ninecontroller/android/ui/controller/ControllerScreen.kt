@@ -214,7 +214,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).background(Nine.s1.copy(alpha = 0.85f), Nine.pill).padding(horizontal = 12.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val (label, color) = when (val s = conn) {
-                is ConnState.Connected -> "P${s.slot + 1} · ${s.hostName}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
+                is ConnState.Connected -> "P${s.slot + 1} · ${s.hostName} · ${s.link.label}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
                 is ConnState.Reconnecting -> "Reconnecting…" to Nine.warn
                 is ConnState.Connecting -> "Connecting…" to Nine.warn
                 else -> "Offline" to Nine.bad

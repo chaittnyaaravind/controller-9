@@ -253,8 +253,11 @@ in the background, and Windows/Linux/macOS hosts all support the central role).
 | `c9c90004-1c3a-4e9d-8f2b-6c7a0b5d4e10` | input_up | notify | phone → host |
 | `c9c90005-1c3a-4e9d-8f2b-6c7a0b5d4e10` | input_down | write without response | host → phone |
 
-Advertising: the service UUID plus service data `hint[4]` = the first 4 bytes of the target host id
-(all zero = "any host in pairing mode"). Hosts connect only to matching hints.
+Advertising: the service UUID, plus a 4-byte `hint` = the first 4 bytes of the target host id (all
+zero = "any host in pairing mode"), carried as **service data** in the scan response (Android: a
+128-bit UUID and its service data do not fit one 31-byte legacy advertisement) **or** as the local
+name `C9-<hint as 8 lowercase hex digits>` (iOS peripherals cannot advertise service data). Hosts
+accept either and connect only to matching hints.
 
 **Segmentation.** Each characteristic value is `hdr:u8 | chunk`, with `hdr` bit 7 = FIRST, bit 6 =
 LAST, bits 0–5 = segment counter (mod 64, continuous per characteristic). A message is one CONTROL
@@ -273,7 +276,8 @@ the host's slot takeover rule (§7) neutralizes the slot before the new session'
 the old session's datagrams are rejected because its session id is gone. Policy:
 `docs/CONNECTION_MANAGER.md`; reference implementation `protocol/rust/src/policy.rs`.
 
-`HostHello` may carry `"links": ["ip","stream","ble"]` (additive; older peers ignore it).
+`HostHello` may carry `"links": ["ip","stream","ble"]` and `"addrs": ["192.168.1.20", …]` (the host's
+local IPv4 addresses) — additive; older peers ignore them.
 
 ## 9. Versioning
 

@@ -44,8 +44,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     Page("Your controller", "Controller-9", null) {
         Card {
             val (label, color) = when (val s = state) {
-                is ConnState.Connected -> "Player ${s.slot + 1} on ${s.hostName}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
-                is ConnState.Connecting -> "Connecting to ${s.hostName}…" to Nine.warn
+                is ConnState.Connected -> "Player ${s.slot + 1} on ${s.hostName} · ${s.link.label}" to (if (s.backendWarning == null) Nine.accent else Nine.warn)
+                is ConnState.Connecting -> "Connecting to ${s.hostName}${if (s.via.isNotEmpty()) " via ${s.via}" else ""}…" to Nine.warn
                 is ConnState.Reconnecting -> "Reconnecting to ${s.hostName}…" to Nine.warn
                 is ConnState.ConfirmCode -> "Confirm the code" to Nine.warn
                 is ConnState.Failed -> s.message to Nine.bad
@@ -96,6 +96,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+            TextButton(onClick = { nav.navigate("connection") }) { Text("Connection", color = Nine.text) }
             TextButton(onClick = { nav.navigate("diagnostics") }) { Text("Diagnostics", color = Nine.text) }
             TextButton(onClick = { nav.navigate("settings") }) { Text("Settings", color = Nine.text) }
         }

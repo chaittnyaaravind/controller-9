@@ -63,6 +63,10 @@ pub struct HostHello {
     /// Supported bindings (SPEC §8): "ip", "stream", "ble". Additive; absent on older hosts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// The host's local IPv4 addresses (all interfaces), so controllers can fail over between
+    /// Wi-Fi, hotspot, USB tethering and Wi-Fi Direct. Additive.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub addrs: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

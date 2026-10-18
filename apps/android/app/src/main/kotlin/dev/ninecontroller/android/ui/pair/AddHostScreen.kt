@@ -103,6 +103,35 @@ fun AddHostScreen(app: NineApp, nav: NavController) {
             }
         }
 
+        Micro("No network?")
+        val local by app.localNetwork.state.collectAsState()
+        val localErr by app.localNetwork.error.collectAsState()
+        val nearby = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r -> if (r.values.all { it }) app.localNetwork.start() }
+        Card {
+            Text("Pair over Bluetooth", style = MaterialTheme.typography.titleMedium)
+            Text("Works with Wi-Fi off. Open “Pair a phone” on the computer (it must have Bluetooth), then tap below and compare codes.", color = Nine.muted)
+            OutlinedButton(onClick = {
+                if (android.os.Build.VERSION.SDK_INT >= 31 && !app.connection.ble.permissionsGranted())
+                    nearby.launch(arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT))
+                else { error = app.connection.ble.unavailableReason(); if (error == null) app.connection.pairWithCode(null, DEFAULT_TCP_PORT, "computer over Bluetooth") }
+            }) { Text("Pair over Bluetooth") }
+        }
+        Card {
+            Text("Create a local network", style = MaterialTheme.typography.titleMedium)
+            Text("No router? This phone hosts a private Wi-Fi network (no Internet). Join it from the computer's Wi-Fi menu, then scan the computer's QR code.", color = Nine.muted)
+            if (local == null) OutlinedButton(onClick = {
+                val need = if (android.os.Build.VERSION.SDK_INT >= 33) arrayOf("android.permission.NEARBY_WIFI_DEVICES") else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (need.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) app.localNetwork.start() else nearby.launch(need)
+            }, enabled = app.localNetwork.supported) { Text(if (app.localNetwork.supported) "Create network" else "Needs Android 10+") }
+            local?.let {
+                Text("Network: ${it.ssid}", fontFamily = FontFamily.Monospace)
+                Text("Password: ${it.passphrase}", fontFamily = FontFamily.Monospace)
+                TextButton(onClick = { app.localNetwork.stop() }) { Text("Stop network", color = Nine.text) }
+            }
+            localErr?.let { Text(it, color = Nine.bad) }
+            Text("Or use a hotspot: turn on this phone's hotspot and join it from the computer (or the reverse). USB tethering also works — the computer becomes reachable over the cable.", color = Nine.dim, style = MaterialTheme.typography.bodySmall)
+        }
+
         Micro("Manual address")
         OutlinedTextField(manual, { manual = it.trim() }, label = { Text("192.168.1.20 or 192.168.1.20:47901") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())

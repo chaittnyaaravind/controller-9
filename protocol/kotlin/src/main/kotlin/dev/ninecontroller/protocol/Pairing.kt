@@ -21,14 +21,17 @@ object Pairing {
     fun hostId(staticPub: ByteArray): String = Crypto.sha256(staticPub).copyOf(8).joinToString("") { "%02x".format(it) }
 }
 
-data class PairUri(val addr: String, val port: Int, val hostStatic: ByteArray, val token: ByteArray, val name: String) {
+data class PairUri(val addr: String, val port: Int, val hostStatic: ByteArray, val token: ByteArray, val name: String, val extra: List<String> = emptyList()) {
+    /** Every address to try (primary first). SPEC §8.1. */
+    val addresses: List<String> get() = listOf(addr) + extra
     fun toUri(): String {
         val b = Base64.getUrlEncoder().withoutPadding()
-        return "ninectl://pair?v=1&a=${enc(addr)}&p=$port&k=${b.encodeToString(hostStatic)}&t=${b.encodeToString(token)}&n=${enc(name)}"
+        val base = "ninectl://pair?v=1&a=${enc(addr)}&p=$port&k=${b.encodeToString(hostStatic)}&t=${b.encodeToString(token)}&n=${enc(name)}"
+        return if (extra.isEmpty()) base else base + "&x=" + extra.joinToString(",") { enc(it) }
     }
 
     override fun equals(other: Any?) = other is PairUri && addr == other.addr && port == other.port &&
-        hostStatic.contentEquals(other.hostStatic) && token.contentEquals(other.token) && name == other.name
+        hostStatic.contentEquals(other.hostStatic) && token.contentEquals(other.token) && name == other.name && extra == other.extra
     override fun hashCode() = addr.hashCode() * 31 + port
 
     companion object {
@@ -50,7 +53,8 @@ data class PairUri(val addr: String, val port: Int, val hostStatic: ByteArray, v
                 val t = d.decode(m["t"] ?: return null)
                 if (k.size != 32 || t.size != 16) return null
                 PairUri(URLDecoder.decode(m["a"] ?: return null, "UTF-8"), m["p"]?.toIntOrNull() ?: return null, k, t,
-                    URLDecoder.decode(m["n"] ?: "", "UTF-8"))
+                    URLDecoder.decode(m["n"] ?: "", "UTF-8"),
+                    m["x"]?.split(',')?.filter { it.isNotEmpty() }?.map { URLDecoder.decode(it, "UTF-8") }?.take(8) ?: emptyList())
             } catch (e: IllegalArgumentException) { null }
         }
     }

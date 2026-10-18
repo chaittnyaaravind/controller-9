@@ -1,0 +1,116 @@
+package dev.ninecontroller.android.net
+
+import android.content.Context
+import dev.ninecontroller.android.data.PairedHost
+import dev.ninecontroller.protocol.ControlConnection
+import dev.ninecontroller.protocol.ControllerHello
+import dev.ninecontroller.protocol.InputChannel
+import dev.ninecontroller.protocol.KeyPair
+import dev.ninecontroller.protocol.LinkConst
+import dev.ninecontroller.protocol.LinkKind
+import dev.ninecontroller.protocol.SessionInfo
+import dev.ninecontroller.protocol.StreamBinding
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+/** One established link: an authenticated control connection plus its input channel. */
+class ActiveLink(val kind: LinkKind, val detail: String, val conn: ControlConnection, val channel: InputChannel, private val extra: AutoCloseable? = null) {
+    fun close(sendBye: Boolean) {
+        if (sendBye) runCatching { channel.sendInput(dev.ninecontroller.protocol.InputState.NEUTRAL, 0); channel.bye() }
+        runCatching { channel.close() }
+        if (sendBye) runCatching { conn.close() } else runCatching { conn.abort() }
+        runCatching { extra?.close() }
+    }
+}
+
+/** Classification of this phone's local interfaces (mirrors hosts/core/src/netif.rs heuristics). */
+object LocalLinks {
+    fun classify(name: String, ip: Inet4Address): LinkKind {
+        val n = name.lowercase(); val o = ip.address.map { it.toInt() and 0xFF }
+        return when {
+            n.startsWith("rndis") || n.startsWith("ncm") || n.startsWith("usb") || (o[0] == 192 && o[1] == 168 && o[2] == 42) -> LinkKind.USB
+            n.startsWith("p2p") || (o[0] == 192 && o[1] == 168 && o[2] == 49) -> LinkKind.WIFI_DIRECT
+            n.startsWith("swlan") || n.startsWith("ap") || n == "wlan1" || (o[0] == 172 && o[1] == 20 && o[2] == 10 && o[3] < 16) ||
+                (o[0] == 192 && o[1] == 168 && o[2] == 43) -> LinkKind.HOTSPOT
+            n.startsWith("eth") -> LinkKind.ETHERNET
+            else -> LinkKind.LAN
+        }
+    }
+
+    /** IP link kinds currently present on this phone (interfaces up with an IPv4 address). */
+    fun available(): Set<LinkKind> = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
+            .flatMap { i -> i.inetAddresses.toList().filterIsInstance<Inet4Address>().map { classify(i.name, it) } }.toSet()
+    }.getOrDefault(emptySet())
+
+    fun kindOf(local: InetAddress?): LinkKind {
+        val a = local as? Inet4Address ?: return LinkKind.LAN
+        val iface = runCatching { NetworkInterface.getByInetAddress(a) }.getOrNull() ?: return LinkKind.LAN
+        return classify(iface.name, a)
+    }
+}
+
+class Transports(private val context: Context, private val ble: BlePeripheral) {
+    private val pool = Executors.newCachedThreadPool { r -> Thread(r, "c9-connect").apply { isDaemon = true } }
+
+    /** IP binding: race every known address (Wi-Fi, hotspot, USB tethering, Wi-Fi Direct); first handshake wins. */
+    fun ip(host: PairedHost, id: KeyPair, hello: ControllerHello, timeoutMs: Int): Pair<ControlConnection, LinkKind> {
+        val addrs = host.allAddrs()
+        val cs = ExecutorCompletionService<ControlConnection>(pool)
+        val futures = addrs.map { a -> cs.submit { ControlConnection.connect(InetSocketAddress(a, host.port), id, hello, timeoutMs) } }
+        var last: Throwable? = null
+        repeat(addrs.size) {
+            val f = cs.poll(timeoutMs + 500L, TimeUnit.MILLISECONDS) ?: return@repeat
+            try {
+                val c = f.get()
+                futures.filter { it != f }.forEach { other -> pool.execute { runCatching { other.get().abort() } } }
+                return c to LocalLinks.kindOf(c.local)
+            } catch (e: Exception) { last = e.cause ?: e }
+        }
+        futures.forEach { it.cancel(true) }
+        throw (last as? Exception) ?: java.net.SocketTimeoutException("no address answered")
+    }
+
+    /** Stream binding over TCP 47902 — for networks that block UDP (some hotspots, guest Wi-Fi). */
+    fun stream(host: PairedHost, id: KeyPair, hello: ControllerHello, timeoutMs: Int): Triple<ControlConnection, StreamBinding, LinkKind> {
+        var last: Exception? = null
+        for (a in host.allAddrs()) {
+            try {
+                val sb = StreamBinding.tcp(a, LinkConst.STREAM_TCP_PORT, timeoutMs)
+                return Triple(ControlConnection.connectOver(sb.control.input, sb.control.output, sb, id, hello), sb, LinkKind.STREAM)
+            } catch (e: Exception) { last = e }
+        }
+        throw last ?: java.net.SocketTimeoutException("stream binding unreachable")
+    }
+
+    /** BLE GATT binding: advertise and wait for the host's central to connect. */
+    fun ble(host: PairedHost, id: KeyPair, hello: ControllerHello, timeoutMs: Long): Pair<ControlConnection, BleLink> {
+        val hint = host.id.chunked(2).take(4).map { it.toInt(16).toByte() }.toByteArray()
+        val link = ble.awaitHost(hint, timeoutMs) ?: throw java.net.SocketTimeoutException("no computer connected over Bluetooth within ${timeoutMs / 1000} s")
+        return try { ControlConnection.connectOver(link.control.input, link.control.output, link, id, hello) to link }
+        catch (e: Exception) { link.close(); throw e }
+    }
+
+    fun open(kind: LinkKind, host: PairedHost, id: KeyPair, hello: ControllerHello, resumeSlot: Int?, profile: String?): Pair<ActiveLink, SessionInfo> = when (kind) {
+        LinkKind.STREAM -> {
+            val (c, sb, k) = stream(host, id, hello, 1500)
+            val info = c.open(resumeSlot, profile)
+            ActiveLink(k, "TCP ${c.host.name}:${LinkConst.STREAM_TCP_PORT}", c, InputChannel(sb, info), sb) to info
+        }
+        LinkKind.BLE -> {
+            val (c, l) = ble(host, id, hello, 8000)
+            val info = c.open(resumeSlot, profile)
+            ActiveLink(LinkKind.BLE, "MTU ${l.mtu}", c, InputChannel(l, info), l) to info
+        }
+        else -> {
+            val (c, k) = ip(host, id, hello, 1500)
+            val info = c.open(resumeSlot, profile)
+            ActiveLink(k, "${c.remote?.hostAddress}:${host.port} via ${c.local?.hostAddress}", c, InputChannel(c.remote!!, info)) to info
+        }
+    }
+}

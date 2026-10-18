@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.ninecontroller.android.ui.controller.ControllerScreen
+import dev.ninecontroller.android.ui.diagnostics.ConnectionScreen
 import dev.ninecontroller.android.ui.diagnostics.DiagnosticsScreen
 import dev.ninecontroller.android.ui.editor.LayoutEditorScreen
 import dev.ninecontroller.android.ui.home.HomeScreen
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
                     composable("edit/{id}") { LayoutEditorScreen(app, nav, it.arguments?.getString("id") ?: "") }
                     composable("motion/{id}") { MotionScreen(app, nav, it.arguments?.getString("id") ?: "") }
                     composable("diagnostics") { DiagnosticsScreen(app, nav) }
+                    composable("connection") { ConnectionScreen(app, nav) }
                     composable("settings") { SettingsScreen(app, nav) }
                 }
             }

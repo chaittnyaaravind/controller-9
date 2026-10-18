@@ -2,7 +2,8 @@ package dev.ninecontroller.protocol
 
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import java.io.EOFException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -21,25 +22,28 @@ data class SessionInfo(
 ) { override fun toString() = "SessionInfo(slot=$slot, udpPort=$udpPort, keys=<redacted>)" }
 
 /**
- * Encrypted control channel (blocking; call from a background thread / Dispatchers.IO).
- * Mirrors hosts/core/src/client.rs.
+ * Encrypted control channel over any framed byte stream (TCP socket, stream binding, BLE bridge).
+ * Blocking; call from a background thread. Mirrors hosts/core/src/client.rs.
  */
 class ControlConnection private constructor(
-    private val socket: Socket,
+    inStream: InputStream,
+    outStream: OutputStream,
+    private val closer: AutoCloseable,
     private val t: Transport,
     val host: HostHello,
+    /** Remote IP for the IP binding (UDP input goes there); null on non-IP links. */
+    val remote: InetAddress?,
+    /** Local IP of the IP binding — used to classify the link (USB, hotspot, Wi-Fi Direct…). */
+    val local: InetAddress?,
 ) : AutoCloseable {
-    private val input = DataInputStream(socket.getInputStream().buffered())
-    private val output = DataOutputStream(socket.getOutputStream())
+    private val input = DataInputStream(inStream.buffered())
+    private val output = DataOutputStream(outStream)
     val hostStatic: ByteArray get() = t.remoteStatic
     val handshakeHash: ByteArray get() = t.handshakeHash
-    val remote: InetAddress get() = socket.inetAddress
 
     @Synchronized fun send(m: Control) = writeFrame(output, t.encrypt(m.toJson()))
 
-    fun recv(): Control = Control.fromJson(t.decrypt(readFrame(input)))
-
-    fun setReadTimeout(ms: Int) { socket.soTimeout = ms }
+    fun recv(): Control = Control.fromJson(t.decrypt(readFrameFrom(input)))
 
     fun pairQr(uri: PairUri) {
         if (!hostStatic.contentEquals(uri.hostStatic)) throw WrongHostException()
@@ -77,6 +81,11 @@ class ControlConnection private constructor(
         }
     }
 
+    /**
+     * Opens a session. A host without a virtual-pad driver follows `session` with
+     * `error(backend_unavailable)`; the caller's control-reader loop surfaces it (a timed read here
+     * cannot be cancelled on non-socket links).
+     */
     fun open(resumeSlot: Int?, profile: String?): SessionInfo {
         send(Control.Open(resumeSlot, profile))
         val s = when (val r = recv()) {
@@ -85,15 +94,11 @@ class ControlConnection private constructor(
             is Control.Error -> throw RefusedException(r.code)
             else -> throw ProtocolException("unexpected $r")
         }
-        var warning: String? = null
-        val old = socket.soTimeout
-        socket.soTimeout = 50
-        try { (recv() as? Control.Error)?.takeIf { it.code == "backend_unavailable" }?.let { warning = it.message ?: it.code } }
-        catch (_: SocketTimeoutException) {} finally { socket.soTimeout = old }
-        return SessionInfo(s.slot, s.sessionId.toInt(), s.udpPort, unb64(s.kIn), unb64(s.kOut), s.heartbeatMs, s.idleHeartbeatMs, s.timeoutMs, warning)
+        return SessionInfo(s.slot, s.sessionId.toInt(), s.udpPort, unb64(s.kIn), unb64(s.kOut), s.heartbeatMs, s.idleHeartbeatMs, s.timeoutMs, null)
     }
 
-    override fun close() { runCatching { send(Control.Bye()) }; runCatching { socket.close() } }
+    override fun close() { runCatching { send(Control.Bye()) }; runCatching { closer.close() } }
+    fun abort() { runCatching { closer.close() } }
 
     companion object {
         private val b = Base64.getEncoder()
@@ -101,39 +106,45 @@ class ControlConnection private constructor(
         fun b64(x: ByteArray): String = b.encodeToString(x)
         fun unb64(s: String): ByteArray = try { d.decode(s) } catch (e: IllegalArgumentException) { throw ProtocolException("bad base64") }
 
+        /** IP binding: TCP control channel. */
         fun connect(addr: InetSocketAddress, identity: KeyPair, hello: ControllerHello, timeoutMs: Int = 3000): ControlConnection {
             val s = Socket()
             s.tcpNoDelay = true
             s.connect(addr, timeoutMs)
             s.soTimeout = timeoutMs
             try {
-                val inp = DataInputStream(s.getInputStream())
-                val out = DataOutputStream(s.getOutputStream())
-                val hs = Handshake(true, KeyPair.fromSecret(identity.secretBytes()))
-                writeFrame(out, hs.writeMessage(Control.json.encodeToString(InitHello.serializer(), InitHello(listOf(1))).toByteArray()))
-                val host = Control.json.decodeFromString(HostHello.serializer(), hs.readMessage(readFrame(inp)).decodeToString())
-                writeFrame(out, hs.writeMessage(Control.json.encodeToString(ControllerHello.serializer(), hello).toByteArray()))
+                val c = handshake(s.getInputStream(), s.getOutputStream(), s, identity, hello, s.inetAddress, s.localAddress)
                 s.soTimeout = 0
-                return ControlConnection(s, hs.intoTransport(), host)
+                return c
             } catch (e: Exception) { s.close(); throw e }
+        }
+
+        /** Any binding: handshake over an already-framed control stream. */
+        fun connectOver(inStream: InputStream, outStream: OutputStream, closer: AutoCloseable, identity: KeyPair, hello: ControllerHello): ControlConnection =
+            handshake(inStream, outStream, closer, identity, hello, null, null)
+
+        private fun handshake(inStream: InputStream, outStream: OutputStream, closer: AutoCloseable, identity: KeyPair, hello: ControllerHello,
+                              remote: InetAddress?, local: InetAddress?): ControlConnection {
+            val inp = DataInputStream(inStream)
+            val out = DataOutputStream(outStream)
+            val hs = Handshake(true, KeyPair.fromSecret(identity.secretBytes()))
+            writeFrame(out, hs.writeMessage(Control.json.encodeToString(InitHello.serializer(), InitHello(listOf(1))).toByteArray()))
+            val host = Control.json.decodeFromString(HostHello.serializer(), hs.readMessage(readFrameFrom(inp)).decodeToString())
+            writeFrame(out, hs.writeMessage(Control.json.encodeToString(ControllerHello.serializer(), hello).toByteArray()))
+            return ControlConnection(inStream, outStream, closer, hs.intoTransport(), host, remote, local)
         }
 
         private fun writeFrame(out: DataOutputStream, b: ByteArray) {
             require(b.isNotEmpty() && b.size <= 65535)
             synchronized(out) { out.writeShort(b.size); out.write(b); out.flush() }
         }
-
-        private fun readFrame(inp: DataInputStream): ByteArray {
-            val n = try { inp.readUnsignedShort() } catch (e: EOFException) { throw EOFException("host closed the connection") }
-            if (n == 0) throw ProtocolException("empty frame")
-            return ByteArray(n).also { inp.readFully(it) }
-        }
     }
 }
 
-/** UDP input channel. `send*` may be called from one sender thread; `receive` from another. */
-class InputChannel(host: InetAddress, val info: SessionInfo) : AutoCloseable {
-    private val socket = DatagramSocket().apply { connect(InetSocketAddress(host, info.udpPort)) }
+/** Input channel over any [DatagramLink]. `send*` from one sender thread; `receive` from another. */
+class InputChannel(private val link: DatagramLink, val info: SessionInfo) : AutoCloseable {
+    /** IP binding: UDP to the host's input port. */
+    constructor(host: InetAddress, info: SessionInfo) : this(UdpLink(host, info.udpPort), info)
     private var counter = 0L
     private val freshIn = Freshness()
     private val epochNs = System.nanoTime()
@@ -149,7 +160,7 @@ class InputChannel(host: InetAddress, val info: SessionInfo) : AutoCloseable {
 
     fun sendInput(state: InputState, flags: Int) {
         val d = seal(PacketType.INPUT, InputFrame(nowUs(), state, flags).encode())
-        socket.send(DatagramPacket(d, d.size)); sent++
+        link.send(d); sent++
     }
 
     fun ping() {
@@ -157,19 +168,15 @@ class InputChannel(host: InetAddress, val info: SessionInfo) : AutoCloseable {
         val t = nowUs()
         pings[id] = t
         if (pings.size > 64) pings.keys.minOrNull()?.let { pings.remove(it) }
-        val d = seal(PacketType.PING, Ping(t, id).encode())
-        socket.send(DatagramPacket(d, d.size))
+        link.send(seal(PacketType.PING, Ping(t, id).encode()))
     }
 
-    fun bye() { val d = seal(PacketType.BYE, ByteArray(0)); runCatching { socket.send(DatagramPacket(d, d.size)) } }
+    fun bye() { runCatching { link.send(seal(PacketType.BYE, ByteArray(0))) } }
 
     /** Blocks up to [timeoutMs]; returns host feedback (rumble) if one arrived, handling pongs internally. */
     fun receive(timeoutMs: Int): Feedback? {
-        socket.soTimeout = timeoutMs
-        val buf = ByteArray(512)
-        val p = DatagramPacket(buf, buf.size)
-        try { socket.receive(p) } catch (_: SocketTimeoutException) { return null }
-        val (h, pt) = try { Datagram.open(info.kOut, buf, p.length) } catch (_: FrameException) { return null }
+        val d = link.receive(timeoutMs) ?: return null
+        val (h, pt) = try { Datagram.open(info.kOut, d) } catch (_: FrameException) { return null }
         if (!freshIn.accept(h.counter)) return null
         return when (h.type) {
             PacketType.PONG -> { runCatching { Pong.decode(pt) }.getOrNull()?.let { pong ->
@@ -179,5 +186,5 @@ class InputChannel(host: InetAddress, val info: SessionInfo) : AutoCloseable {
         }
     }
 
-    override fun close() { socket.close() }
+    override fun close() { link.close() }
 }

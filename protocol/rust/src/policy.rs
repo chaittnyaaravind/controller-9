@@ -104,7 +104,7 @@ pub fn decide(cands: &[LinkStats], st: &PolicyState) -> Decision {
         cur => {
             let mut order = order;
             // A failed current link goes last, not first.
-            if let Some(c) = cur { if let Some(i) = order.iter().position(|k| *k == c) { let k = order.remove(i); order.push(k); } }
+            if let Some(c) = cur && let Some(i) = order.iter().position(|k| *k == c) { let k = order.remove(i); order.push(k); }
             if order.is_empty() { Decision::Unavailable } else { Decision::Failover { order } }
         }
     }
