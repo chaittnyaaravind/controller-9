@@ -7,9 +7,8 @@ members = [
     "hosts/macos",
     "hosts/windows",
     "hosts/cli",
+    "hosts/app/src-tauri",
 ]
-# hosts/app (Tauri) is a separate workspace member added once its native deps are present; see docs/BUILD.md
-exclude = ["hosts/app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

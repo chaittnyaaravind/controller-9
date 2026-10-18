@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9-controller</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side" aria-label="Main">
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span>9-controller</span></div>
+    <nav>
+      <button class="nav on" data-view="overview" aria-current="page">Overview</button>
+      <button class="nav" data-view="pair">Pair a phone</button>
+      <button class="nav" data-view="devices">Devices</button>
+      <button class="nav" data-view="diagnostics">Diagnostics</button>
+      <button class="nav" data-view="settings">Settings</button>
+      <button class="nav" data-view="help">Setup &amp; help</button>
+    </nav>
+    <div class="side-foot">
+      <div class="micro">Host</div>
+      <div class="mono" id="hostAddr">—</div>
+      <div class="micro dim" id="hostVersion"></div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div>
+        <div class="micro accent" id="eyebrow">Overview</div>
+        <h1 id="hostName">Starting…</h1>
+      </div>
+      <div class="top-right">
+        <span class="chip" id="backendChip">—</span>
+        <button class="btn primary" data-view="pair">Pair a phone</button>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" hidden role="status"></div>
+
+    <section class="view" id="view-overview">
+      <div class="bays" id="bays"></div>
+    </section>
+
+    <section class="view" id="view-pair" hidden>
+      <div class="pair">
+        <div class="qr-card">
+          <div class="qr" id="qr" aria-label="Pairing QR code"></div>
+          <div class="micro dim" id="pairTimer"></div>
+        </div>
+        <div class="pair-copy">
+          <h2>Scan with the 9-controller app</h2>
+          <ol class="steps">
+            <li><span class="idx">01</span>Open 9-controller on your phone and tap <b>Add host</b>.</li>
+            <li><span class="idx">02</span>Scan this code. The phone checks it is talking to <b id="pairHostName">this computer</b> before sending anything.</li>
+            <li><span class="idx">03</span>No camera? Choose <b>Pair with code</b> on the phone. Both screens show the same six digits — confirm on both.</li>
+          </ol>
+          <div class="kv"><span class="micro">Manual address</span><span class="mono" id="manualAddr">—</span></div>
+          <div class="row">
+            <button class="btn" id="renewQr">New code</button>
+            <button class="btn ghost" id="closePair">Stop pairing</button>
+          </div>
+          <p class="fine">Codes expire after two minutes and work once. Pairing is refused after repeated wrong attempts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-devices" hidden>
+      <div class="card">
+        <table class="table" aria-label="Paired devices">
+          <thead><tr><th>Device</th><th>Platform</th><th>Paired</th><th>Last seen</th><th></th></tr></thead>
+          <tbody id="devices"></tbody>
+        </table>
+        <p class="empty" id="devicesEmpty" hidden>No phones paired yet.</p>
+      </div>
+    </section>
+
+    <section class="view" id="view-diagnostics" hidden>
+      <div class="card">
+        <table class="table num" aria-label="Live diagnostics">
+          <thead><tr><th>Player</th><th>Rate</th><th>Gap p50 / p95</th><th>Jitter</th><th>Lost</th><th>Stale</th><th>Invalid</th><th>Phone RTT p50 / p95</th><th>Sensor</th><th>Host proc p95</th><th>Neutral resets</th></tr></thead>
+          <tbody id="diag"></tbody>
+        </table>
+        <div class="diag-foot">
+          <span class="micro dim" id="diagGlobal"></span>
+          <button class="btn ghost" id="copyDiag">Copy report</button>
+        </div>
+      </div>
+      <dl class="defs">
+        <div><dt>Rate</dt><dd>Frames per second received, from the median gap between frames.</dd></div>
+        <div><dt>Gap</dt><dd>Time between consecutive input frames arriving at this computer.</dd></div>
+        <div><dt>Jitter</dt><dd>RFC 3550 interarrival jitter of input frames (variation in transit time).</dd></div>
+        <div><dt>Lost</dt><dd>Sequence gaps — frames sent by the phone that never arrived.</dd></div>
+        <div><dt>Stale</dt><dd>Late, duplicated or replayed frames that were discarded instead of applied.</dd></div>
+        <div><dt>Invalid</dt><dd>Datagrams that failed authentication or carried out-of-range values.</dd></div>
+        <div><dt>Phone RTT</dt><dd>Encrypted ping round trip measured by the phone. Half of it approximates network delay; it is not the full touch-to-game latency.</dd></div>
+        <div><dt>Host proc</dt><dd>Time from receiving a frame to handing it to the virtual controller.</dd></div>
+        <div><dt>Neutral resets</dt><dd>Times input stopped for longer than the timeout and the controller was released to neutral.</dd></div>
+      </dl>
+    </section>
+
+    <section class="view" id="view-settings" hidden>
+      <form class="card form" id="settings">
+        <label><span class="micro">Host name</span><input name="name" maxlength="40" required></label>
+        <label><span class="micro">Player slots</span><select name="maxSlots"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label><span class="micro">Input timeout (ms)</span><input name="timeoutMs" type="number" min="100" max="2000" step="10"></label>
+        <label><span class="micro">Reconnect grace (s)</span><input name="graceS" type="number" min="5" max="300"></label>
+        <label><span class="micro">Control port (TCP)</span><input name="tcpPort" type="number" min="1024" max="65535"></label>
+        <label><span class="micro">Input port (UDP)</span><input name="udpPort" type="number" min="1024" max="65535"></label>
+        <label class="check"><input name="advertise" type="checkbox"><span>Let phones on this network find this computer</span></label>
+        <div class="row"><button class="btn primary" type="submit">Save</button><span class="micro dim" id="settingsMsg" role="status"></span></div>
+        <p class="fine">Ports, slots and discovery apply after restarting the app. Nothing leaves your local network; there is no account and no analytics.</p>
+      </form>
+    </section>
+
+    <section class="view" id="view-help" hidden>
+      <div class="help">
+        <article class="card"><div class="micro accent">First run</div>
+          <ol class="steps">
+            <li><span class="idx">01</span>Keep the phone and this computer on the same Wi-Fi network (5 GHz is best).</li>
+            <li><span class="idx">02</span>Allow 9-controller through the firewall when asked (TCP 47901, UDP 47900).</li>
+            <li><span class="idx">03</span>Pair, choose a layout on the phone, and press a button — the player bay lights up.</li>
+          </ol></article>
+        <article class="card"><div class="micro accent">Virtual controller</div><div id="helpBackend" class="help-body"></div></article>
+        <article class="card"><div class="micro accent">Troubleshooting</div>
+          <ul class="list">
+            <li><b>Phone can’t find this computer.</b> Use the QR code or the manual address; some routers block discovery between devices (“client isolation”).</li>
+            <li><b>Input stutters.</b> Check Lost and Jitter in Diagnostics. Move closer to the router or use 5 GHz.</li>
+            <li><b>Game ignores the controller.</b> Confirm it appears in your OS game-controller panel. XInput-only games on Windows need Steam Input.</li>
+            <li><b>Buttons stuck?</b> They can’t be: input older than the timeout is released automatically, and disconnects release everything.</li>
+          </ul></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="pairModal" hidden role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+  <div class="modal-card">
+    <div class="micro accent">Pairing request</div>
+    <h2 id="pmTitle"><span id="pmName">Phone</span> wants to connect</h2>
+    <div class="code" id="pmCode" aria-live="assertive">000 000</div>
+    <p class="muted">Allow only if the phone shows exactly the same code.</p>
+    <div class="row end">
+      <button class="btn ghost" id="pmDeny">Deny</button>
+      <button class="btn primary" id="pmAllow">Codes match — allow</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
