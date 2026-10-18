@@ -175,7 +175,8 @@ fun StatusDot(color: Color, size: Dp = 7.dp) = Box(Modifier.size(size).backgroun
 fun Pill(text: String, tone: Tone, modifier: Modifier = Modifier) =
     Row(modifier.background(Nine.s2, Nine.pill).border(1.dp, Nine.line, Nine.pill).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        StatusDot(tone.color(), 6.dp); Micro(text, color = Nine.text)
+        StatusDot(tone.color(), 6.dp)
+        Text(text.uppercase(), style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 
 @Composable

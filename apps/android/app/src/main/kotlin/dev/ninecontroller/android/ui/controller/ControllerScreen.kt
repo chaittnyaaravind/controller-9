@@ -291,13 +291,14 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
 
         // ---------------------------------------------------------------- top bar (between the shoulders)
-        Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = with(density) { (wPx * 0.5f).toDp() }),
+        val barMax = with(density) { (wPx * if (spec.pad != null) 0.47f else 0.64f).toDp() }
+        Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box {
                 Row(Modifier.heightIn(min = 36.dp).background(Nine.s1.copy(alpha = 0.92f), Nine.pill).border(1.dp, Nine.line, Nine.pill)
                     .clickable(role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text(spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+                    Text(spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 118.dp))
                     Text("  ▾", style = NineType.small, color = Nine.dim)
                 }
                 DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
@@ -316,15 +317,15 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 }
             }
             val (label, tone) = when (val c = conn) {
-                is ConnState.Connected -> "P${c.slot + 1} · ${c.link.label}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
+                is ConnState.Connected -> "P${c.slot + 1} · ${shortLink(c.link)}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
                 is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
                 is ConnState.Connecting -> "Connecting" to Tone.WARN
                 is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
                 is ConnState.Failed -> "Offline" to Tone.BAD
                 ConnState.Idle -> "Offline" to Tone.BAD
             }
-            Pill(label, tone)
-            BarButton(if (showInputs) "Hide inputs" else "Inputs") { showInputs = !showInputs }
+            Pill(label, tone, Modifier.weight(1f, fill = false))
+            BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
             if (spec.motion.enabled) BarButton("Center") { runCalibration() }
             if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
             BarButton("Exit") { nav.popBackStack() }
@@ -359,11 +360,21 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 }
 
 @Composable
-private fun BarButton(text: String, onClick: () -> Unit) =
-    Box(Modifier.heightIn(min = 36.dp).background(Nine.s1.copy(alpha = 0.92f), Nine.pill).border(1.dp, Nine.line, Nine.pill)
+private fun BarButton(text: String, active: Boolean = false, onClick: () -> Unit) =
+    Box(Modifier.heightIn(min = 36.dp).background(if (active) Nine.accentSoft else Nine.s1.copy(alpha = 0.92f), Nine.pill)
+        .border(1.dp, if (active) Nine.accent.copy(alpha = 0.6f) else Nine.line, Nine.pill)
+        .semantics { if (active) stateDescription = "on" }
         .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-        Micro(text, color = Nine.text)
+        // Single line, never wraps: a narrow bar truncates the pill first (it has the weight), not the buttons.
+        Text(text.uppercase(), style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false)
     }
+
+/** Compact link names for the in-game bar; the full label is on Home and Diagnostics. */
+internal fun shortLink(k: dev.ninecontroller.protocol.LinkKind) = when (k) {
+    dev.ninecontroller.protocol.LinkKind.LAN -> "Wi-Fi"; dev.ninecontroller.protocol.LinkKind.BLE -> "BLE"
+    dev.ninecontroller.protocol.LinkKind.USB -> "USB"; dev.ninecontroller.protocol.LinkKind.STREAM -> "TCP"
+    else -> k.label
+}
 
 private fun surfaceFor(s: AppSettings, profiles: List<Profile>): SurfaceSpec? {
     s.padPreset?.let { preset ->

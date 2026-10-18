@@ -32,8 +32,15 @@ class ActiveLink(val kind: LinkKind, val detail: String, val conn: ControlConnec
 
 /** Classification of this phone's local interfaces (mirrors hosts/core/src/netif.rs heuristics). */
 object LocalLinks {
-    fun classify(name: String, ip: Inet4Address): LinkKind {
+    /** Interfaces that can never reach a computer on this phone's own local links: VPN tunnels and
+     *  cellular. (Seen on the realme test phone: a VPN's tun0 with 172.16.0.2 stayed up with Wi-Fi off
+     *  and was mistaken for Wi-Fi/LAN, so the policy kept trying a LAN that could only route into the VPN.) */
+    private val notLocal = listOf("tun", "tap", "ppp", "ipsec", "wg", "utun", "rmnet", "v4-rmnet", "ccmni", "pdp", "clat", "dummy")
+
+    /** Link kind of a local interface, or null when the interface is not a local link at all. */
+    fun classify(name: String, ip: Inet4Address): LinkKind? {
         val n = name.lowercase(); val o = ip.address.map { it.toInt() and 0xFF }
+        if (notLocal.any { n.startsWith(it) }) return null
         return when {
             n.startsWith("rndis") || n.startsWith("ncm") || n.startsWith("usb") || (o[0] == 192 && o[1] == 168 && o[2] == 42) -> LinkKind.USB
             n.startsWith("p2p") || (o[0] == 192 && o[1] == 168 && o[2] == 49) -> LinkKind.WIFI_DIRECT
@@ -47,13 +54,13 @@ object LocalLinks {
     /** IP link kinds currently present on this phone (interfaces up with an IPv4 address). */
     fun available(): Set<LinkKind> = runCatching {
         NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
-            .flatMap { i -> i.inetAddresses.toList().filterIsInstance<Inet4Address>().map { classify(i.name, it) } }.toSet()
+            .flatMap { i -> i.inetAddresses.toList().filterIsInstance<Inet4Address>().mapNotNull { classify(i.name, it) } }.toSet()
     }.getOrDefault(emptySet())
 
     fun kindOf(local: InetAddress?): LinkKind {
         val a = local as? Inet4Address ?: return LinkKind.LAN
         val iface = runCatching { NetworkInterface.getByInetAddress(a) }.getOrNull() ?: return LinkKind.LAN
-        return classify(iface.name, a)
+        return classify(iface.name, a) ?: LinkKind.LAN
     }
 }
 

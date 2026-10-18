@@ -163,6 +163,8 @@ struct Slot {
     fresh: Freshness,
     last_rx: Option<Instant>,
     last_rx_us: Option<u64>,
+    /// Sender timestamp of the previous input frame (phone clock), for gap diagnosis.
+    last_tx_us: Option<u64>,
     reply: Option<Reply>,
     state: InputState,
     flags: u16,
@@ -690,7 +692,7 @@ fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile
         key: *key, name: name.into(), platform: platform.into(), profile: profile.map(|p| p.chars().take(48).collect()),
         conn_id, connected: true, connected_at: Instant::now(), grace_until: None,
         session_id: sid, k_in, k_out, out_counter: Counter::default(), fresh: Freshness::default(),
-        last_rx: None, last_rx_us: None, reply: None, state: InputState::NEUTRAL, flags: 0, submitted_once: false,
+        last_rx: None, last_rx_us: None, last_tx_us: None, reply: None, state: InputState::NEUTRAL, flags: 0, submitted_once: false,
         neutral_resets: 0, invalid: 0, jitter: Jitter::default(), gaps: Window::new(512), host_proc: Window::new(512),
         pad, pad_error: pad_error.clone(), ctl_tx: ctl_tx.clone(), phone: PhoneStats::default(),
     });
@@ -757,8 +759,18 @@ pub(crate) fn handle_datagram(sh: &Shared, d: &[u8], from: Reply, now: Instant) 
         PacketType::Input => {
             let Ok(f) = InputFrame::decode(&pt) else { s.invalid += 1; return };
             s.last_rx = Some(now);
-            if let Some(prev) = s.last_rx_us { s.gaps.push((rx_us - prev) as f64 / 1000.0); }
+            if let Some(prev) = s.last_rx_us {
+                let gap_ms = (rx_us - prev) as f64 / 1000.0;
+                s.gaps.push(gap_ms);
+                // Long gaps are what trip the input timeout. Logging the phone-side send gap next to the
+                // arrival gap tells "the phone sent late" apart from "the network held the frames".
+                if gap_ms > sh.cfg.timeout_ms as f64 && (!s.state.is_neutral() || !f.state.is_neutral()) {
+                    let sent_gap_ms = s.last_tx_us.map(|p| f.t_us.saturating_sub(p) as f64 / 1000.0);
+                    tracing::info!(slot = idx, arrival_gap_ms = gap_ms, sender_gap_ms = ?sent_gap_ms, held = !f.state.is_neutral(), "input gap");
+                }
+            }
             s.last_rx_us = Some(rx_us);
+            s.last_tx_us = Some(f.t_us);
             s.jitter.update(f.t_us, rx_us);
             s.flags = f.flags;
             let target = if f.flags & FLAG_PAUSED != 0 { InputState::NEUTRAL } else { f.state };

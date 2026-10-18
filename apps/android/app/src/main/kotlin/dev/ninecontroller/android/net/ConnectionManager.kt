@@ -255,7 +255,7 @@ class ConnectionManager(
         val old = active
         val failed = old?.kind
         if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
-        if (!healthy) _stats.value = _stats.value.copy(lastDisconnect = "${failed?.label ?: "Link"}: $reason")
+        if (!healthy) _stats.value = _stats.value.copy(lastDisconnect = failed?.label?.takeUnless { reason.contains(it) }?.let { "$it: $reason" } ?: reason)
         if (to == null) { active = null; old?.close(sendBye = false) }
         startSession(h, attempt = 1, reason = reason, failedKind = failed, preferred = to, makeBeforeBreak = old.takeIf { to != null })
     }

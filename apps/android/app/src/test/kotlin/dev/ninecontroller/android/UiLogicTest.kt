@@ -101,6 +101,18 @@ class UiLogicTest {
         assertEquals(3 * 0.6 / 38.0, full.suggestedDeadzone!!, 1e-9)
     }
 
+    @Test fun vpnTunnelsAndCellularAreNeverLocalLinks() {
+        fun ip(a: Int, b: Int, c: Int, d: Int) = java.net.InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte())) as java.net.Inet4Address
+        val classify = dev.ninecontroller.android.net.LocalLinks::classify
+        assertNull("VPN tun0 seen on the test phone", classify("tun0", ip(172, 16, 0, 2)))
+        assertNull(classify("rmnet_data1", ip(10, 20, 30, 40)))
+        assertNull(classify("ccmni0", ip(10, 1, 1, 1)))
+        assertNull(classify("wg0", ip(10, 8, 0, 2)))
+        assertEquals(LinkKind.LAN, classify("wlan0", ip(10, 251, 46, 25)))
+        assertEquals(LinkKind.USB, classify("rndis0", ip(192, 168, 42, 129)))
+        assertEquals(LinkKind.HOTSPOT, classify("swlan0", ip(192, 168, 43, 1)))
+    }
+
     @Test fun defaultsSelectAPresetAndPadMotionIsOffUntilEnabled() {
         val s = AppSettings()
         assertEquals(PadPresets.XBOX, s.padPreset)
