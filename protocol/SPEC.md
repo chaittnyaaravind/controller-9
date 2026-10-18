@@ -63,6 +63,7 @@ Controller → host
 | `pair_code` | — | start numeric-comparison pairing, see §5.2 |
 | `nonce` | `n: b64(16)` | pairing nonce Na |
 | `code_ok` / `code_reject` | — | user verdict on the phone |
+| `stats` | `rttP50Ms?`, `rttP95Ms?`, `sensorHz?`, `sendHz?`, `batteryPct?` | controller diagnostics, ~every 2 s; display only |
 | `bye` | — | clean disconnect |
 
 Host → controller

@@ -11,7 +11,7 @@ impl std::fmt::Debug for SecretB64 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("<redacted>") }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "t", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum Control {
     // controller -> host
@@ -24,6 +24,14 @@ pub enum Control {
     Nonce { n: String },
     CodeOk,
     CodeReject,
+    /// Controller-measured diagnostics, sent about every 2 s while a session is open.
+    Stats {
+        #[serde(default, skip_serializing_if = "Option::is_none")] rtt_p50_ms: Option<f32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] rtt_p95_ms: Option<f32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] sensor_hz: Option<f32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] send_hz: Option<f32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] battery_pct: Option<u8>,
+    },
     // host -> controller
     Session {
         slot: u8, session_id: u32, udp_port: u16, k_in: SecretB64, k_out: SecretB64,

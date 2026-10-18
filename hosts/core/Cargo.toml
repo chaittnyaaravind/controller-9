@@ -1,0 +1,22 @@
+[package]
+name = "nine-host-core"
+description = "9-controller desktop host core: sessions, pairing, slots, diagnostics, backend interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nine-proto.workspace = true
+tokio.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+mdns-sd.workspace = true
+directories.workspace = true
+qrcode.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
