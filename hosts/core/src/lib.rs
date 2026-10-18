@@ -3,6 +3,7 @@
 pub mod backend;
 pub mod client;
 pub mod discovery;
+pub mod hid;
 pub mod host;
 pub mod pairing;
 pub mod store;

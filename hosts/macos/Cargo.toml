@@ -1,0 +1,13 @@
+[package]
+name = "nine-pad-macos"
+description = "9-controller macOS backend: IOHIDUserDevice virtual gamepad (requires Apple's virtual-HID entitlement)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nine-host-core.workspace = true
+nine-proto.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "=0.10.1"

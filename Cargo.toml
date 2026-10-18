@@ -3,6 +3,9 @@ resolver = "3"
 members = [
     "protocol/rust",
     "hosts/core",
+    "hosts/linux",
+    "hosts/macos",
+    "hosts/windows",
 ]
 # hosts/app (Tauri) is a separate workspace member added once its native deps are present; see docs/BUILD.md
 exclude = ["hosts/app/src-tauri"]
