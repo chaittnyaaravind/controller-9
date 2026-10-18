@@ -18,6 +18,9 @@ public enum Pairing {
 
 public struct PairURI: Equatable, Sendable {
     public var addr: String, port: UInt16, hostStatic: [UInt8], token: [UInt8], name: String
+    /// Extra host addresses (hotspot, USB tethering, Ethernet…). SPEC §8.1.
+    public var extra: [String] = []
+    public var addresses: [String] { [addr] + extra }
 
     private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~")
     private static func enc(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: unreserved) ?? s }
@@ -31,11 +34,12 @@ public struct PairURI: Equatable, Sendable {
     }
 
     public var uri: String {
-        "ninectl://pair?v=1&a=\(Self.enc(addr))&p=\(port)&k=\(Self.b64url(hostStatic))&t=\(Self.b64url(token))&n=\(Self.enc(name))"
+        let base = "ninectl://pair?v=1&a=\(Self.enc(addr))&p=\(port)&k=\(Self.b64url(hostStatic))&t=\(Self.b64url(token))&n=\(Self.enc(name))"
+        return extra.isEmpty ? base : base + "&x=" + extra.map(Self.enc).joined(separator: ",")
     }
 
-    public init(addr: String, port: UInt16, hostStatic: [UInt8], token: [UInt8], name: String) {
-        self.addr = addr; self.port = port; self.hostStatic = hostStatic; self.token = token; self.name = name
+    public init(addr: String, port: UInt16, hostStatic: [UInt8], token: [UInt8], name: String, extra: [String] = []) {
+        self.addr = addr; self.port = port; self.hostStatic = hostStatic; self.token = token; self.name = name; self.extra = extra
     }
 
     public init?(parsing s: String) {
@@ -47,6 +51,7 @@ public struct PairURI: Equatable, Sendable {
         }
         guard m["v"] == "1", let a = m["a"]?.removingPercentEncoding, let p = m["p"].flatMap({ UInt16($0) }),
               let k = m["k"].flatMap(Self.unb64url), k.count == 32, let t = m["t"].flatMap(Self.unb64url), t.count == 16 else { return nil }
-        self.init(addr: a, port: p, hostStatic: k, token: t, name: m["n"]?.removingPercentEncoding ?? "")
+        let extra = (m["x"] ?? "").split(separator: ",").compactMap { String($0).removingPercentEncoding }.prefix(8)
+        self.init(addr: a, port: p, hostStatic: k, token: t, name: m["n"]?.removingPercentEncoding ?? "", extra: Array(extra))
     }
 }

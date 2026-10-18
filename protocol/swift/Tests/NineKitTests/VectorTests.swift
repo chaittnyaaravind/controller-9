@@ -119,20 +119,3 @@ private func hx(_ d: [String: Any], _ k: String) -> [UInt8] { [UInt8](hex: d[k] 
     }
 }
 
-/// Live Swift client ↔ Rust host. Skipped unless NINECTL_URI is set (see protocol/kotlin LiveInteropTest).
-@Test func liveInteropWithRustHost() async throws {
-    guard let text = ProcessInfo.processInfo.environment["NINECTL_URI"], let uri = PairURI(parsing: text) else { return }
-    let conn = try await ControlConnection.connect(host: uri.addr, port: uri.port, identity: .generate(), hello: ControllerHello(name: "Swift interop", platform: "ios", app: "test"))
-    try await conn.pairQr(uri)
-    let info = try await conn.open(resumeSlot: nil, profile: "Interop")
-    let ch = InputChannel(host: uri.addr, info: info)
-    for i in 0..<200 {
-        ch.sendInput(InputState(buttons: i % 20 < 10 ? NineButton.a.mask : 0, lx: axis(fromUnit: sin(Double(i) / 10))), flags: 0)
-        if i % 10 == 0 { ch.ping() }
-        try await Task.sleep(nanoseconds: 4_000_000)
-    }
-    try await Task.sleep(nanoseconds: 200_000_000)
-    print("Swift->Rust interop: sent \(ch.sent) frames, RTT p50=\(ch.rttMs.percentile(50) ?? -1) ms p95=\(ch.rttMs.percentile(95) ?? -1) ms n=\(ch.rttMs.count)")
-    #expect(ch.rttMs.count >= 15)
-    ch.sendInput(.neutral, flags: 0); ch.close(); conn.close()
-}

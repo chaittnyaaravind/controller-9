@@ -89,7 +89,20 @@ extension Control: CustomStringConvertible {
 }
 
 public struct InitHello: Codable, Sendable { public var proto: [Int] }
-public struct HostHello: Codable, Sendable { public var proto: Int; public var name: String; public var id: String; public var os: String }
+public struct HostHello: Codable, Sendable {
+    public var proto: Int; public var name: String; public var id: String; public var os: String
+    /// Bindings ("ip", "stream", "ble") and local IPv4 addresses the host offers — additive (SPEC §8.4).
+    public var links: [String] = []
+    public var addrs: [String] = []
+    enum CodingKeys: String, CodingKey { case proto, name, id, os, links, addrs }
+    public init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        proto = try c.decode(Int.self, forKey: .proto); name = try c.decode(String.self, forKey: .name)
+        id = try c.decode(String.self, forKey: .id); os = try c.decode(String.self, forKey: .os)
+        links = try c.decodeIfPresent([String].self, forKey: .links) ?? []
+        addrs = try c.decodeIfPresent([String].self, forKey: .addrs) ?? []
+    }
+}
 public struct ControllerHello: Codable, Sendable {
     public var proto: Int; public var name: String; public var platform: String; public var app: String
     public init(name: String, platform: String, app: String) { proto = 1; self.name = name; self.platform = platform; self.app = app }

@@ -61,9 +61,13 @@ for client in kotlin swift; do
       && pass "Kotlin client <-> Rust host (stream binding)" || { echo "  Kotlin stream interop FAILED"; exit 1; }
   fi
   if [ "$client" = swift ]; then
-    NINECTL_URI="$URI" perl -e 'alarm 150; exec @ARGV' tools/swift-test.sh protocol/swift >"$LOG/swift-live.log" 2>&1
+    NINECTL_URI="$URI" NINECTL_STREAM_PORT=47962 perl -e 'alarm 150; exec @ARGV' tools/swift-test.sh protocol/swift >"$LOG/swift-live.log" 2>&1
     grep -E "Swift->Rust interop" "$LOG/swift-live.log" && grep -q "liveInteropWithRustHost() passed" "$LOG/swift-live.log" \
-      && pass "Swift client <-> Rust host" || { echo "  Swift live interop FAILED (see $LOG/swift-live.log)"; exit 1; }
+      && pass "Swift client <-> Rust host (IP)" || { echo "  Swift live interop FAILED (see $LOG/swift-live.log)"; exit 1; }
+  fi
+  if [ "$client" = swift ]; then
+    grep -E "Swift->Rust stream interop" "$LOG/swift-live.log" && grep -q "liveStreamBindingWithRustHost() passed" "$LOG/swift-live.log" \
+      && pass "Swift client <-> Rust host (stream binding)" || { echo "  Swift stream interop FAILED (see $LOG/swift-live.log)"; exit 1; }
   fi
   kill -INT $HOST_PID; sleep 0.5
 done
