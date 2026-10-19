@@ -62,6 +62,8 @@ tests, Android debug APK, Swift vector + app-core tests, iOS UI parse, three-lan
 Report separately: network RTT, one-way estimate, host processing, OS injection delay, and true
 end-to-end (camera/photodiode) latency. Anything not run is **UNVERIFIED**.
 
+Runnable procedure for A5/A6/A7 (first real game test): `docs/FIRST_GAME_TEST.md`.
+
 ## Recording results
 Each run records: date, device model + OS version, host OS + version, backend, connection type
 (band, RSSI), duration, sample count, p50/p95/p99, jitter, loss, sensor Hz, battery, reconnect

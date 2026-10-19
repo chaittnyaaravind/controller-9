@@ -10,7 +10,7 @@ the companion app. The backend reports **Blocked** and the UI says so plainly.
 
 ## Route to resolve
 1. Enrol in the Apple Developer Program (organisation account recommended).
-2. Request the **`com.apple.developer.hid.virtual.device`** entitlement (CoreHID / IOHIDUserDevice
+2. Request the **`com.apple.developer.hid.virtual.device`** entitlement (ready-to-paste text: `macos-entitlement-request.md`) (CoreHID / IOHIDUserDevice
    virtual devices) through Apple's entitlement request form, describing the use: a user-installed
    companion that exposes a phone as a standard HID gamepad.
 3. When granted, add it to a provisioning profile, uncomment it in
