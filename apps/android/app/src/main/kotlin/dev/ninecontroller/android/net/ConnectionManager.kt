@@ -120,23 +120,61 @@ class ConnectionManager(
     private val hist = LinkKind.entries.associateWith { Hist() }
     private var switchedAt = 0L
     private var betterSince = 0L
+    /** Last time an unmeasured IP link was tried while on BLE (see evaluateLoop). */
+    @Volatile private var lastProbe = 0L
 
     init {
         context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(NetworkRequest.Builder().build(),
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { if (_state.value is ConnState.Reconnecting && active == null) restart("network available", healthy = false) }
+                override fun onAvailable(network: Network) {
+                    if (_state.value is ConnState.Reconnecting && active == null) restart("network available", healthy = false)
+                    else lastProbe = now() - PROBE_MS + 3000 // a network appeared: probe it in ~3 s (DHCP settles)
+                }
                 override fun onLost(network: Network) {
                     val a = active ?: return
                     if (a.kind != LinkKind.BLE && LocalLinks.kindOf(a.conn.local) !in LocalLinks.available()) restart("network lost", healthy = false)
                 }
             })
+        // Bluetooth adapter on/off. Off under a BLE link: start reconnecting now instead of waiting for the
+        // 5 s watchdog (the host still neutralizes on its own after 250 ms). On while reconnecting: the
+        // in-flight attempt advertised on the old adapter session and can never be found, so retry now.
+        androidx.core.content.ContextCompat.registerReceiver(context, object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: android.content.Intent) {
+                when (i.getIntExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, -1)) {
+                    android.bluetooth.BluetoothAdapter.STATE_TURNING_OFF, android.bluetooth.BluetoothAdapter.STATE_OFF ->
+                        if (active?.kind == LinkKind.BLE) restart("Bluetooth turned off", healthy = false)
+                    android.bluetooth.BluetoothAdapter.STATE_ON -> if (want != null && active == null) {
+                        Log.i(TAG, "Bluetooth turned on; retrying now"); ble.abortPending(); restart("Bluetooth turned on", healthy = false)
+                    }
+                }
+            }
+        }, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         scope.launch { evaluateLoop() }
     }
 
     private fun hello() = ControllerHello(1, identity.deviceName.take(40), "android", BuildConfig.VERSION_NAME)
 
     fun submit(state: InputState, flags: Int) { lock.withLock { latest = state; latestFlags = flags; version++; changed.signalAll() } }
-    fun setPaused(p: Boolean) { lock.withLock { paused = p; version++; changed.signalAll() } }
+    fun setPaused(p: Boolean) { lock.withLock { paused = p; version++; changed.signalAll() }; syncWifiLock() }
+
+    /**
+     * Low-latency Wi-Fi lock while an IP link carries input and the controller is in use. Measured on a
+     * realme 12 5G: without it, frames the phone sent 50 ms apart arrived up to 440 ms apart (Wi-Fi
+     * power-save batching), long enough to trip the host's 250 ms input timeout mid-press.
+     */
+    @Suppress("DEPRECATION")
+    private val wifiLock = runCatching {
+        context.applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
+            .createWifiLock(if (android.os.Build.VERSION.SDK_INT >= 29) android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY else android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Controller-9:input")
+            .apply { setReferenceCounted(false) }
+    }.getOrNull()
+
+    @Synchronized private fun syncWifiLock() {
+        val l = wifiLock ?: return
+        val want = active?.let { it.kind != LinkKind.BLE } == true && !paused
+        runCatching { if (want && !l.isHeld) l.acquire() else if (!want && l.isHeld) l.release() }
+        if (want != l.isHeld) Log.w(TAG, "wifi lock state mismatch want=$want")
+    }
     fun setProfileName(name: String) { profileName = name }
 
     // ------------------------------------------------------------------ candidates & policy
@@ -244,8 +282,25 @@ class ConnectionManager(
         session?.cancel()
         active?.close(sendBye = true)
         active = null
+        syncWifiLock()
         _stats.value = _stats.value.copy(lastDisconnect = "You disconnected")
         _state.value = ConnState.Idle
+    }
+
+    /** The link a make-before-break switch is replacing, and whether it died meanwhile. */
+    @Volatile private var switchingFrom: ActiveLink? = null
+    @Volatile private var switchingFromFailed = false
+
+    /**
+     * A link's own thread saw it end. During a make-before-break switch the host closes the old link as
+     * soon as the new one takes over the slot; that is expected, so it is only noted (seen on a real
+     * phone as a false "host closed the connection" failure plus a duplicate reconnect). If the switch
+     * then fails, the note turns into a normal failover.
+     */
+    private fun linkFailed(link: ActiveLink, reason: String) {
+        if (active !== link) return
+        if (switchingFrom === link) { switchingFromFailed = true; Log.i(TAG, "old ${link.kind} link ended during switch: $reason"); return }
+        restart(reason, healthy = false)
     }
 
     /** Called from link threads on failure (healthy=false) or by the evaluator for a planned switch. */
@@ -256,7 +311,8 @@ class ConnectionManager(
         val failed = old?.kind
         if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
         if (!healthy) _stats.value = _stats.value.copy(lastDisconnect = failed?.label?.takeUnless { reason.contains(it) }?.let { "$it: $reason" } ?: reason)
-        if (to == null) { active = null; old?.close(sendBye = false) }
+        if (to == null) { active = null; switchingFrom = null; old?.close(sendBye = false); syncWifiLock() }
+        else { switchingFrom = old; switchingFromFailed = false }
         startSession(h, attempt = 1, reason = reason, failedKind = failed, preferred = to, makeBeforeBreak = old.takeIf { to != null })
     }
 
@@ -293,7 +349,9 @@ class ConnectionManager(
                         hosts.upsert(h.copy(lastUsed = HostStore.now(), addrs = (h.addrs + link.conn.host.addrs).distinct().take(12),
                             links = link.conn.host.links.ifEmpty { h.links }))
                         makeBeforeBreak?.close(sendBye = false)
+                        if (makeBeforeBreak != null) switchingFrom = null
                         active = link
+                        syncWifiLock()
                         switchedAt = now(); betterSince = 0
                         connectedAtNs = System.nanoTime(); lastAckNs = connectedAtNs
                         if (n > 0) { reconnects++; _stats.value = _stats.value.copy(reconnects = reconnects, lastReconnectMs = (System.nanoTime() - t0) / 1_000_000) }
@@ -323,7 +381,13 @@ class ConnectionManager(
                     }
                 }
                 if (preferred != null) { // planned switch failed: keep the old link
-                    makeBeforeBreak?.let { active = it; return@launch }
+                    makeBeforeBreak?.let { old ->
+                        switchingFrom = null
+                        if (!switchingFromFailed) { active = old; return@launch }
+                        // The old link died while we tried the new one: fail over normally.
+                        active = null; old.close(sendBye = false); syncWifiLock()
+                        restart("${old.kind.label} ended during a link switch", healthy = false); return@launch
+                    }
                 }
                 delay(minOf(100L shl minOf(n, 4), 2000L))
             }
@@ -350,6 +414,16 @@ class ConnectionManager(
                 // Same IP binding, different interface (e.g. LAN → USB): the IP attempt already prefers it by racing.
                 val ipToIp = d.to != LinkKind.BLE && d.to != LinkKind.STREAM && a.kind != LinkKind.BLE && a.kind != LinkKind.STREAM
                 if (!ipToIp) restart("better link available", healthy = true, to = d.to)
+            } else if (a.kind == LinkKind.BLE && st.overrideKind == null && now() - lastProbe >= PROBE_MS) {
+                // The policy only switches to measured links, so a faster IP link that came back while we were
+                // on BLE (Wi-Fi turned on again) would never be used. Try it make-before-break: BLE stays
+                // active unless the IP link actually connects, and the attempt measures it for the policy.
+                cands.filter { it.available && it.kind != LinkKind.BLE && it.kind != LinkKind.STREAM && it.rttP95Ms == null }
+                    .maxByOrNull { it.kind.base }?.let { ip ->
+                        lastProbe = now()
+                        Log.i(TAG, "probing unmeasured ${ip.kind} while on BLE")
+                        restart("trying ${ip.kind.label}", healthy = true, to = ip.kind)
+                    }
             }
         }
     }
@@ -366,14 +440,14 @@ class ConnectionManager(
                             when {
                                 m.reason == "unpaired" -> { want?.let { hosts.remove(it.id) }; want = null; active = null; link.close(false); _state.value = ConnState.Failed("This phone was removed on the computer.") }
                                 m.reason?.startsWith("replaced") == true -> Unit // our own newer link took over
-                                else -> if (active === link) restart(m.reason ?: "host closed", healthy = false)
+                                else -> linkFailed(link, m.reason ?: "host closed")
                             }
                             return@Thread
                         }
                         else -> Unit
                     }
                 }
-            } catch (e: Exception) { if (active === link) restart(describe(e), healthy = false) }
+            } catch (e: Exception) { linkFailed(link, describe(e)) }
         }, "c9-control").start()
 
         Thread({
@@ -383,12 +457,12 @@ class ConnectionManager(
             // of pong silence. The host's own 250 ms input timeout still neutralizes controls.
             val deadMs = if (link.kind == LinkKind.BLE) 5000 else 1000
             while (active === link) {
-                if (link.isDown) { if (active === link) restart("Bluetooth link disconnected", healthy = false); return@Thread }
+                if (link.isDown) { linkFailed(link, "Bluetooth link disconnected"); return@Thread }
                 try { ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) } }
-                catch (e: Exception) { if (active === link) restart("input link: ${describe(e)}", healthy = false); return@Thread }
+                catch (e: Exception) { linkFailed(link, "input link: ${describe(e)}"); return@Thread }
                 if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime(); lastAckNs = lastPong }
                 val age = (System.nanoTime() - lastPong) / 1_000_000
-                if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); restart("no response for $age ms on ${link.kind.label}", healthy = false); return@Thread }
+                if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); linkFailed(link, "no response for $age ms on ${link.kind.label}"); return@Thread }
             }
         }, "c9-rx").start()
 
@@ -412,7 +486,7 @@ class ConnectionManager(
                         _stats.value = _stats.value.copy(rttP50 = ch.rttMs.percentile(50.0), rttP95 = ch.rttMs.percentile(95.0), sendHz = sendHz, sent = ch.sent, sensorHz = sensorHz)
                         runCatching { c.send(Control.Stats(ch.rttMs.percentile(50.0)?.toFloat(), ch.rttMs.percentile(95.0)?.toFloat(), sensorHz.toFloat().takeIf { it > 0 }, sendHz.toFloat(), battery())) }
                     }
-                } catch (e: Exception) { if (active === link) restart(describe(e), healthy = false); return@Thread }
+                } catch (e: Exception) { linkFailed(link, describe(e)); return@Thread }
                 lock.withLock {
                     if (version == sentVersion && active === link) {
                         val untilHb = (lastSend + hb - System.nanoTime()) / 1_000_000
@@ -429,6 +503,8 @@ class ConnectionManager(
 
     companion object {
         private const val TAG = "C9Conn"
+        /** Minimum time between attempts at an unmeasured IP link while on BLE. */
+        private const val PROBE_MS = 30_000L
         fun describe(e: Throwable): String = when (e) {
             is RefusedException -> when (e.code) {
                 "pairing_closed" -> "Pairing isn’t open on the computer. Open “Pair a phone” there first."

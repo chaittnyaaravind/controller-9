@@ -60,8 +60,14 @@ class BlePeripheral(private val context: Context) {
     fun awaitHost(hint: ByteArray, timeoutMs: Long): BleLink? {
         unavailableReason()?.let { throw IllegalStateException(it) }
         val link = BleLink(context, manager!!, hint)
-        return if (link.start(timeoutMs)) link else { link.close(); null }
+        pending = link
+        try { return if (link.start(timeoutMs)) link else { link.close(); null } } finally { if (pending === link) pending = null }
     }
+
+    @Volatile private var pending: BleLink? = null
+
+    /** Stop waiting for a host now (adapter came back: the advertiser/GATT server from before is dead). */
+    fun abortPending() { pending?.abort() }
 
     companion object {
         val SERVICE: UUID = UUID.fromString(LinkConst.BLE_SERVICE)
@@ -125,7 +131,13 @@ class BleLink internal constructor(private val context: Context, private val man
         override fun onNotificationSent(d: BluetoothDevice, status: Int) { sent.release() }
     }
 
-    private val advertiseCallback = object : AdvertiseCallback() {}
+    /** Advertising that fails to start (adapter still coming up, too many advertisers) must not
+     *  leave the attempt waiting its whole timeout for a host that can never find it. */
+    private val advertiseCallback = object : AdvertiseCallback() {
+        override fun onStartFailure(errorCode: Int) { android.util.Log.w("C9Ble", "advertising failed to start: $errorCode"); abort() }
+    }
+    @Volatile private var aborted = false
+    internal fun abort() { aborted = true; ready.release() }
 
     internal fun start(timeoutMs: Long): Boolean {
         val s = manager.openGattServer(context, callback) ?: return false
@@ -146,7 +158,7 @@ class BleLink internal constructor(private val context: Context, private val man
         val data = AdvertiseData.Builder().addServiceUuid(ParcelUuid(BlePeripheral.SERVICE)).setIncludeDeviceName(false).build()
         val scanResponse = AdvertiseData.Builder().addServiceData(ParcelUuid(BlePeripheral.SERVICE), hint.copyOf(4)).build()
         manager.adapter.bluetoothLeAdvertiser?.startAdvertising(settings, data, scanResponse, advertiseCallback) ?: return false
-        val ok = ready.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)
+        val ok = ready.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS) && !aborted
         manager.adapter.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
         if (ok) Thread(::pump, "c9-ble-notify").apply { isDaemon = true; start() }
         return ok

@@ -4,6 +4,7 @@
 | Permission | Why | When |
 |---|---|---|
 | `INTERNET` | TCP/UDP to the host on the LAN | always (normal permission) |
+| `WAKE_LOCK` | low-latency Wi-Fi lock (`WIFI_MODE_FULL_LOW_LATENCY`, Android 10+; high-perf lock before) held only while a Wi-Fi/USB/hotspot session is active and the controller is not paused — stops power-save batching that delayed input 300–440 ms on a real phone | normal permission; never keeps the CPU or screen awake |
 | `ACCESS_NETWORK_STATE` | detect Wi-Fi loss/return for fast reconnect | always |
 | `CHANGE_WIFI_MULTICAST_STATE` | receive DNS-SD replies (multicast lock) while the host list is open | only during discovery |
 | `CAMERA` | scan the pairing QR code | runtime prompt, only when the scanner opens |

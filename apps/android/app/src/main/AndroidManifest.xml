@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Detect Wi-Fi loss/return to reconnect quickly. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Hold a low-latency Wi-Fi lock while a Wi-Fi session is active and the controller is in use
+         (disables Wi-Fi power-save batching that delayed input packets by 300-440 ms on a real phone). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Receive DNS-SD (multicast) discovery replies while the host list is open. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Scan the pairing QR code. Requested at runtime only when the scanner opens. -->
