@@ -77,8 +77,19 @@ struct LayoutEditorView: View {
     @State private var controls: [ControlDef] = []
     @State private var selected: String?
     @State private var error: String?
+    /// The control as it was when the current drag began; drags apply their total translation to it.
+    @State private var dragStart: ControlDef?
 
     private static func snap(_ v: Double) -> Double { (v * 200).rounded() / 200 }
+    /// Drag translation as a fraction of the layout size.
+    private static func frac(_ t: CGSize, _ size: CGSize) -> (Double, Double) {
+        (Double(t.width / max(size.width, 1)), Double(t.height / max(size.height, 1)))
+    }
+    private func origin(_ c: ControlDef) -> ControlDef {
+        if let s = dragStart, s.id == c.id { return s }
+        dragStart = c
+        return c
+    }
     private static func binds(_ k: ControlKind) -> [String] {
         switch k {
         case .button: return NineButton.allCases.map(\.id)
@@ -101,9 +112,10 @@ struct LayoutEditorView: View {
                             if sel {
                                 RoundedRectangle(cornerRadius: 6).fill(Nine.accent).frame(width: 28, height: 28)
                                     .gesture(DragGesture().onChanged { g in
-                                        c.w = Self.snap(min(max(c.w + g.translation.width / geo.size.width / 8, 0.04), 1 - c.x))
-                                        c.h = Self.snap(min(max(c.h + g.translation.height / geo.size.height / 8, 0.04), 1 - c.y))
-                                    }).accessibilityLabel("Resize handle")
+                                        let s = origin(c), (dx, dy) = Self.frac(g.translation, geo.size)
+                                        c.w = Self.snap(min(max(s.w + dx, 0.04), 1 - c.x))
+                                        c.h = Self.snap(min(max(s.h + dy, 0.04), 1 - c.y))
+                                    }.onEnded { _ in dragStart = nil }).accessibilityLabel("Resize handle")
                             }
                         }
                         .frame(width: c.w * geo.size.width, height: c.h * geo.size.height)
@@ -111,9 +123,10 @@ struct LayoutEditorView: View {
                         .onTapGesture { selected = c.id }
                         .gesture(DragGesture().onChanged { g in
                             selected = c.id
-                            c.x = Self.snap(min(max(c.x + g.translation.width / geo.size.width / 8, 0), 1 - c.w))
-                            c.y = Self.snap(min(max(c.y + g.translation.height / geo.size.height / 8, 0), 1 - c.h))
-                        })
+                            let s = origin(c), (dx, dy) = Self.frac(g.translation, geo.size)
+                            c.x = Self.snap(min(max(s.x + dx, 0), 1 - c.w))
+                            c.y = Self.snap(min(max(s.y + dy, 0), 1 - c.h))
+                        }.onEnded { _ in dragStart = nil })
                         .accessibilityLabel("\(c.kind.rawValue) \(c.label ?? c.bind). Drag to move.")
                 }
                 toolbar
