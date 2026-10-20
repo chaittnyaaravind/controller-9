@@ -20,6 +20,32 @@ struct ProfilesView: View {
 
     var body: some View {
         List {
+            Section {
+                ForEach(PadPresets.all) { pad in
+                    let inUse = model.settings.activeProfile == PadPresets.selection(pad)
+                    VStack(alignment: .leading, spacing: 10) {
+                        PadPreview(preset: pad).padding(.vertical, 4)
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pad.name).font(.headline)
+                                Text(pad.tagline).font(.subheadline).foregroundStyle(Nine.muted)
+                            }
+                            Spacer()
+                            if inUse { Micro("In use", color: Nine.accent) }
+                            else { Button("Use") { model.settings.activeProfile = PadPresets.selection(pad) }.buttonStyle(SecondaryButton()) }
+                        }
+                        DisclosureGroup("How it maps") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(pad.notes, id: \.self) { Text($0).font(.footnote).foregroundStyle(Nine.muted) }
+                            }.padding(.top, 4)
+                        }.font(.subheadline).tint(Nine.muted)
+                    }
+                    .listRowBackground(Nine.s1)
+                }
+            } header: { Text("Controller layouts") } footer: {
+                Text("Familiar controller faces. Buttons are positional: the bottom face button always sends A, whatever it is called.")
+            }
+            Section("Custom layouts") {
             ForEach(model.profiles) { p in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack { Text(p.name).font(.headline); Spacer(); if p.id == model.settings.activeProfile { Micro("In use", color: Nine.accent) } }
@@ -36,6 +62,7 @@ struct ProfilesView: View {
                     Button("Export") { exporting = p }
                     Button("Duplicate") { _ = try? model.store.duplicate(p); model.reloadProfiles() }
                 }
+            }
             }
             Section {
                 Button("Import a layout") { importing = true }

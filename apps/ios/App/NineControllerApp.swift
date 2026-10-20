@@ -46,13 +46,25 @@ final class AppModel {
                                        appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0")
         if store.profiles().isEmpty { restorePresets() }
         reloadProfiles()
+        #if DEBUG
+        // CI screenshots: `-layout pad:xbox` selects a layout for this launch (tools/ios-ci/screens.sh).
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-layout"), i + 1 < args.count { settings.activeProfile = args[i + 1] }
+        #endif
         let h = haptics
         connection.onRumble = { low, high, ms in Task { @MainActor in h.rumble(low: low, high: high, ms: ms) } }
         applyHaptics()
     }
 
     var hosts: [PairedHost] { store.hosts }
-    var activeProfile: Profile? { profiles.first { $0.id == settings.activeProfile } ?? profiles.first }
+    /// The controller-style layout in use (`pad:<id>`), or nil for a custom/preset profile.
+    var activePad: PadPreset? { PadPresets.from(selection: settings.activeProfile) }
+    /// The layout in use. A controller-style layout is fitted to the real screen size by the controller
+    /// screen; this reference fit only serves names and counts.
+    var activeProfile: Profile? {
+        if let pad = activePad { return pad.profile(for: CGSize(width: 800, height: 360)) }
+        return profiles.first { $0.id == settings.activeProfile } ?? profiles.first
+    }
 
     func reloadProfiles() { profiles = store.profiles() }
     func restorePresets() {

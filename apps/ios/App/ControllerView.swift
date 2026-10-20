@@ -26,10 +26,23 @@ struct ControllerView: View {
     var body: some View {
         if let profile = model.activeProfile {
             GeometryReader { geo in
+                // A controller-style layout is fitted to this screen; a custom layout uses its own boxes.
+                let pad = model.activePad
+                let live = pad?.profile(for: geo.size) ?? profile
                 ZStack(alignment: .top) {
                     Nine.bg.ignoresSafeArea()
-                    ForEach(profile.controls) { c in
-                        ControlShape(c: c, visuals: visuals)
+                    if let pad {
+                        // Elements that send nothing (touchpad, Share, paddles…) are drawn, dimmed.
+                        ForEach(pad.elements.filter { $0.action == nil }) { e in
+                            let r = PadGeometry.place(e, geo.size)
+                            PadElementView(e: e, visuals: visuals).frame(width: r.width, height: r.height).position(x: r.midX, y: r.midY)
+                                .accessibilityElement().accessibilityLabel("\(e.label). \(e.unavailable ?? "")")
+                        }
+                    }
+                    ForEach(live.controls) { c in
+                        Group {
+                            if let e = pad?.element(c.id) { PadElementView(e: e, visuals: visuals) } else { ControlShape(c: c, visuals: visuals) }
+                        }
                             .frame(width: c.w * geo.size.width, height: c.h * geo.size.height)
                             .position(x: (c.x + c.w / 2) * geo.size.width, y: (c.y + c.h / 2) * geo.size.height)
                             .accessibilityElement()
@@ -38,7 +51,7 @@ struct ControllerView: View {
                             .accessibilityAction { press(c) }
                     }
                     if let engine {
-                        TouchSurface(profile: profile, engine: engine, visuals: visuals, haptics: model.haptics) { recenter() }
+                        TouchSurface(profile: live, engine: engine, visuals: visuals, haptics: model.haptics, pad: pad, onInert: { show($0, for: 2.5) }) { recenter() }
                             .accessibilityHidden(true)
                     }
                     statusStrip(profile)
@@ -88,7 +101,7 @@ struct ControllerView: View {
             if model.settings.showStats, case .connected = model.connection.state { Micro("\(fmt(model.connection.stats.rttP50)) ms", color: Nine.dim) }
             if let banner { Micro(banner, color: Nine.accent).accessibilityAddTraits(.updatesFrequently) }
             if p.motion.enabled { Button { recenter() } label: { Micro("Center", color: Nine.text) }.accessibilityHint("Hold your normal grip still for a second") }
-            NavigationLink { LayoutEditorView(profileId: p.id) } label: { Micro("Edit", color: Nine.text) }
+            if model.activePad == nil { NavigationLink { LayoutEditorView(profileId: p.id) } label: { Micro("Edit", color: Nine.text) } }
             Button { dismiss() } label: { Micro("Exit", color: Nine.text) }
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
@@ -161,14 +174,29 @@ struct TouchSurface: UIViewRepresentable {
     let engine: ControllerEngine
     let visuals: Visuals
     let haptics: Haptics
+    var pad: PadPreset? = nil
+    var onInert: ((String) -> Void)? = nil
     let recenter: () -> Void
 
     func makeUIView(context: Context) -> SurfaceView { let v = SurfaceView(); v.isMultipleTouchEnabled = true; v.backgroundColor = .clear; update(v); return v }
     func updateUIView(_ v: SurfaceView, context: Context) { update(v) }
-    private func update(_ v: SurfaceView) { v.profile = profile; v.engine = engine; v.visuals = visuals; v.haptics = haptics; v.recenter = recenter }
+    private func update(_ v: SurfaceView) {
+        v.profile = profile; v.engine = engine; v.visuals = visuals; v.haptics = haptics; v.recenter = recenter; v.onInert = onInert
+        v.fullTriggers = pad != nil
+        v.round = Set(pad?.elements.filter(\.round).map(\.id) ?? [])
+        v.inert = pad.map { p in
+            { size in p.elements.filter { $0.action == nil }.map { e in (e.unavailable.map { "\(e.label): \($0)" } ?? e.label, PadGeometry.place(e, size)) } }
+        }
+    }
 
     final class SurfaceView: UIView {
         var profile: Profile?; var engine: ControllerEngine?; var visuals: Visuals?; var haptics: Haptics?; var recenter: (() -> Void)?
+        /// Controller-style layouts: thumb-tapped triggers press fully; round parts hit-test as circles;
+        /// tapping an element that sends nothing explains why instead of doing nothing silently.
+        var fullTriggers = false
+        var round: Set<String> = []
+        var inert: ((CGSize) -> [(String, CGRect)])?
+        var onInert: ((String) -> Void)?
         private var owner: [ObjectIdentifier: ControlDef] = [:]
         private var origin: [ObjectIdentifier: CGPoint] = [:]
 
@@ -179,8 +207,11 @@ struct TouchSurface: UIViewRepresentable {
                 let p = t.location(in: self)
                 // The control under the finger always wins; near-misses go to the nearest edge (TouchHit).
                 guard let controls = profile?.controls,
-                      let id = TouchHit.hit(controls.map { ($0.id, rect($0)) }, p, minTarget: 44),
-                      let c = controls.first(where: { $0.id == id }) else { continue }
+                      let id = TouchHit.hit(controls.map { ($0.id, rect($0)) }, p, minTarget: 44, round: round),
+                      let c = controls.first(where: { $0.id == id }) else {
+                    if let hint = inert?(bounds.size).first(where: { $0.1.contains(p) })?.0 { onInert?(hint) }
+                    continue
+                }
                 owner[ObjectIdentifier(t)] = c; origin[ObjectIdentifier(t)] = p
                 handle(c, p, origin: p, down: true)
             }
@@ -224,7 +255,7 @@ struct TouchSurface: UIViewRepresentable {
                 if mask != prev, mask != 0, c.haptic { haptics?.tap() }
                 engine.setButtons(c.id, mask); visuals.dpad[c.id] = mask
             case .trigger, .pedal:
-                let v = min(max((Double((p.y - r.minY) / r.height) - 0.08) / 0.84, 0), 1)
+                let v = fullTriggers && c.kind == .trigger ? 1 : min(max((Double((p.y - r.minY) / r.height) - 0.08) / 0.84, 0), 1)
                 engine.setTrigger(c.id, c.bind, c.kind == .pedal ? max(v, 0.02) : v); visuals.value[c.id] = v
                 if down, c.haptic { haptics?.tap() }
             case .steering:

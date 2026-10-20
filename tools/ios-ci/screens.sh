@@ -25,4 +25,13 @@ for s in home add profiles editor motion connection diagnostics settings control
   kill "$L" 2>/dev/null || true
   echo "captured $s"
 done
+# Every controller-style layout on the controller screen (`-layout pad:<id>`, Debug builds only).
+for pad in xbox dualsense dualshock4 switchpro 8bitdo-pro2; do
+  xcrun simctl launch --terminate-running-process --console-pty "$DEV" "$BID" -layout "pad:$pad" -screen controller > "$OUT/pad-$pad.log" 2>&1 &
+  L=$!
+  sleep 5
+  xcrun simctl io "$DEV" screenshot "$OUT/pad-$pad.png" >/dev/null 2>&1
+  kill "$L" 2>/dev/null || true
+  echo "captured pad-$pad"
+done
 xcrun simctl spawn "$DEV" log show --last 3m --style compact --predicate "process == \"Controller9\" AND messageType >= 16" > "$OUT/errors.log" 2>&1 || true

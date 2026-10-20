@@ -128,13 +128,18 @@ class PadMapping private constructor(val preset: PadPreset, private val override
 
 /** Uniform placement of the 200 x 100 preset canvas into a W x H area (any unit). */
 object PadGeometry {
-    data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    /** A control's screen area. [round] controls (face buttons, sticks) are the ellipse inside the box. */
+    data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float, val round: Boolean = false) {
         val width get() = right - left; val height get() = bottom - top
         val cx get() = (left + right) / 2; val cy get() = (top + bottom) / 2
-        fun contains(x: Float, y: Float) = x in left..right && y in top..bottom
+        fun contains(x: Float, y: Float): Boolean {
+            if (!round) return x in left..right && y in top..bottom
+            val nx = (x - cx) / (width / 2).coerceAtLeast(1e-6f); val ny = (y - cy) / (height / 2).coerceAtLeast(1e-6f)
+            return nx * nx + ny * ny <= 1f
+        }
         fun inflateTo(min: Float): Box {
             val dx = maxOf(0f, (min - width) / 2); val dy = maxOf(0f, (min - height) / 2)
-            return Box(left - dx, top - dy, right + dx, bottom + dy)
+            return Box(left - dx, top - dy, right + dx, bottom + dy, round)
         }
     }
 
@@ -149,11 +154,12 @@ object PadGeometry {
         val oy = if (fit) (h - 100f * s) / 2 else 0f
         val cx = ox + e.cx.toFloat() * sx; val cy = oy + e.cy.toFloat() * sy
         val hw = e.w.toFloat() * s / 2; val hh = e.h.toFloat() * s / 2
-        return Box(cx - hw, cy - hh, cx + hw, cy + hh)
+        return Box(cx - hw, cy - hh, cx + hw, cy + hh, e.round)
     }
 
-    /** Distance from (x, y) to the box's edge; 0 inside. */
+    /** Distance from (x, y) to the control's edge (circle for round controls); 0 inside. */
     private fun Box.distance(x: Float, y: Float): Float {
+        if (round) return maxOf(0f, kotlin.math.hypot(x - cx, y - cy) - minOf(width, height) / 2)
         val dx = maxOf(left - x, 0f, x - right); val dy = maxOf(top - y, 0f, y - bottom)
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }

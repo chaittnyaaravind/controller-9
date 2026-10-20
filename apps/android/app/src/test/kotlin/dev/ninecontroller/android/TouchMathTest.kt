@@ -49,6 +49,16 @@ class TouchMathTest {
         assertEquals(null, PadGeometry.hit(boxes, 360f, 290f, 0f))
     }
 
+    @Test fun roundButtonsHitTestAsCircles() {
+        // Face diamond on an iPhone-15-shaped area: the corner shared by two face buttons' boxes is in
+        // neither circle, so a thumb in the gap presses nothing instead of a neighbour.
+        val e = dev.ninecontroller.android.pad.PadPresets.XBOX
+        val n = PadGeometry.place(e.element("face_n"), 734f, 372f); val east = PadGeometry.place(e.element("face_e"), 734f, 372f)
+        val boxes = mapOf("face_n" to n, "face_e" to east)
+        assertEquals(null, PadGeometry.hit(boxes, (n.right + east.left) / 2, (n.bottom + east.top) / 2, 0f))
+        assertEquals("face_n", PadGeometry.hit(boxes, n.cx, n.cy, 0f))
+    }
+
     @Test fun nearMissGoesToNearestEdgeNotNearestCentre() {
         val boxes = mapOf(
             "tall" to PadGeometry.Box(100f, 0f, 110f, 300f),   // centre far away vertically

@@ -39,11 +39,22 @@ public enum DpadMath {
 public enum TouchHit {
     /// A control the finger is actually on always wins (overlapping boxes: closest centre). Only a finger
     /// that misses every control falls back to targets grown to `minTarget`, then to the nearest *edge*.
-    public static func hit(_ boxes: [(id: String, rect: CGRect)], _ p: CGPoint, minTarget: CGFloat) -> String? {
+    /// Controls whose id is in `round` (face buttons, sticks) are the ellipse inside their box, so the
+    /// box corners in the gaps of a face diamond belong to nobody.
+    public static func hit(_ boxes: [(id: String, rect: CGRect)], _ p: CGPoint, minTarget: CGFloat, round: Set<String> = []) -> String? {
         func centreDist(_ r: CGRect) -> CGFloat { hypot(r.midX - p.x, r.midY - p.y) }
-        func edgeDist(_ r: CGRect) -> CGFloat { hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY)) }
-        if let on = boxes.filter({ $0.rect.contains(p) }).min(by: { centreDist($0.rect) < centreDist($1.rect) }) { return on.id }
+        func inside(_ r: CGRect, _ isRound: Bool) -> Bool {
+            guard isRound else { return r.contains(p) }
+            let nx = (p.x - r.midX) / max(r.width / 2, 1e-6), ny = (p.y - r.midY) / max(r.height / 2, 1e-6)
+            return nx * nx + ny * ny <= 1
+        }
+        func edgeDist(_ r: CGRect, _ isRound: Bool) -> CGFloat {
+            if isRound { return max(0, centreDist(r) - min(r.width, r.height) / 2) }
+            return hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY))
+        }
+        if let on = boxes.filter({ inside($0.rect, round.contains($0.id)) }).min(by: { centreDist($0.rect) < centreDist($1.rect) }) { return on.id }
         func grown(_ r: CGRect) -> CGRect { r.insetBy(dx: -max(0, (minTarget - r.width) / 2), dy: -max(0, (minTarget - r.height) / 2)) }
-        return boxes.filter { grown($0.rect).contains(p) }.min { edgeDist($0.rect) < edgeDist($1.rect) }?.id
+        return boxes.filter { inside(grown($0.rect), round.contains($0.id)) }
+            .min { edgeDist($0.rect, round.contains($0.id)) < edgeDist($1.rect, round.contains($1.id)) }?.id
     }
 }
