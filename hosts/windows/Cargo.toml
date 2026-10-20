@@ -14,5 +14,6 @@ nine-host-core.workspace = true
 nine-proto.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-vigem-client = { version = "=0.1.4", features = ["unstable_xtarget_notification"] }
+tracing.workspace = true
+vigem-client = { version = "=0.1.4", features = ["unstable_xtarget_notification", "unstable_ds4"] }
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Devices_DeviceAndDriverInstallation"] }
