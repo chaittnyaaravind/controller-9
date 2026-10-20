@@ -111,6 +111,17 @@ jobs:
           "listening on 47901" | Tee-Object -Append evidence/result.txt
           Stop-Process -Id $p.Id -Force
           & target/release/controller9.exe status | Tee-Object evidence/status.json
+      - name: Add Microsoft's Xbox 360 controller driver (desktop Windows has it; Server runners don't)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Microsoft Update Catalog "XBOX 360 Controller For Windows" (31f327c0-b9b6-4829-afe4-7cbf52b3a384), SHA-pinned.
+          Invoke-WebRequest "https://catalog.s.download.windowsupdate.com/msdownload/update/driver/drvs/2013/01/20289581_7385d6be1b053a35955a910f11436729a1d4cb56.cab" -OutFile xusb.cab
+          $h = (Get-FileHash xusb.cab -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne "49bd427e53f5c63a1a03b791cf6deeefe3a2ac5700dc4db5e39fad98f3070fa6") { throw "xusb.cab hash $h" }
+          New-Item -ItemType Directory xusb | Out-Null
+          expand.exe xusb.cab -F:* xusb | Out-Null
+          pnputil /add-driver xusb\xusb21.inf /install
       - name: Game-visible test — ViGEmBus + real host + simulated phone + XInput, rumble back
         shell: pwsh
         run: |
