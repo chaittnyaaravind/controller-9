@@ -452,14 +452,9 @@ private fun onTouch(
         }
         ControlKind.DPAD -> {
             val cx = r[0] + w / 2; val cy = r[1] + h / 2
-            val dx = p.x - cx; val dy = cy - p.y
-            val mask = if (hypot(dx, dy) < minOf(w, h) * 0.12f) 0 else {
-                val a = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).let { if (it < 0) it + 360 else it }
-                val sector = ((a + 22.5) / 45).toInt() % 8 // 0=E,1=NE,2=N,...
-                listOf(Btn.RIGHT.mask, Btn.RIGHT.mask or Btn.UP.mask, Btn.UP.mask, Btn.UP.mask or Btn.LEFT.mask,
-                    Btn.LEFT.mask, Btn.LEFT.mask or Btn.DOWN.mask, Btn.DOWN.mask, Btn.DOWN.mask or Btn.RIGHT.mask)[sector]
-            }
             val prev = visuals[c.id]?.mask ?: 0
+            // Cardinal-dominant zones with hysteresis: "left" means left, not left+up (input/TouchMath.kt).
+            val mask = dev.ninecontroller.android.input.DpadMath.resolve((p.x - cx).toDouble(), (cy - p.y).toDouble(), minOf(w, h) / 2.0, prev)
             if (mask != prev && mask != 0 && c.haptic) app.haptics.click()
             engine.setButtons(c.id, mask); visuals[c.id] = Visual(mask != 0, mask = mask)
         }

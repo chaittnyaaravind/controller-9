@@ -152,11 +152,23 @@ object PadGeometry {
         return Box(cx - hw, cy - hh, cx + hw, cy + hh)
     }
 
+    /** Distance from (x, y) to the box's edge; 0 inside. */
+    private fun Box.distance(x: Float, y: Float): Float {
+        val dx = maxOf(left - x, 0f, x - right); val dy = maxOf(top - y, 0f, y - bottom)
+        return kotlin.math.sqrt(dx * dx + dy * dy)
+    }
+
     /**
-     * Touch hit test: every target is grown to at least [minTarget] (48dp), and when grown targets
-     * overlap the finger goes to the control whose centre is closest.
+     * Touch hit test. A control the finger is actually on always wins (if drawn boxes overlap, the one
+     * whose centre is closest). Only a finger that misses every control falls back to the targets grown
+     * to [minTarget] (48dp), and then to the control whose *edge* is nearest — a near-miss goes to the
+     * control it nearly touched, never to a bigger neighbour whose centre happens to be closer.
      */
-    fun hit(boxes: Map<String, Box>, x: Float, y: Float, minTarget: Float): String? =
-        boxes.entries.filter { it.value.inflateTo(minTarget).contains(x, y) }
-            .minByOrNull { val b = it.value; (b.cx - x) * (b.cx - x) + (b.cy - y) * (b.cy - y) }?.key
+    fun hit(boxes: Map<String, Box>, x: Float, y: Float, minTarget: Float): String? {
+        boxes.entries.filter { it.value.contains(x, y) }
+            .minByOrNull { val b = it.value; (b.cx - x) * (b.cx - x) + (b.cy - y) * (b.cy - y) }
+            ?.let { return it.key }
+        return boxes.entries.filter { it.value.inflateTo(minTarget).contains(x, y) }
+            .minByOrNull { it.value.distance(x, y) }?.key
+    }
 }
