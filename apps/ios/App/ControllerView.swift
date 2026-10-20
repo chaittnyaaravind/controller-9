@@ -44,7 +44,9 @@ struct ControllerView: View {
                     statusStrip(profile)
                 }
             }
-            .ignoresSafeArea()
+            // Controls live inside the safe area: nothing under the Dynamic Island/camera housing (dead
+            // to touch) or the home bar, and the same frame the layout editor uses, so edits play as placed.
+            .background(Nine.bg.ignoresSafeArea())
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)
             .toolbar(.hidden, for: .navigationBar)
