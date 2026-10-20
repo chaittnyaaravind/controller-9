@@ -1,0 +1,58 @@
+# iPhone app: real Xcode type-check + build, package tests, and screenshots from the iOS Simulator.
+# Unsigned only: no Apple team or signing secrets are used. The device build is NOT installable as is;
+# it must be signed with an Apple ID (docs/BUILD.md).
+name: ios
+on:
+  push:
+    branches: [ios-build]
+    paths: [apps/ios/**, protocol/swift/**, protocol/profiles/**, tools/ios-ci/**, .github/workflows/ios.yml]
+  workflow_dispatch: {}
+permissions: { contents: read }
+concurrency: { group: ios-${{ github.ref }}, cancel-in-progress: true }
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest stable Xcode on the runner
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | grep -v -i -E 'beta|rc' | sort -V | tail -1)
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+          xcrun simctl list runtimes | grep -i ios
+      - run: brew install xcodegen
+      - name: Generate project
+        run: cd apps/ios && xcodegen generate
+      - name: Package tests (NineKit, NineAppCore)
+        run: |
+          set -o pipefail
+          swift test --package-path protocol/swift 2>&1 | tail -5
+          swift test --package-path apps/ios/Core 2>&1 | tail -5
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild -project apps/ios/Controller9.xcodeproj -scheme Controller9 -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO build > build/sim.log 2>&1 || { grep -E 'error:' build/sim.log | sort -u | head -100; exit 1; }
+          grep -E 'warning:' build/sim.log | grep -v -E 'appintents|AppIntents' | sort -u | head -60 || true
+      - name: Build for device (unsigned)
+        run: |
+          xcodebuild -project apps/ios/Controller9.xcodeproj -scheme Controller9 -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build/dd-device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build > build/device.log 2>&1 || { grep -E 'error:' build/device.log | sort -u | head -60; exit 1; }
+          mkdir -p build/Payload && cp -R build/dd-device/Build/Products/Release-iphoneos/Controller9.app build/Payload/
+          (cd build && zip -qr Controller9-unsigned.ipa Payload)
+      - name: Screenshots in the iOS Simulator
+        run: tools/ios-ci/screens.sh build/dd/Build/Products/Debug-iphonesimulator/Controller9.app build/screens
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            build/sim.log
+            build/device.log
+            build/screens/
+            build/Controller9-unsigned.ipa
+          if-no-files-found: ignore

@@ -1,6 +1,8 @@
-# Development checks on native runners. STATUS: written, never run (no remote repository yet).
+# Development checks on native runners (macOS, Linux, Windows). Manual only: the repository is private
+# and macOS minutes count 10x, so this full suite runs on request (Actions → ci → Run workflow).
+# The iPhone app has its own, path-filtered workflow (ios.yml).
 name: ci
-on: [push, pull_request]
+on: { workflow_dispatch: {} }
 permissions: { contents: read }
 jobs:
   macos:

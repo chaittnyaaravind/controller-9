@@ -5,9 +5,49 @@ import SwiftUI
 
 struct RootView: View {
     var body: some View {
-        NavigationStack { HomeView() }.background(Nine.bg)
+        NavigationStack {
+            #if DEBUG
+            if let screen = ScreenshotRoute.requested { ScreenshotRoute.view(screen) } else { HomeView() }
+            #else
+            HomeView()
+            #endif
+        }.background(Nine.bg)
     }
 }
+
+#if DEBUG
+/// Debug builds only: `-screen <name>` opens one screen directly, so CI can capture every screen in the
+/// iOS Simulator (tools/ios-ci/screens.sh). Compiled out of Release builds.
+enum ScreenshotRoute {
+    static let all = ["home", "add", "profiles", "editor", "motion", "connection", "diagnostics", "settings", "controller"]
+    static var requested: String? {
+        let a = ProcessInfo.processInfo.arguments
+        guard let i = a.firstIndex(of: "-screen"), i + 1 < a.count, all.contains(a[i + 1]) else { return nil }
+        return a[i + 1]
+    }
+    @MainActor @ViewBuilder static func view(_ name: String) -> some View {
+        switch name {
+        case "add": AddHostView()
+        case "profiles": ProfilesView()
+        case "editor", "motion": ProfileRoute(name: name)
+        case "connection": ConnectionView()
+        case "diagnostics": DiagnosticsView()
+        case "settings": SettingsView()
+        case "controller": ControllerView()
+        default: HomeView()
+        }
+    }
+    private struct ProfileRoute: View {
+        let name: String
+        @Environment(AppModel.self) private var model
+        var body: some View {
+            if let id = model.activeProfile?.id {
+                if name == "motion" { MotionView(profileId: id) } else { LayoutEditorView(profileId: id) }
+            }
+        }
+    }
+}
+#endif
 
 struct HomeView: View {
     @Environment(AppModel.self) private var model
