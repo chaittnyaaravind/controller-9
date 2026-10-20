@@ -10,6 +10,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,11 +45,12 @@ fun MotionScreen(app: NineApp, nav: NavController, profileId: String) {
     var m by remember { mutableStateOf(profile.motion) }
     var angle by remember { mutableDoubleStateOf(Double.NaN) }
     var error by remember { mutableStateOf<String?>(null) }
-    val sensor = remember { MotionSensor(context) }
-    DisposableEffect(Unit) {
-        val display = androidx.core.content.ContextCompat.getDisplayOrDefault(context)
-        sensor.start(60, { display.rotation }) { gx, gy, gz, _ -> MotionMath.wheelAngleDeg(gx, gy, gz)?.let { angle = it } }
-        onDispose { sensor.stop() }
+    val runner = remember { dev.ninecontroller.android.input.SteeringRunner(MotionSensor(context)) }
+    val saved by app.settings.flow.collectAsState(dev.ninecontroller.android.data.AppSettings())
+    // Live angle relative to the player's saved neutral grip (none saved: no angle, never a guess).
+    DisposableEffect(saved.steering) {
+        runner.start(60, saved.steering, profile.motion) { _ -> angle = runner.angleDeg }
+        onDispose { runner.stop() }
     }
 
     @Composable fun slider(label: String, value: Double, range: ClosedFloatingPointRange<Float>, fmtv: String, set: (Double) -> Unit) {
@@ -61,12 +63,12 @@ fun MotionScreen(app: NineApp, nav: NavController, profileId: String) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Steer by tilting the phone", Modifier.weight(1f)); Switch(m.enabled, { m = m.copy(enabled = it) })
             }
-            Text("Sensor: ${sensor.availableSource() ?: "not available on this phone"}", color = Nine.dim)
-            Text("Current wheel angle: ${fmt(angle, 1, "°")}", color = Nine.muted)
+            Text("Sensor: ${runner.source.takeIf { it != "none" } ?: "not available on this phone"}", color = Nine.dim)
+            Text(if (saved.steering == null) "Set your neutral grip first (Calibrate steering or Recenter on the controller)." else "Angle from your neutral grip: ${fmt(angle, 1, "°")}", color = Nine.muted)
         }
         Card {
             slider("Steering lock", m.lockDeg, 10f..180f, "${m.lockDeg.toInt()}°") { m = m.copy(lockDeg = it) }
-            Text("Tilt needed for full lock, measured from center.", color = Nine.dim)
+            Text("Turn needed for full lock from your neutral grip, used until you measure your own left and right range.", color = Nine.dim)
             slider("Sensitivity", m.sensitivity, 0.25f..4f, "%.2f×".format(m.sensitivity)) { m = m.copy(sensitivity = it) }
             slider("Dead zone", m.deadzone, 0f..0.3f, "${(m.deadzone * 100).toInt()}%") { m = m.copy(deadzone = it) }
             slider("Response curve", m.curve, 0.5f..3f, "%.2f".format(m.curve)) { m = m.copy(curve = it) }
@@ -82,7 +84,7 @@ fun MotionScreen(app: NineApp, nav: NavController, profileId: String) {
             try { app.profiles.save(profile.copy(motion = m)); nav.popBackStack() } catch (e: ProfileException) { error = e.message }
         }, colors = primaryButtonColors()) { Text("Save") }
         error?.let { Text(it, color = Nine.bad) }
-        Text("Calibrate the center from the controller screen (“Center”). Smoothing trades a little delay for steadier steering.", color = Nine.dim)
+        Text("Set the center from the controller screen (“Recenter”). Smoothing trades a little delay for steadier steering.", color = Nine.dim)
     }
 }
 

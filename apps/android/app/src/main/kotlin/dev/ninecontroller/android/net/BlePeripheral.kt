@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit
 /**
  * BLE GATT binding, phone side (SPEC §8.3): this phone is a GATT server; the desktop host is the
  * central. Requires BLUETOOTH_ADVERTISE + BLUETOOTH_CONNECT on Android 12+.
- * STATUS: compiles; not yet run on a device against a host (UNVERIFIED).
+ * Verified on a realme 12 5G against the macOS host (tests/results/2026-10-18-android-realme-bluetooth.md).
  */
 @SuppressLint("MissingPermission") // callers check [permissionsGranted] first
 class BlePeripheral(private val context: Context) {
@@ -93,9 +93,11 @@ class BleLink internal constructor(private val context: Context, private val man
     private val controlSeg = Segmenter()
     private val inputSeg = Segmenter()
     private val controlQueue = LinkedBlockingQueue<ByteArray>()
-    /** Ordered input_up messages. A new INPUT datagram removes older queued INPUT datagrams (latest
-     *  state); dropping never reorders, so counters stay increasing. Pings/byes keep their place. */
-    private val inputQueue = ArrayDeque<ByteArray>()
+    /** Ordered input_up messages. A new INPUT datagram removes older queued INPUT datagrams that only
+     *  carried analog changes (latest state); frames with a button/pedal edge keep their place so a
+     *  short press is never coalesced away. Dropping never reorders, so counters stay increasing. */
+    private class Out(val d: ByteArray, val input: Boolean, val edge: Boolean)
+    private val inputQueue = ArrayDeque<Out>()
     private val qlock = Any()
     private val signal = Semaphore(0)
     @Volatile private var closed = false
@@ -170,7 +172,7 @@ class BleLink internal constructor(private val context: Context, private val man
             val ctl = controlQueue.poll()
             if (ctl != null) { notify(controlUp, ctl); continue }
             val inp = synchronized(qlock) { inputQueue.removeFirstOrNull() }
-            if (inp != null) { inputSeg.segment(inp, mtu).forEach { notify(inputUp, it) }; continue }
+            if (inp != null) { inputSeg.segment(inp.d, mtu).forEach { notify(inputUp, it) }; continue }
             signal.tryAcquire(50, TimeUnit.MILLISECONDS)
         }
     }
@@ -182,11 +184,15 @@ class BleLink internal constructor(private val context: Context, private val man
         else @Suppress("DEPRECATION") { ch.value = v; server?.notifyCharacteristicChanged(d, ch, false) }
     }
 
-    override fun send(d: ByteArray) {
+    override fun send(d: ByteArray) = enqueue(d, edge = false)
+    override fun sendInput(d: ByteArray, edge: Boolean) = enqueue(d, edge)
+
+    private fun enqueue(d: ByteArray, edge: Boolean) {
         val isInput = d.size > 3 && d[3].toInt() == PacketType.INPUT.code
         synchronized(qlock) {
-            if (isInput) inputQueue.removeAll { it.size > 3 && it[3].toInt() == PacketType.INPUT.code }
-            inputQueue.addLast(d)
+            if (isInput) inputQueue.removeAll { it.input && !it.edge }
+            inputQueue.addLast(Out(d, isInput, isInput && edge))
+            while (inputQueue.size > 32) inputQueue.removeFirst() // bounded; the newest frame always stays
         }
         signal.release()
     }

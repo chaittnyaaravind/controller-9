@@ -23,11 +23,14 @@ import dev.ninecontroller.protocol.InputState
 import dev.ninecontroller.protocol.LinkKind
 import dev.ninecontroller.protocol.LinkPolicy
 import dev.ninecontroller.protocol.LinkStats
+import dev.ninecontroller.protocol.PacketType
 import dev.ninecontroller.protocol.PairUri
 import dev.ninecontroller.protocol.Pairing
 import dev.ninecontroller.protocol.PolicyState
 import dev.ninecontroller.protocol.RefusedException
+import dev.ninecontroller.protocol.SessionCrypto
 import dev.ninecontroller.protocol.WrongHostException
+import dev.ninecontroller.protocol.isEdge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,7 +51,11 @@ sealed interface ConnState {
     data class Connecting(val hostName: String, val via: String = "") : ConnState
     /** Numeric comparison: show [code]; the user confirms here and on the computer. */
     data class ConfirmCode(val hostName: String, val code: String) : ConnState
-    data class Connected(val hostName: String, val slot: Int, val backendWarning: String?, val link: LinkKind, val linkDetail: String) : ConnState
+    /** [link] is the fastest link right now; [also] the other links carrying the same input (SPEC §8.5). */
+    data class Connected(val hostName: String, val slot: Int, val backendWarning: String?, val link: LinkKind, val linkDetail: String,
+                         val also: List<LinkKind> = emptyList()) : ConnState {
+        val linksLabel: String get() = (listOf(link) + also).joinToString(" + ") { it.label }
+    }
     data class Reconnecting(val hostName: String, val attempt: Int, val reason: String) : ConnState
     data class Failed(val message: String) : ConnState
 }
@@ -60,17 +67,35 @@ data class LinkStatsUi(
     val lastSwitch: String? = null, val watchdogTrips: Int = 0,
     /** Why the previous link ended (failure, host bye, or the user), for the UI. */
     val lastDisconnect: String? = null,
+    /** Every link of the current session, fastest first. */
+    val paths: List<PathUi> = emptyList(),
 )
+
+/** One link of the session as the phone measures it. */
+data class PathUi(val kind: LinkKind, val detail: String, val rttP50: Double?, val rttP95: Double?, val replyAgeMs: Long,
+                  val queued: Int, val coalesced: Long, val dropped: Long)
+
+/** The link-preference choices: redundant automatic (default), single-link automatic, or one fixed link. */
+object LinkChoices {
+    val all: List<String> = listOf("auto", "auto1") + LinkKind.entries.map { it.name }
+    fun label(o: String) = when (o) { "auto" -> "Automatic (all links)"; "auto1" -> "Automatic, one link"; else -> LinkKind.valueOf(o).label }
+}
 
 /** What the user sees per link: usable or not, why, and recent measurements. */
 data class LinkReport(val kind: LinkKind, val available: Boolean, val reason: String?, val score: Double?, val rttP95: Double?, val attempts: Int, val successes: Int)
 
 /**
  * Connection manager with pluggable links (IP / stream / BLE) and the shared policy
- * (protocol LinkPolicy, docs/CONNECTION_MANAGER.md). One link at a time; input is never duplicated
- * across links. A failed link is retried last; a healthy link is replaced only by a clearly better
- * one after the hysteresis window. Every transition goes through the host's slot takeover, which
- * neutralizes the controller before the new link's first frame.
+ * (protocol LinkPolicy, docs/CONNECTION_MANAGER.md).
+ *
+ * Automatic (default) is redundant (SPEC §8.5): the first link opens the session, every other usable
+ * non-USB link joins the same session, and each input frame is sealed once and sent over all of them
+ * through per-link queues. A failed link is dropped and rejoined on its own; the session (slot, held
+ * input, counters) survives as long as one link is up. Only when the last link fails does the phone
+ * open a new session (the host neutralizes on its own after 250 ms of silence either way).
+ *
+ * "Automatic, one link" and the manual link choices keep the earlier single-link behaviour: one link
+ * at a time, a failed link retried last, planned make-before-break switches after the hysteresis window.
  */
 class ConnectionManager(
     private val context: Context,
@@ -90,7 +115,16 @@ class ConnectionManager(
     val ble = BlePeripheral(context)
     private val transports = Transports(context, ble)
 
+    /** The link that opened the session (or took over when it failed). */
     @Volatile private var active: ActiveLink? = null
+    /** Other links joined to the same session (redundant mode). */
+    private val extras = java.util.concurrent.CopyOnWriteArrayList<ActiveLink>()
+    /** Crypto of the current session; the sender thread runs while this is its session. */
+    @Volatile private var sessionCrypto: SessionCrypto? = null
+    private val joining = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val joinRetryAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val joinFails = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private fun paths(): List<ActiveLink> = listOfNotNull(active) + extras
     @Volatile private var want: PairedHost? = null
     @Volatile private var lastSlot: Int? = null
     @Volatile private var profileName: String? = null
@@ -128,11 +162,14 @@ class ConnectionManager(
             object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     if (_state.value is ConnState.Reconnecting && active == null) restart("network available", healthy = false)
-                    else lastProbe = now() - PROBE_MS + 3000 // a network appeared: probe it in ~3 s (DHCP settles)
+                    else {
+                        lastProbe = now() - PROBE_MS + 3000 // a network appeared: probe it in ~3 s (DHCP settles)
+                        joinRetryAt["ip"] = now() + 1500; joinFails.remove("ip") // redundant mode: join it soon
+                    }
                 }
                 override fun onLost(network: Network) {
-                    val a = active ?: return
-                    if (a.kind != LinkKind.BLE && LocalLinks.kindOf(a.conn.local) !in LocalLinks.available()) restart("network lost", healthy = false)
+                    val up = LocalLinks.available()
+                    for (p in paths()) if (p.kind != LinkKind.BLE && LocalLinks.kindOf(p.conn.local) !in up) pathFailed(p, "network lost")
                 }
             })
         // Bluetooth adapter on/off. Off under a BLE link: start reconnecting now instead of waiting for the
@@ -142,9 +179,12 @@ class ConnectionManager(
             override fun onReceive(c: Context, i: android.content.Intent) {
                 when (i.getIntExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, -1)) {
                     android.bluetooth.BluetoothAdapter.STATE_TURNING_OFF, android.bluetooth.BluetoothAdapter.STATE_OFF ->
-                        if (active?.kind == LinkKind.BLE) restart("Bluetooth turned off", healthy = false)
+                        paths().filter { it.kind == LinkKind.BLE }.forEach { pathFailed(it, "Bluetooth turned off") }
                     android.bluetooth.BluetoothAdapter.STATE_ON -> if (want != null && active == null) {
                         Log.i(TAG, "Bluetooth turned on; retrying now"); ble.abortPending(); restart("Bluetooth turned on", healthy = false)
+                    } else if (want != null) {
+                        // A join that was advertising on the old adapter session can never be found: retry now.
+                        ble.abortPending(); joinRetryAt.remove("ble"); joinFails.remove("ble")
                     }
                 }
             }
@@ -155,7 +195,13 @@ class ConnectionManager(
     private fun hello() = ControllerHello(1, identity.deviceName.take(40), "android", BuildConfig.VERSION_NAME)
 
     fun submit(state: InputState, flags: Int) { lock.withLock { latest = state; latestFlags = flags; version++; changed.signalAll() } }
-    fun setPaused(p: Boolean) { lock.withLock { paused = p; version++; changed.signalAll() }; syncWifiLock() }
+    /** Paused (app in background): the controller sends neutral + paused on the session's first link only;
+     *  extra links are closed to save battery and rejoin when the controller is in use again. */
+    fun setPaused(p: Boolean) {
+        lock.withLock { paused = p; version++; changed.signalAll() }
+        if (p) closeExtras("controller paused") else { joinRetryAt.clear(); joinFails.clear() }
+        syncWifiLock()
+    }
 
     /**
      * Low-latency Wi-Fi lock while an IP link carries input and the controller is in use. Measured on a
@@ -171,7 +217,7 @@ class ConnectionManager(
 
     @Synchronized private fun syncWifiLock() {
         val l = wifiLock ?: return
-        val want = active?.let { it.kind != LinkKind.BLE } == true && !paused
+        val want = paths().any { it.kind != LinkKind.BLE } && !paused
         runCatching { if (want && !l.isHeld) l.acquire() else if (!want && l.isHeld) l.release() }
         if (want != l.isHeld) Log.w(TAG, "wifi lock state mismatch want=$want")
     }
@@ -182,6 +228,10 @@ class ConnectionManager(
     private fun now() = System.currentTimeMillis()
 
     private suspend fun overrideKind(): LinkKind? = settings.flow.first().linkOverride.let { o -> LinkKind.entries.find { it.name == o } }
+    /** Automatic modes never use USB for controller input; a manual USB choice still can (troubleshooting). */
+    private suspend fun automatic(): Boolean = settings.flow.first().linkOverride.startsWith("auto")
+    private suspend fun redundant(): Boolean = settings.flow.first().linkOverride == "auto"
+    @Volatile private var usbAllowed = true
 
     private fun candidates(host: PairedHost): List<Pair<LinkStats, String?>> {
         val ipKinds = LocalLinks.available()
@@ -189,7 +239,7 @@ class ConnectionManager(
         val knows = { l: String -> host.links.isEmpty() || l in host.links }
         val bleReason = ble.unavailableReason() ?: if (!knows("ble")) "${host.name} doesn't offer Bluetooth" else null
         return LinkKind.entries.map { k ->
-            val reason: String? = when (k) {
+            val reason: String? = if (k == LinkKind.USB && !usbAllowed) "USB isn’t used for controller input in Automatic" else when (k) {
                 LinkKind.BLE -> bleReason
                 LinkKind.STREAM -> when { ipKinds.isEmpty() -> "No network interface is up"; !hasAddr -> "No address known for ${host.name}"; !knows("stream") -> "${host.name} doesn't offer TCP-only mode"; else -> null }
                 else -> when { k !in ipKinds -> "Not connected to a ${k.label} network"; !hasAddr -> "No address known for ${host.name}"; else -> null }
@@ -280,6 +330,8 @@ class ConnectionManager(
     fun disconnect() {
         want = null
         session?.cancel()
+        sessionCrypto = null
+        closeExtras("you disconnected", sendBye = true)
         active?.close(sendBye = true)
         active = null
         syncWifiLock()
@@ -311,7 +363,7 @@ class ConnectionManager(
         val failed = old?.kind
         if (!healthy && failed != null) hist.getValue(failed).apply { lastFailureAt = now(); disconnects.addLast(now()) }
         if (!healthy) _stats.value = _stats.value.copy(lastDisconnect = failed?.label?.takeUnless { reason.contains(it) }?.let { "$it: $reason" } ?: reason)
-        if (to == null) { active = null; switchingFrom = null; old?.close(sendBye = false); syncWifiLock() }
+        if (to == null) { active = null; switchingFrom = null; sessionCrypto = null; closeExtras(reason); old?.close(sendBye = false); syncWifiLock() }
         else { switchingFrom = old; switchingFromFailed = false }
         startSession(h, attempt = 1, reason = reason, failedKind = failed, preferred = to, makeBeforeBreak = old.takeIf { to != null })
     }
@@ -341,7 +393,8 @@ class ConnectionManager(
                     val hs = hist.getValue(kind)
                     hs.attempts++
                     try {
-                        val (link, info) = transports.open(kind, h, identity.keyPair(), hello(), lastSlot, profileName)
+                        usbAllowed = !automatic()
+                        val (link, info) = transports.open(kind, h, identity.keyPair(), hello(), lastSlot, profileName, allowUsb = usbAllowed)
                         if (!current()) { Log.i(TAG, "stale attempt ${link.kind} finished after a newer loop started; closing it"); link.close(sendBye = false); return@launch }
                         hist.getValue(link.kind).successes++
                         if (link.kind != kind) hs.successes++
@@ -350,7 +403,9 @@ class ConnectionManager(
                             links = link.conn.host.links.ifEmpty { h.links }))
                         makeBeforeBreak?.close(sendBye = false)
                         if (makeBeforeBreak != null) switchingFrom = null
+                        closeExtras("new session")
                         active = link
+                        sessionCrypto = link.crypto
                         syncWifiLock()
                         switchedAt = now(); betterSince = 0
                         connectedAtNs = System.nanoTime(); lastAckNs = connectedAtNs
@@ -359,7 +414,9 @@ class ConnectionManager(
                         _state.value = ConnState.Connected(link.conn.host.name, info.slot, null, link.kind, link.detail)
                         Log.i(TAG, "connected link=${link.kind} slot=${info.slot} detail=${link.detail} attempt=$n")
                         lock.withLock { version++ } // resend current state on the new link
-                        startThreads(link)
+                        startPathThreads(link)
+                        startSender(link.crypto)
+                        joinRetryAt.clear(); joinFails.clear()
                         return@launch
                     } catch (e: Transports.IdentityChangedException) {
                         // Never delete the pairing on an unverified host's word: another device may be impersonating it.
@@ -367,6 +424,10 @@ class ConnectionManager(
                         want = null
                         _state.value = ConnState.Failed("The computer that answered is not ${h.name} (its identity key changed). Your pairing was kept. If ${h.name} was reinstalled, forget it and pair again.")
                         return@launch
+                    } catch (e: Transports.UsbRefusedException) {
+                        Log.i(TAG, "attempt ${kind} reached the computer only over USB; not used in Automatic")
+                        if (!current()) return@launch
+                        _state.value = ConnState.Reconnecting(h.name, ++n, e.message ?: "USB only")
                     } catch (e: RefusedException) {
                         hs.lastFailureAt = now()
                         when (e.code) {
@@ -400,8 +461,10 @@ class ConnectionManager(
             delay(1000)
             val a = active ?: continue
             val h = want ?: continue
-            hist.getValue(a.kind).rttP95 = a.channel.rttMs.percentile(95.0)
+            for (p in paths()) hist.getValue(p.kind).rttP95 = p.channel.rttMs.percentile(95.0)
             publishReports(h)
+            publishPaths()
+            if (redundant()) { manageRedundancy(h); continue }
             val cands = candidates(h).map { it.first }
             val best = LinkPolicy.rank(cands).firstOrNull()
             val cur = cands.find { it.kind == a.kind }?.let(LinkPolicy::score)
@@ -428,69 +491,205 @@ class ConnectionManager(
         }
     }
 
-    private fun startThreads(link: ActiveLink) {
+    // ------------------------------------------------------------------ redundant links (SPEC §8.5)
+
+    private fun group(k: LinkKind) = when (k) { LinkKind.BLE -> "ble"; LinkKind.STREAM -> "stream"; else -> "ip" }
+
+    /** Join every usable non-USB link group the session does not have yet, one attempt per group at a time. */
+    private suspend fun manageRedundancy(h: PairedHost) {
+        val first = active ?: return
+        val crypto = sessionCrypto ?: return
+        if (paused || !first.conn.host.multipath) return
+        val have = paths().map { group(it.kind) }.toSet()
+        val usable = candidates(h).filter { it.first.available }.map { it.first.kind }
+        val wanted = buildList {
+            usable.filter { group(it) == "ip" && it != LinkKind.USB }.maxByOrNull { it.base }?.let { add(it) }
+            if (LinkKind.BLE in usable) add(LinkKind.BLE)
+        }
+        for (kind in wanted) {
+            val g = group(kind)
+            if (g in have || g in joining || now() < (joinRetryAt[g] ?: 0L)) continue
+            joining += g
+            scope.launch { try { join(kind, g, h, crypto) } finally { joining -= g } }
+        }
+    }
+
+    private fun join(kind: LinkKind, g: String, h: PairedHost, crypto: SessionCrypto) {
+        val hs = hist.getValue(kind)
+        hs.attempts++
+        try {
+            val (link, _) = transports.open(kind, h, identity.keyPair(), hello(), null, null, join = crypto, allowUsb = false)
+            if (sessionCrypto !== crypto || want?.id != h.id || paused) { Log.i(TAG, "join ${link.kind} finished after the session changed; closing it"); link.close(sendBye = false); return }
+            hist.getValue(link.kind).successes++
+            joinFails.remove(g); joinRetryAt.remove(g)
+            extras += link
+            startPathThreads(link)
+            syncWifiLock()
+            publishConnected()
+            lock.withLock { version++; changed.signalAll() } // the new link gets the current state right away
+            Log.i(TAG, "joined link=${link.kind} detail=${link.detail} links=${paths().map { it.kind }}")
+        } catch (e: Exception) {
+            hs.lastFailureAt = now()
+            val fails = (joinFails[g] ?: 0) + 1
+            joinFails[g] = fails
+            joinRetryAt[g] = now() + minOf(2000L shl minOf(fails - 1, 4), 30_000L)
+            Log.i(TAG, "join ${kind} failed (${fails}): ${describe(e)}")
+        }
+    }
+
+    private fun closeExtras(reason: String, sendBye: Boolean = false) {
+        if (extras.isEmpty()) return
+        val gone = extras.toList(); extras.clear()
+        gone.forEach { it.close(sendBye) }
+        Log.i(TAG, "closed extra links ${gone.map { it.kind }}: $reason")
+        publishConnected()
+    }
+
+    /**
+     * A link's own thread saw it fail. An extra link is just dropped (and rejoined later). If the
+     * session's first link fails while another is up, that one takes over — same session, nothing
+     * reset, nothing released. Only the last link failing reconnects (a new session).
+     */
+    private fun pathFailed(link: ActiveLink, reason: String) {
+        if (link.closed) return
+        if (extras.remove(link)) {
+            link.close(sendBye = false)
+            noteDown(link, reason)
+            return
+        }
+        if (active !== link) return
+        val next = extras.firstOrNull { !it.closed && !it.isDown }
+        if (next == null || switchingFrom != null) { linkFailed(link, reason); return }
+        extras.remove(next)
+        active = next
+        link.close(sendBye = false)
+        Log.i(TAG, "${link.kind} failed ($reason); ${next.kind} carries the session on")
+        noteDown(link, reason)
+    }
+
+    private fun noteDown(link: ActiveLink, reason: String) {
+        hist.getValue(link.kind).apply { lastFailureAt = now(); disconnects.addLast(now()) }
+        joinRetryAt[group(link.kind)] = now() + 2000
+        val rest = paths().joinToString(" + ") { it.kind.label }
+        _stats.value = _stats.value.copy(lastDisconnect = "${link.kind.label}: $reason" + if (rest.isNotEmpty()) " (still connected over $rest)" else "")
+        Log.i(TAG, "link down ${link.kind}: $reason; links=${paths().map { it.kind }}")
+        syncWifiLock()
+        publishConnected()
+    }
+
+    /** Connected state: the fastest link first, then the others. */
+    private fun publishConnected() {
+        val c = _state.value as? ConnState.Connected ?: return
+        val ps = paths().sortedBy { it.channel.rttMs.percentile(50.0) ?: Double.MAX_VALUE }
+        val first = ps.firstOrNull() ?: return
+        _state.value = c.copy(link = first.kind, linkDetail = first.detail, also = ps.drop(1).map { it.kind })
+    }
+
+    private fun publishPaths() {
+        val t = System.nanoTime()
+        val ps = paths().map { PathUi(it.kind, it.detail, it.channel.rttMs.percentile(50.0), it.channel.rttMs.percentile(95.0),
+            (t - it.lastAckNs) / 1_000_000, it.out.size, it.out.coalesced, it.out.dropped) }.sortedBy { it.rttP50 ?: Double.MAX_VALUE }
+        _stats.value = _stats.value.copy(paths = ps)
+        publishConnected()
+    }
+
+    /** Per-link threads: control reader, datagram receiver (pongs, rumble, watchdog, stats), and writer. */
+    private fun startPathThreads(link: ActiveLink) {
         val c = link.conn; val ch = link.channel
         Thread({
             try {
-                while (active === link) {
+                while (!link.closed) {
                     when (val m = c.recv()) {
                         is Control.Rumble -> haptics.rumble(m.low, m.high, m.ms)
                         is Control.Error -> if (m.code == "backend_unavailable") (_state.value as? ConnState.Connected)?.let { _state.value = it.copy(backendWarning = m.message ?: m.code) }
                         is Control.Bye -> {
                             when {
-                                m.reason == "unpaired" -> { want?.let { hosts.remove(it.id) }; want = null; active = null; link.close(false); _state.value = ConnState.Failed("This phone was removed on the computer.") }
-                                m.reason?.startsWith("replaced") == true -> Unit // our own newer link took over
-                                else -> linkFailed(link, m.reason ?: "host closed")
+                                m.reason == "unpaired" -> { want?.let { hosts.remove(it.id) }; want = null; sessionCrypto = null; closeExtras("unpaired"); active = null; link.close(false); _state.value = ConnState.Failed("This phone was removed on the computer.") }
+                                m.reason?.startsWith("replaced") == true -> Unit // our own newer session took over
+                                else -> pathFailed(link, m.reason ?: "host closed")
                             }
                             return@Thread
                         }
                         else -> Unit
                     }
                 }
-            } catch (e: Exception) { linkFailed(link, describe(e)) }
-        }, "c9-control").start()
+            } catch (e: Exception) { pathFailed(link, describe(e)) }
+        }, "c9-control-${link.kind}").start()
 
         Thread({
-            var lastPong = System.nanoTime(); var seen = 0L
+            var seen = 0L; var lastStats = System.nanoTime()
             // BLE: host→phone writes without response can stall for >1.5 s under load while the link is
             // healthy (measured on a real phone), so rely on the GATT disconnect callback and allow 5 s
             // of pong silence. The host's own 250 ms input timeout still neutralizes controls.
             val deadMs = if (link.kind == LinkKind.BLE) 5000 else 1000
-            while (active === link) {
-                if (link.isDown) { linkFailed(link, "Bluetooth link disconnected"); return@Thread }
+            while (!link.closed) {
+                if (link.isDown) { pathFailed(link, "Bluetooth link disconnected"); return@Thread }
+                // Feedback may arrive once per link; the session's replay window keeps only the first copy.
                 try { ch.receive(100)?.let { haptics.rumble(it.low, it.high, it.ms) } }
-                catch (e: Exception) { linkFailed(link, "input link: ${describe(e)}"); return@Thread }
-                if (ch.rttMs.total != seen) { seen = ch.rttMs.total; lastPong = System.nanoTime(); lastAckNs = lastPong }
-                val age = (System.nanoTime() - lastPong) / 1_000_000
-                if (age > deadMs && active === link) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); linkFailed(link, "no response for $age ms on ${link.kind.label}"); return@Thread }
+                catch (e: Exception) { pathFailed(link, "input link: ${describe(e)}"); return@Thread }
+                if (ch.rttMs.total != seen) { seen = ch.rttMs.total; link.lastAckNs = System.nanoTime(); lastAckNs = link.lastAckNs }
+                val age = (System.nanoTime() - link.lastAckNs) / 1_000_000
+                if (age > deadMs && !link.closed) { watchdogTrips++; _stats.value = _stats.value.copy(watchdogTrips = watchdogTrips); pathFailed(link, "no response for $age ms on ${link.kind.label}"); return@Thread }
+                val t = System.nanoTime()
+                if (t - lastStats >= 2_000_000_000L) {
+                    lastStats = t
+                    // Round trip is per link; the host shows each link's own.
+                    runCatching { c.send(Control.Stats(ch.rttMs.percentile(50.0)?.toFloat(), ch.rttMs.percentile(95.0)?.toFloat(), sensorHz.toFloat().takeIf { it > 0 }, _stats.value.sendHz.toFloat(), battery())) }
+                }
             }
-        }, "c9-rx").start()
+        }, "c9-rx-${link.kind}").start()
 
         Thread({
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
-            val hbActive = ch.info.heartbeatMs.coerceIn(10, 1000) * 1_000_000L
-            val hbIdle = ch.info.idleHeartbeatMs.coerceIn(50, 2000) * 1_000_000L
-            val pingNs = if (link.kind == LinkKind.BLE) 500_000_000L else 250_000_000L
-            var sentVersion = -1L; var lastSend = 0L; var lastPing = 0L; var lastStats = System.nanoTime()
+            while (!link.closed) {
+                val (d, edge) = link.out.take(100) ?: continue
+                try {
+                    if (d.size > 3 && d[3].toInt() == PacketType.INPUT.code) ch.sendRawInput(d, edge) else ch.sendRaw(d)
+                } catch (e: Exception) { pathFailed(link, describe(e)); return@Thread }
+            }
+        }, "c9-out-${link.kind}").start()
+    }
+
+    /**
+     * One sender per session: reads the latest state, seals each frame once and queues the same bytes on
+     * every link (never waiting for any link), plus per-link pings. Runs until the session changes.
+     */
+    private fun startSender(crypto: SessionCrypto) {
+        Thread({
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
+            val hbActive = crypto.info.heartbeatMs.coerceIn(10, 1000) * 1_000_000L
+            val hbIdle = crypto.info.idleHeartbeatMs.coerceIn(50, 2000) * 1_000_000L
+            var sentVersion = -1L; var lastSend = 0L; var lastStats = System.nanoTime()
+            var prev: InputState? = null; var prevFlags = 0
             var windowStart = System.nanoTime(); var windowSent = 0L; var sendHz = 0.0
-            while (active === link) {
+            while (sessionCrypto === crypto) {
                 val now = System.nanoTime()
                 val (s, f, v) = lock.withLock { Triple(if (paused) InputState.NEUTRAL else latest, latestFlags or (if (paused) FLAG_PAUSED else 0), version) }
                 val hb = if (s.isNeutral) hbIdle else hbActive
-                try {
-                    if (v != sentVersion || now - lastSend >= hb) { ch.sendInput(s, f); sentVersion = v; lastSend = now; lastSendNs = now; windowSent++ }
-                    if (now - lastPing >= pingNs) { ch.ping(); lastPing = now }
-                    if (now - windowStart >= 1_000_000_000L) { sendHz = windowSent * 1e9 / (now - windowStart); windowStart = now; windowSent = 0 }
-                    if (now - lastStats >= 2_000_000_000L) {
-                        lastStats = now
-                        _stats.value = _stats.value.copy(rttP50 = ch.rttMs.percentile(50.0), rttP95 = ch.rttMs.percentile(95.0), sendHz = sendHz, sent = ch.sent, sensorHz = sensorHz)
-                        runCatching { c.send(Control.Stats(ch.rttMs.percentile(50.0)?.toFloat(), ch.rttMs.percentile(95.0)?.toFloat(), sensorHz.toFloat().takeIf { it > 0 }, sendHz.toFloat(), battery())) }
-                    }
-                } catch (e: Exception) { linkFailed(link, describe(e)); return@Thread }
+                val ps = paths()
+                if (v != sentVersion || now - lastSend >= hb) {
+                    val d = crypto.sealInput(s, f)
+                    val edge = isEdge(prev, prevFlags, s, f)
+                    for (p in ps) p.out.offer(d, input = true, edge = edge)
+                    prev = s; prevFlags = f; sentVersion = v; lastSend = now; lastSendNs = now; windowSent++
+                }
+                var nextPing = Long.MAX_VALUE
+                for (p in ps) {
+                    val pingNs = if (p.kind == LinkKind.BLE) 500_000_000L else 250_000_000L
+                    if (now - p.lastPingNs >= pingNs) { p.out.offer(p.channel.pingDatagram(), input = false, edge = false); p.lastPingNs = now }
+                    nextPing = minOf(nextPing, p.lastPingNs + pingNs)
+                }
+                if (now - windowStart >= 1_000_000_000L) { sendHz = windowSent * 1e9 / (now - windowStart); windowStart = now; windowSent = 0 }
+                if (now - lastStats >= 2_000_000_000L) {
+                    lastStats = now
+                    val primary = active
+                    _stats.value = _stats.value.copy(rttP50 = primary?.channel?.rttMs?.percentile(50.0), rttP95 = primary?.channel?.rttMs?.percentile(95.0),
+                        sendHz = sendHz, sent = ps.sumOf { it.channel.sent }, sensorHz = sensorHz)
+                }
                 lock.withLock {
-                    if (version == sentVersion && active === link) {
+                    if (version == sentVersion && sessionCrypto === crypto) {
                         val untilHb = (lastSend + hb - System.nanoTime()) / 1_000_000
-                        val untilPing = (lastPing + pingNs - System.nanoTime()) / 1_000_000
+                        val untilPing = (nextPing - System.nanoTime()) / 1_000_000
                         changed.await(minOf(untilHb, untilPing).coerceIn(1, 250), TimeUnit.MILLISECONDS)
                     }
                 }

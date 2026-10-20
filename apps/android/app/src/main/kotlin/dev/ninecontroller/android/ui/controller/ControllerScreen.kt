@@ -43,8 +43,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -66,6 +68,7 @@ import dev.ninecontroller.android.pad.PadMapping
 import dev.ninecontroller.android.pad.PadPresets
 import dev.ninecontroller.android.ui.Pill
 import dev.ninecontroller.android.ui.Tone
+import dev.ninecontroller.android.ui.color
 import dev.ninecontroller.android.ui.fmt
 import dev.ninecontroller.android.ui.pad.Look
 import dev.ninecontroller.android.ui.pad.drawElement
@@ -74,7 +77,6 @@ import dev.ninecontroller.android.ui.theme.Nine
 import dev.ninecontroller.android.ui.theme.NineType
 import dev.ninecontroller.android.ui.PrimaryButton
 import dev.ninecontroller.protocol.Button as Btn
-import dev.ninecontroller.protocol.Calibrator
 import dev.ninecontroller.protocol.ControlDef
 import dev.ninecontroller.protocol.ControlKind
 import dev.ninecontroller.protocol.InputState
@@ -82,7 +84,8 @@ import dev.ninecontroller.protocol.MotionMath
 import dev.ninecontroller.protocol.MotionSettings
 import dev.ninecontroller.protocol.Orientation
 import dev.ninecontroller.protocol.Profile
-import dev.ninecontroller.protocol.Steering
+import dev.ninecontroller.protocol.PoseCapture
+import dev.ninecontroller.protocol.SteeringCalibrator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -123,22 +126,22 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 
     val spec = remember(s.activeProfile, s.padMappings, s.padTilt, s.tiltSensitivity, s.tiltDeadzone, s.tiltLockDeg, s.stickDeadzone, profiles) { surfaceFor(s, profiles) } ?: return
 
-    val engine = remember { ControllerEngine { st, f -> app.connection.submit(st, f) } }
+    val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }
     var sent by remember { mutableStateOf(InputState.NEUTRAL) }
     var steeringValue by remember { mutableDoubleStateOf(0.0) }
-    var calibrating by remember { mutableStateOf(false) }
-    var calibrationMsg by remember { mutableStateOf<String?>(null) }
+    var recentering by remember { mutableStateOf(false) }
+    var recenterMsg by remember { mutableStateOf<Pair<String, Tone>?>(null) }
     var showInputs by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf<String?>(null) }
     var switcher by remember { mutableStateOf(false) }
-    val sensor = remember { MotionSensor(context) }
-    val lastAngle = remember { doubleArrayOf(Double.NaN) }
-    val calibrator = remember { arrayOfNulls<Calibrator>(1) }
+    val runner = remember { dev.ninecontroller.android.input.SteeringRunner(MotionSensor(context)) }
+    val feel = remember { dev.ninecontroller.android.input.FeelEffects(app.haptics::cue) }
 
     app.haptics.enabled = s.hapticsEnabled && spec.hapticsEnabled
     app.haptics.strength = s.hapticStrength * spec.hapticStrength / 0.7
+    app.haptics.feel = s.feelEffects
 
     // Window: orientation, immersive, keep-screen-on — restored on exit. Controller presets are
     // landscape (two-thumb grip; motion steering assumes it); either landscape rotation works.
@@ -164,46 +167,54 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     }
     LaunchedEffect(spec.name) { app.connection.setProfileName(spec.name) }
 
-    // Motion steering: only while this screen is visible and the layout enables it.
-    DisposableEffect(spec.key, spec.motion, s.calibrationDeg, s.sensorHz) {
+    // Motion steering, relative to the player's own grip (docs/STEERING.md). Only while this screen is
+    // visible and the layout enables it. A recenter changes the reference inside the runner (blended, no
+    // step), so this effect does not restart when the saved calibration changes.
+    DisposableEffect(spec.key, spec.motion, s.sensorHz) {
         engine.configure(spec.motion)
-        if (spec.motion.enabled) {
-            val steering = Steering(spec.motion).apply { setCenter(s.calibrationDeg) }
-            val display = androidx.core.content.ContextCompat.getDisplayOrDefault(context)
-            sensor.start(s.sensorHz, { display.rotation }) { gx, gy, gz, t ->
-                MotionMath.wheelAngleDeg(gx, gy, gz)?.let { lastAngle[0] = it }
-                calibrator[0]?.add(gx, gy, gz)
-                val v = steering.update(gx, gy, gz, t)
-                engine.setMotion(v)
-                steeringValue = v
-            }
-        }
-        onDispose { sensor.stop(); engine.releaseAll() }
+        if (spec.motion.enabled) runner.start(s.sensorHz, s.steering, spec.motion) { v -> engine.setMotion(v); feel.steering(v); steeringValue = v }
+        onDispose { runner.stop(); engine.releaseAll(); feel.reset() }
     }
-    LaunchedEffect(Unit) { while (true) { app.connection.sensorHz = sensor.measuredHz; delay(1000) } }
+    LaunchedEffect(Unit) { while (true) { app.connection.sensorHz = runner.hz; delay(1000) } }
     // Any layout change releases every control first (nothing stays held across a switch).
     DisposableEffect(spec.key) { visuals.clear(); toggles.clear(); engine.releaseAll(); onDispose { } }
     // Inspector shows what is actually sent, not what the screen thinks is pressed.
     LaunchedEffect(showInputs) { while (showInputs) { sent = engine.state; delay(50) } }
     LaunchedEffect(hint) { if (hint != null) { delay(2400); hint = null } }
 
-    fun runCalibration() {
-        calibrating = true; calibrationMsg = "Hold the phone at your neutral steering position…"
+    /**
+     * Recenter: hold the grip still for a short window, estimate it robustly, accept it only if steady.
+     * Steering keeps working during the hold (relative to the old center) and the new center blends in,
+     * so the game never sees a jump. Never automatic during play — only on request, or once when a
+     * steering session starts with no center at all.
+     */
+    fun recenter(auto: Boolean = false) {
+        if (recentering || !spec.motion.enabled) return
+        recentering = true
+        recenterMsg = ((if (auto) "No center yet. " else "") + "Hold your normal grip still…") to Tone.WARN
         engine.setCalibrating(true)
-        calibrator[0] = Calibrator()
+        runner.beginCapture()
         scope.launch {
-            delay(1500)
-            val cal = calibrator[0]?.finish()
-            calibrator[0] = null
+            delay(RECENTER_HOLD_MS)
+            val held = runner.endCapture()
             engine.setCalibrating(false)
-            calibrationMsg = when {
-                cal == null -> "Couldn’t read the motion sensor. Hold the phone upright, not flat."
-                !cal.steady -> "The phone moved during calibration (±${"%.1f".format(cal.spreadDeg)}°). Hold it still and try again."
-                else -> { app.settings.update { it.copy(calibrationDeg = cal.centerDeg) }; null }
+            recenterMsg = when {
+                held == null -> "Couldn’t read the motion sensor, so steering stays centered." to Tone.BAD
+                held.spreadDeg > PoseCapture.NEUTRAL_MAX_SPREAD -> "Too shaky to set the center (±${"%.1f".format(held.spreadDeg)}°). Rest your elbows or wrists, hold still, then tap Recenter." to Tone.WARN
+                else -> {
+                    val (cal, remeasure) = SteeringCalibrator.recenter(runner.calibration ?: s.steering, held, System.currentTimeMillis(), runner.source)
+                    runner.recalibrate(cal)
+                    app.settings.update { it.copy(steering = cal) }
+                    (if (remeasure) "Center set. Your grip changed a lot: measure left and right again in Calibrate steering."
+                     else "Center set. Steering now follows this grip.") to Tone.OK
+                }
             }
-            if (calibrationMsg == null) calibrating = false
+            recentering = false
         }
     }
+    LaunchedEffect(recenterMsg, recentering) { if (recenterMsg != null && !recentering) { delay(2800); recenterMsg = null } }
+    // A steering session with no center at all: capture the player's grip once, automatically.
+    LaunchedEffect(spec.key, spec.motion.enabled) { if (spec.motion.enabled && s.steering == null) { delay(800); recenter(auto = true) } }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg)) {
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
@@ -222,7 +233,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 
         // One multi-touch handler for the whole surface: each finger owns the control it landed on.
         Box(Modifier.fillMaxSize().pointerInput(spec.key, wPx, hPx) {
-            val recenter = { val a = lastAngle[0]; if (!a.isNaN()) scope.launch { app.settings.update { it.copy(calibrationDeg = a) } }; Unit }
+            val recenter = { recenter() }
             val owner = HashMap<PointerId, ControlDef>()
             val origin = HashMap<PointerId, Offset>()
             awaitPointerEventScope {
@@ -241,16 +252,16 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                                 continue
                             }
                             owner[ch.id] = hit; origin[ch.id] = p
-                            onTouch(hit, p, p, rect(hit.id), engine, visuals, toggles, app, spec.stickDeadzone, down = true, recenter = recenter, fullTriggers = spec.pad != null)
+                            onTouch(hit, p, p, rect(hit.id), engine, visuals, toggles, app, spec.stickDeadzone, down = true, recenter = recenter, fullTriggers = spec.pad != null, feel = feel)
                             ch.consume()
                         } else if (ch.pressed) {
                             val c = owner[ch.id] ?: continue
-                            onTouch(c, p, origin[ch.id]!!, rect(c.id), engine, visuals, toggles, app, spec.stickDeadzone, down = false, recenter = recenter, fullTriggers = spec.pad != null)
+                            onTouch(c, p, origin[ch.id]!!, rect(c.id), engine, visuals, toggles, app, spec.stickDeadzone, down = false, recenter = recenter, fullTriggers = spec.pad != null, feel = feel)
                             ch.consume()
                         } else {
                             val c = owner.remove(ch.id) ?: continue
                             origin.remove(ch.id)
-                            release(c, engine, visuals, toggles)
+                            release(c, engine, visuals, toggles, feel)
                         }
                     }
                 }
@@ -317,7 +328,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 }
             }
             val (label, tone) = when (val c = conn) {
-                is ConnState.Connected -> "P${c.slot + 1} · ${shortLink(c.link)}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
+                is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
                 is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
                 is ConnState.Connecting -> "Connecting" to Tone.WARN
                 is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
@@ -326,7 +337,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             }
             Pill(label, tone, Modifier.weight(1f, fill = false))
             BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
-            if (spec.motion.enabled) BarButton("Center") { runCalibration() }
+            if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
             if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
             BarButton("Exit") { nav.popBackStack() }
         }
@@ -334,10 +345,11 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         // ---------------------------------------------------------------- inspector / hints (non-interactive)
         val inspector = if (showInputs) describeSent(sent, spec.pad) else null
         val warn = (conn as? ConnState.Connected)?.backendWarning
-        if (inspector != null || hint != null) {
+        if (inspector != null || hint != null || recenterMsg != null) {
             Box(Modifier.align(Alignment.TopCenter).padding(top = 50.dp).widthIn(max = with(density) { (wPx * 0.44f).toDp() })
                 .background(Nine.s1.copy(alpha = 0.94f), Nine.small).border(1.dp, Nine.line, Nine.small).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 androidx.compose.foundation.layout.Column {
+                    recenterMsg?.let { (m, tone) -> Text(m, style = NineType.small, color = tone.color(), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     if (hint != null) Text(hint!!, style = NineType.small, color = Nine.warn)
                     if (inspector != null) {
                         Micro("Sending now", color = Nine.dim)
@@ -349,15 +361,13 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
     }
 
-    if (calibrating) AlertDialog(
-        onDismissRequest = {},
-        title = { Text("Center steering") },
-        text = { Text(calibrationMsg ?: "") },
-        confirmButton = { if (calibrationMsg?.startsWith("Hold the phone at") != true) PrimaryButton("Try again", { runCalibration() }) },
-        dismissButton = { TextButton(onClick = { calibrating = false; calibrator[0] = null; engine.setCalibrating(false) }) { Text("Cancel", color = Nine.text) } },
-        containerColor = Nine.s1,
-    )
 }
+
+/** Shortest press reported to the computer: a fast tap still spans several frames on every link. */
+private const val MIN_PRESS_MS = 40L
+
+/** Long enough for ~150 samples at 200 Hz, short enough to feel instant. */
+private const val RECENTER_HOLD_MS = 900L
 
 @Composable
 private fun BarButton(text: String, active: Boolean = false, onClick: () -> Unit) =
@@ -419,7 +429,7 @@ internal fun describeSent(st: InputState, pad: PadMapping?): String {
 private fun onTouch(
     c: ControlDef, p: Offset, origin: Offset, r: FloatArray, engine: ControllerEngine,
     visuals: MutableMap<String, Visual>, toggles: MutableMap<String, Boolean>, app: NineApp, stickDz: Double, down: Boolean,
-    recenter: () -> Unit, fullTriggers: Boolean,
+    recenter: () -> Unit, fullTriggers: Boolean, feel: dev.ninecontroller.android.input.FeelEffects,
 ) {
     val w = r[2] - r[0]; val h = r[3] - r[1]
     when (c.kind) {
@@ -459,6 +469,7 @@ private fun onTouch(
             val v = if (fullTriggers && c.kind == ControlKind.TRIGGER) 1.0
                 else (((p.y - r[1]) / h - 0.08f) / 0.84f).coerceIn(0f, 1f).toDouble()
             engine.setTrigger(c.id, c.bind, if (c.kind == ControlKind.PEDAL) maxOf(v, 0.02) else v)
+            if (c.haptic) feel.trigger(c.id, v)
             visuals[c.id] = Visual(true, value = v)
             if (down && c.haptic) app.haptics.click()
         }
@@ -466,12 +477,12 @@ private fun onTouch(
     }
 }
 
-private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>) {
+private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>, feel: dev.ninecontroller.android.input.FeelEffects) {
     when (c.kind) {
         ControlKind.BUTTON -> if (!c.toggle) { engine.setButtons(c.id, 0); visuals.remove(c.id) }
         ControlKind.STICK -> { engine.setStick(c.bind, 0.0, 0.0); visuals.remove(c.id) }
         ControlKind.DPAD -> { engine.setButtons(c.id, 0); visuals.remove(c.id) }
-        ControlKind.TRIGGER, ControlKind.PEDAL -> { engine.setTrigger(c.id, c.bind, 0.0); visuals.remove(c.id) }
+        ControlKind.TRIGGER, ControlKind.PEDAL -> { engine.setTrigger(c.id, c.bind, 0.0); feel.trigger(c.id, 0.0); visuals.remove(c.id) }
         ControlKind.STEERING -> Unit
     }
 }

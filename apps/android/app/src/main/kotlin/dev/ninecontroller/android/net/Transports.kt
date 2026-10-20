@@ -8,6 +8,8 @@ import dev.ninecontroller.protocol.InputChannel
 import dev.ninecontroller.protocol.KeyPair
 import dev.ninecontroller.protocol.LinkConst
 import dev.ninecontroller.protocol.LinkKind
+import dev.ninecontroller.protocol.PathQueue
+import dev.ninecontroller.protocol.SessionCrypto
 import dev.ninecontroller.protocol.SessionInfo
 import dev.ninecontroller.protocol.StreamBinding
 import java.net.Inet4Address
@@ -18,11 +20,24 @@ import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/** One established link: an authenticated control connection plus its input channel. */
+/**
+ * One established link: an authenticated control connection plus its input channel. Several links can
+ * belong to one session (SPEC §8.5); they then share [channel]'s SessionCrypto. Each link has its own
+ * bounded send queue ([out]) drained by its own thread, so one slow link never delays another.
+ */
 class ActiveLink(val kind: LinkKind, val detail: String, val conn: ControlConnection, val channel: InputChannel, private val extra: AutoCloseable? = null) {
     /** True once the OS reports the underlying radio link as gone (BLE GATT disconnect). */
     val isDown: Boolean get() = (extra as? BleLink)?.disconnected == true
+    val out = PathQueue()
+    @Volatile var closed = false; private set
+    /** System.nanoTime() of this link's last ping sent and last pong received. */
+    @Volatile var lastPingNs = 0L
+    @Volatile var lastAckNs = System.nanoTime()
+    val connectedAtNs = System.nanoTime()
+    val crypto: SessionCrypto get() = channel.crypto
     fun close(sendBye: Boolean) {
+        closed = true
+        out.close()
         if (sendBye) runCatching { channel.sendInput(dev.ninecontroller.protocol.InputState.NEUTRAL, 0); channel.bye() }
         runCatching { channel.close() }
         if (sendBye) runCatching { conn.close() } else runCatching { conn.abort() }
@@ -121,25 +136,46 @@ class Transports(private val context: Context, private val ble: BlePeripheral) {
         if (!c.hostStatic.contentEquals(android.util.Base64.decode(host.pub, android.util.Base64.NO_WRAP))) { close(); throw IdentityChangedException(host) }
     }
 
-    /** Handshake, verify the pinned host key, THEN open the session (nothing is sent to an unverified host). */
-    fun open(kind: LinkKind, host: PairedHost, id: KeyPair, hello: ControllerHello, resumeSlot: Int?, profile: String?): Pair<ActiveLink, SessionInfo> = when (kind) {
-        LinkKind.STREAM -> {
-            val (c, sb, k) = stream(host, id, hello, 1500)
-            pin(c, host) { c.abort(); sb.close() }
-            val info = withDeadline(4000, sb) { c.open(resumeSlot, profile) }
-            ActiveLink(k, "TCP ${c.host.name}:${LinkConst.STREAM_TCP_PORT}", c, InputChannel(sb, info), sb) to info
+    /** Thrown when an IP attempt only reached the computer over USB, which never carries controller input in automatic modes. */
+    class UsbRefusedException : Exception("Only reachable over USB; USB isn’t used for controller input")
+
+    /**
+     * Handshake, verify the pinned host key, THEN open the session (nothing is sent to an unverified host).
+     * With [join] (a live session's crypto) the link is added to that session instead (SPEC §8.5): the
+     * host must answer with the same session, slot and keys, otherwise the link is closed.
+     */
+    fun open(kind: LinkKind, host: PairedHost, id: KeyPair, hello: ControllerHello, resumeSlot: Int?, profile: String?,
+             join: SessionCrypto? = null, allowUsb: Boolean = true): Pair<ActiveLink, SessionInfo> {
+        fun session(c: ControlConnection): SessionInfo {
+            if (join == null) return c.open(resumeSlot, profile)
+            val info = c.join(join.info.sessionId)
+            val same = info.sessionId == join.info.sessionId && info.slot == join.info.slot &&
+                info.kIn.contentEquals(join.info.kIn) && info.kOut.contentEquals(join.info.kOut)
+            if (!same) throw java.io.IOException("host answered the join with a different session")
+            return join.info
         }
-        LinkKind.BLE -> {
-            val (c, l) = ble(host, id, hello, 8000)
-            pin(c, host) { c.abort(); l.close() }
-            val info = withDeadline(6000, l) { c.open(resumeSlot, profile) }
-            ActiveLink(LinkKind.BLE, "MTU ${l.mtu}", c, InputChannel(l, info), l) to info
-        }
-        else -> {
-            val (c, k) = ip(host, id, hello, 1500)
-            pin(c, host) { c.abort() }
-            val info = c.open(resumeSlot, profile)
-            ActiveLink(k, "${c.remote?.hostAddress}:${host.port} via ${c.local?.hostAddress}", c, InputChannel(c.remote!!, info)) to info
+        fun channel(link: dev.ninecontroller.protocol.DatagramLink, info: SessionInfo) =
+            if (join != null) InputChannel(link, info, join) else InputChannel(link, info)
+        return when (kind) {
+            LinkKind.STREAM -> {
+                val (c, sb, k) = stream(host, id, hello, 1500)
+                pin(c, host) { c.abort(); sb.close() }
+                val info = withDeadline(4000, sb) { session(c) }
+                ActiveLink(k, "TCP ${c.host.name}:${LinkConst.STREAM_TCP_PORT}", c, channel(sb, info), sb) to info
+            }
+            LinkKind.BLE -> {
+                val (c, l) = ble(host, id, hello, 8000)
+                pin(c, host) { c.abort(); l.close() }
+                val info = try { withDeadline(6000, l) { session(c) } } catch (e: Exception) { c.abort(); l.close(); throw e }
+                ActiveLink(LinkKind.BLE, "MTU ${l.mtu}", c, channel(l, info), l) to info
+            }
+            else -> {
+                val (c, k) = ip(host, id, hello, 1500)
+                if (!allowUsb && k == LinkKind.USB) { c.abort(); throw UsbRefusedException() }
+                pin(c, host) { c.abort() }
+                val info = try { session(c) } catch (e: Exception) { c.abort(); throw e }
+                ActiveLink(k, "${c.remote?.hostAddress}:${host.port} via ${c.local?.hostAddress}", c, channel(dev.ninecontroller.protocol.UdpLink(c.remote!!, info.udpPort), info)) to info
+            }
         }
     }
 }

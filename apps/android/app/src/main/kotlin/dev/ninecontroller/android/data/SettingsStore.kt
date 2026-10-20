@@ -12,23 +12,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.ninecontroller.android.pad.PadPresets
 import dev.ninecontroller.protocol.MotionSettings
+import dev.ninecontroller.protocol.SteeringCalibrationV2
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-
-/** Steering calibration measured on this phone. Every field is a measurement, never a default. */
-data class SteeringCalibration(
-    val centerDeg: Double,
-    val leftDeg: Double?,
-    val rightDeg: Double?,
-    /** Hand wobble while held still at centre: standard deviation of the measured angle. */
-    val noiseDeg: Double,
-    val measuredAt: Long,
-) {
-    /** Smaller of the two measured half-ranges: full lock in both directions. */
-    val lockDeg: Double? get() = if (leftDeg != null && rightDeg != null) minOf(kotlin.math.abs(leftDeg), kotlin.math.abs(rightDeg)) else null
-    /** Dead zone that hides 3σ of the measured wobble, as a fraction of the lock (null until the range is known). */
-    val suggestedDeadzone: Double? get() = lockDeg?.let { (3 * noiseDeg / it).coerceIn(0.0, 0.1) }
-}
 
 data class AppSettings(
     /** `pad:<preset>` for a controller preset, otherwise a custom profile id (racing, …). */
@@ -36,9 +22,10 @@ data class AppSettings(
     val lastHost: String? = null,
     val hapticsEnabled: Boolean = true,
     val hapticStrength: Double = 0.7,
+    /** Trigger resistance points and steering detents (docs/HAPTICS.md). */
+    val feelEffects: Boolean = true,
     val keepScreenOn: Boolean = true,
     val sensorHz: Int = 200,
-    val calibrationDeg: Double = 0.0,
     val showStats: Boolean = true,
     val onboarded: Boolean = false,
     /** "auto" or a LinkKind name chosen by the user. */
@@ -51,7 +38,10 @@ data class AppSettings(
     val tiltSensitivity: Double = 1.0,
     val tiltDeadzone: Double = 0.02,
     val tiltLockDeg: Double = 45.0,
-    val calibration: SteeringCalibration? = null,
+    /** Steering calibration relative to the player's grip (schema 2), or null when not measured. */
+    val steering: SteeringCalibrationV2? = null,
+    /** A calibration from the old absolute-angle method exists; it is not reused (it measured the wrong thing). */
+    val legacySteering: Boolean = false,
 ) {
     val padPreset get() = PadPresets.fromSelection(activeProfile)
     fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
@@ -65,8 +55,10 @@ class SettingsStore(private val context: Context) {
         val lastHost = stringPreferencesKey("last_host")
         val haptics = booleanPreferencesKey("haptics")
         val strength = doublePreferencesKey("haptic_strength")
+        val feel = booleanPreferencesKey("feel_effects")
         val screenOn = booleanPreferencesKey("keep_screen_on")
         val sensorHz = intPreferencesKey("sensor_hz")
+        /** Legacy (schema 1) keys: read only to tell the player to recenter, removed on the next save. */
         val calibration = doublePreferencesKey("calibration_deg")
         val stats = booleanPreferencesKey("show_stats")
         val onboarded = booleanPreferencesKey("onboarded")
@@ -80,19 +72,20 @@ class SettingsStore(private val context: Context) {
         val calRight = doublePreferencesKey("cal_right_deg")
         val calNoise = doublePreferencesKey("cal_noise_deg")
         val calAt = longPreferencesKey("cal_measured_at")
+        val steering = stringPreferencesKey("steering_cal_v2")
         fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
     }
 
     private fun read(p: Preferences): AppSettings {
-        val calAt = p[K.calAt]
+        val steering = SteeringCalibrationV2.decode(p[K.steering])
         return AppSettings(
             activeProfile = p[K.profile] ?: "pad:xbox",
             lastHost = p[K.lastHost],
             hapticsEnabled = p[K.haptics] ?: true,
             hapticStrength = p[K.strength] ?: 0.7,
+            feelEffects = p[K.feel] ?: true,
             keepScreenOn = p[K.screenOn] ?: true,
             sensorHz = p[K.sensorHz] ?: 200,
-            calibrationDeg = p[K.calibration] ?: 0.0,
             showStats = p[K.stats] ?: true,
             onboarded = p[K.onboarded] ?: false,
             linkOverride = p[K.link] ?: "auto",
@@ -102,7 +95,8 @@ class SettingsStore(private val context: Context) {
             tiltSensitivity = p[K.tiltSens] ?: 1.0,
             tiltDeadzone = p[K.tiltDz] ?: 0.02,
             tiltLockDeg = p[K.tiltLock] ?: 45.0,
-            calibration = calAt?.let { SteeringCalibration(p[K.calibration] ?: 0.0, p[K.calLeft], p[K.calRight], p[K.calNoise] ?: 0.0, it) },
+            steering = steering,
+            legacySteering = steering == null && (p[K.calAt] != null || (p[K.calibration] ?: 0.0) != 0.0),
         )
     }
 
@@ -111,9 +105,9 @@ class SettingsStore(private val context: Context) {
         if (n.lastHost != null) p[K.lastHost] = n.lastHost else p.remove(K.lastHost)
         p[K.haptics] = n.hapticsEnabled
         p[K.strength] = n.hapticStrength.coerceIn(0.0, 1.0)
+        p[K.feel] = n.feelEffects
         p[K.screenOn] = n.keepScreenOn
         p[K.sensorHz] = n.sensorHz.coerceIn(50, 400)
-        p[K.calibration] = n.calibrationDeg
         p[K.stats] = n.showStats
         p[K.onboarded] = n.onboarded
         p[K.link] = n.linkOverride
@@ -124,11 +118,11 @@ class SettingsStore(private val context: Context) {
         p[K.tiltSens] = n.tiltSensitivity.coerceIn(0.25, 4.0)
         p[K.tiltDz] = n.tiltDeadzone.coerceIn(0.0, 0.5)
         p[K.tiltLock] = n.tiltLockDeg.coerceIn(10.0, 180.0)
-        val c = n.calibration
-        if (c == null) { p.remove(K.calAt); p.remove(K.calLeft); p.remove(K.calRight); p.remove(K.calNoise) } else {
-            p[K.calAt] = c.measuredAt; p[K.calNoise] = c.noiseDeg
-            c.leftDeg?.let { p[K.calLeft] = it } ?: p.remove(K.calLeft)
-            c.rightDeg?.let { p[K.calRight] = it } ?: p.remove(K.calRight)
+        val c = n.steering?.validated()
+        if (c == null) p.remove(K.steering) else {
+            p[K.steering] = c.encode()
+            for (k in listOf(K.calibration, K.calLeft, K.calRight, K.calNoise)) p.remove(k)
+            p.remove(K.calAt)
         }
     }
 

@@ -63,23 +63,26 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
                 SliderRow("Steering lock", "${s.tiltLockDeg.toInt()}°", s.tiltLockDeg.toFloat(), 10f..90f) { v -> set { it.copy(tiltLockDeg = v.toDouble()) } }
             }
             Divider()
-            ListRow("Calibrate steering", detail = s.calibration?.let { c -> "Measured · centre ${"%+.1f".format(c.centerDeg)}°" + (c.lockDeg?.let { ", lock ${it.toInt()}°" } ?: "") } ?: "Not measured yet",
+            ListRow("Calibrate steering", detail = s.steering?.let { c -> if (c.hasRange) "Your grip · ${c.leftDeg!!.toInt()}° left, ${c.rightDeg!!.toInt()}° right" else "Your grip · default range" } ?: if (s.legacySteering) "Old calibration — measure again" else "Not measured yet",
                 onClick = { nav.navigate("calibrate") })
             Divider()
             ListRow("Layouts", detail = s.padPreset?.name ?: "Custom profile", onClick = { nav.navigate("layouts") })
         }
 
-        Section("Connection", footer = "Automatic picks the fastest working link (USB, Wi-Fi, then Bluetooth LE) and switches back when a better one is measured. A preferred link is used whenever it is available.") {
+        Section("Connection", footer = "Automatic sends every input over Wi-Fi and Bluetooth LE at once, so the computer uses whichever arrives first and the controller keeps working if one link drops. One link uses a single link at a time and switches when it fails. A fixed link is for troubleshooting. USB is never used for input in Automatic.") {
             FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                (listOf("auto") + LinkKind.entries.map { it.name }).forEach { o ->
-                    Choice(if (o == "auto") "Automatic" else LinkKind.valueOf(o).label, s.linkOverride == o, { set { it.copy(linkOverride = o) } })
+                dev.ninecontroller.android.net.LinkChoices.all.forEach { o ->
+                    Choice(dev.ninecontroller.android.net.LinkChoices.label(o), s.linkOverride == o, { set { it.copy(linkOverride = o) } })
                 }
             }
         }
 
         Section("Feel") {
-            ToggleRow("Vibration", if (app.haptics.available) "Button clicks and game rumble" else "This phone has no vibration motor", s.hapticsEnabled) { v -> set { it.copy(hapticsEnabled = v) } }
-            if (s.hapticsEnabled) { Divider(); SliderRow("Vibration strength", "${(s.hapticStrength * 100).toInt()}%", s.hapticStrength.toFloat(), 0f..1f) { v -> set { it.copy(hapticStrength = v.toDouble()) } } }
+            ToggleRow("Vibration", if (app.haptics.available) "Button clicks and game rumble (heavy and light motor, like a console pad)" else "This phone has no vibration motor", s.hapticsEnabled) { v -> set { it.copy(hapticsEnabled = v) } }
+            if (s.hapticsEnabled) {
+                Divider(); SliderRow("Vibration strength", "${(s.hapticStrength * 100).toInt()}%", s.hapticStrength.toFloat(), 0f..1f) { v -> set { it.copy(hapticStrength = v.toDouble()) } }
+                Divider(); ToggleRow("Trigger and steering feel", "A click at the pedal’s resistance point and at full press, a light detent at steering center and a bump at full lock. Made on this phone, not by the game.", s.feelEffects) { v -> set { it.copy(feelEffects = v) } }
+            }
             Divider()
             ToggleRow("Keep screen on while playing", null, s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
             Divider()

@@ -80,7 +80,7 @@ object HomeLogic {
             }
             Summary(
                 headline = "Connected to ${state.hostName}",
-                detail = "Player ${state.slot + 1} · ${state.link.label}" + (state.linkDetail.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                detail = "Player ${state.slot + 1} · ${state.linksLabel}" + (state.linkDetail.takeIf { it.isNotBlank() && state.also.isEmpty() }?.let { " · $it" } ?: ""),
                 tone = if (stale || state.backendWarning != null) Tone.WARN else Tone.OK,
                 act = Act.PLAY_DISCONNECT, busy = false, health = health,
             )
@@ -191,7 +191,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
             }
 
             Section(null) {
-                ListRow("Calibrate steering", detail = settings.calibration?.lockDeg?.let { "Measured lock ${"%.0f".format(it)}°" } ?: "Centre and range", onClick = { nav.navigate("calibrate") })
+                ListRow("Calibrate steering", detail = settings.steering?.let { c -> if (c.hasRange) "${c.leftDeg!!.toInt()}° left · ${c.rightDeg!!.toInt()}° right" else "Neutral set · range not measured" } ?: "Neutral grip and range", onClick = { nav.navigate("calibrate") })
                 Divider()
                 ListRow("Settings", detail = "Controls, connection, privacy", onClick = { nav.navigate("settings") })
                 Divider()

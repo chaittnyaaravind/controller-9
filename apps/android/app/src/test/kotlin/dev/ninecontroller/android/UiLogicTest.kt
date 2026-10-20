@@ -1,18 +1,15 @@
 package dev.ninecontroller.android
 
 import dev.ninecontroller.android.data.AppSettings
-import dev.ninecontroller.android.data.SteeringCalibration
 import dev.ninecontroller.android.net.ConnState
 import dev.ninecontroller.android.net.LinkStatsUi
 import dev.ninecontroller.android.pad.Action
 import dev.ninecontroller.android.pad.PadMapping
 import dev.ninecontroller.android.pad.PadPresets
 import dev.ninecontroller.android.ui.Tone
-import dev.ninecontroller.android.ui.calibration.CalibrationMath
 import dev.ninecontroller.android.ui.controller.describeSent
 import dev.ninecontroller.android.ui.home.HomeLogic
 import dev.ninecontroller.protocol.Button
-import dev.ninecontroller.protocol.Calibration
 import dev.ninecontroller.protocol.InputState
 import dev.ninecontroller.protocol.LinkKind
 import dev.ninecontroller.protocol.MotionSettings
@@ -79,25 +76,13 @@ class UiLogicTest {
 
     // ---------------------------------------------------------------- calibration
 
-    @Test fun calibrationOnlyAcceptsSteadyRealTurns() {
-        val m = MotionSettings(enabled = true)
-        assertTrue(CalibrationMath.extreme(0.0, null, true, m) is CalibrationMath.Extreme.Retry)
-        assertTrue("shaky", CalibrationMath.extreme(0.0, Calibration(30.0, 5.0, 100), true, m) is CalibrationMath.Extreme.Retry)
-        assertTrue("too small", CalibrationMath.extreme(0.0, Calibration(4.0, 0.5, 100), true, m) is CalibrationMath.Extreme.Retry)
-        val right = CalibrationMath.extreme(0.0, Calibration(32.0, 0.8, 100), true, m) as CalibrationMath.Extreme.Ok
-        assertEquals(32.0, right.deltaDeg, 1e-9); assertFalse(right.reversed)
-        val wrongWay = CalibrationMath.extreme(0.0, Calibration(32.0, 0.8, 100), false, m) as CalibrationMath.Extreme.Ok
-        assertTrue("asked for left, output went right", wrongWay.reversed)
-        // Wraps across ±180°.
-        val wrap = CalibrationMath.extreme(170.0, Calibration(-160.0, 0.5, 100), true, m) as CalibrationMath.Extreme.Ok
-        assertEquals(30.0, wrap.deltaDeg, 1e-9)
-    }
-
     @Test fun derivedCalibrationValuesExistOnlyWhenMeasured() {
-        val centreOnly = SteeringCalibration(2.0, null, null, 0.6, 1L)
-        assertNull(centreOnly.lockDeg); assertNull(centreOnly.suggestedDeadzone)
-        val full = SteeringCalibration(2.0, -38.0, 41.0, 0.6, 1L)
-        assertEquals(38.0, full.lockDeg!!, 1e-9)
+        // Turn acceptance (steadiness, size, axis agreement) is covered in protocol SteeringTest.
+        val held = dev.ninecontroller.protocol.HeldPose(dev.ninecontroller.protocol.Pose.Orientation(dev.ninecontroller.protocol.Quat.IDENTITY), 0.6, 50)
+        val neutralOnly = dev.ninecontroller.protocol.SteeringCalibrationV2.neutralOnly(held, 1L, "test")
+        assertFalse(neutralOnly.hasRange); assertNull(neutralOnly.suggestedDeadzone)
+        val full = neutralOnly.copy(leftDeg = 38.0, rightDeg = 41.0)
+        assertTrue(full.hasRange)
         assertEquals(3 * 0.6 / 38.0, full.suggestedDeadzone!!, 1e-9)
     }
 

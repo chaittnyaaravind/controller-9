@@ -42,7 +42,7 @@ fun DiagnosticsScreen(app: NineApp, nav: NavController) {
             })
             (c as? ConnState.Connected)?.let {
                 dev.ninecontroller.android.ui.Divider()
-                ListRow("Active link", detail = "${it.link.label} · ${it.linkDetail}")
+                ListRow(if (it.also.isEmpty()) "Link" else "Links (same input on each)", detail = it.linksLabel)
                 it.backendWarning?.let { w -> dev.ninecontroller.android.ui.Divider(); ListRow("Computer", detail = "No virtual controller: $w", detailColor = Nine.warn) }
                 dev.ninecontroller.android.ui.Divider()
                 ListRow("Connected for", detail = if (app.connection.connectedAtNs > 0) "${(now - app.connection.connectedAtNs) / 1_000_000_000} s" else "—")
@@ -53,6 +53,14 @@ fun DiagnosticsScreen(app: NineApp, nav: NavController) {
             ListRow("Last input frame sent", detail = ago(app.connection.lastSendNs))
             dev.ninecontroller.android.ui.Divider()
             ListRow("Last disconnect reason", detail = s.lastDisconnect ?: "None this session")
+        }
+        if (s.paths.isNotEmpty()) Section("Per link") {
+            s.paths.forEachIndexed { i, p ->
+                if (i > 0) dev.ninecontroller.android.ui.Divider()
+                ListRow(p.kind.label + if (i == 0) " · fastest" else "", detail = "RTT ${fmt(p.rttP50)} / ${fmt(p.rttP95)} ms · reply ${p.replyAgeMs} ms ago · ${p.detail}" +
+                    (if (p.dropped > 0) " · ${p.dropped} dropped under congestion" else ""),
+                    detailColor = if (p.replyAgeMs > 1000) Nine.warn else Nine.muted)
+            }
         }
         Card {
             Row(Modifier.fillMaxWidth()) { Stat(fmt(s.rttP50), "RTT p50 ms", Modifier.weight(1f)); Stat(fmt(s.rttP95), "RTT p95 ms", Modifier.weight(1f)) }
@@ -81,8 +89,8 @@ fun ConnectionScreen(app: NineApp, nav: NavController) {
     Page("How your phone connects", "Connection", nav) {
         Card {
             Micro("Active link")
-            Text((c as? ConnState.Connected)?.let { "${it.link.label} — ${it.linkDetail}" } ?: "Not connected", color = Nine.text)
-            Text("Controller-9 never needs the Internet. It picks the best local link and moves to the next one if it fails, releasing every button first.", color = Nine.dim)
+            Text((c as? ConnState.Connected)?.linksLabel ?: "Not connected", color = Nine.text)
+            Text("Controller-9 never needs the Internet. In Automatic it sends the same input over every local link at once; the computer uses the first copy and ignores the rest, so one link dropping doesn’t interrupt play. If every link stops, the computer releases every control within 250 ms.", color = Nine.dim)
         }
         Micro("Links")
         if (links.isEmpty()) Card { Text("Connect to a computer to see link details.", color = Nine.muted) }
@@ -99,12 +107,12 @@ fun ConnectionScreen(app: NineApp, nav: NavController) {
         }
         Micro("Preferred link")
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-            (listOf("auto") + dev.ninecontroller.protocol.LinkKind.entries.map { it.name }).forEach { o ->
-                val label = if (o == "auto") "Automatic" else dev.ninecontroller.protocol.LinkKind.valueOf(o).label
+            dev.ninecontroller.android.net.LinkChoices.all.forEach { o ->
+                val label = dev.ninecontroller.android.net.LinkChoices.label(o)
                 androidx.compose.material3.FilterChip(selected = settings.linkOverride == o, onClick = { scope.launch { app.settings.update { it.copy(linkOverride = o) } } }, label = { Text(label) })
             }
         }
-        Text("A preferred link is used whenever it's available; otherwise the automatic order applies.", color = Nine.dim)
+        Text("A fixed link is used whenever it's available; otherwise the automatic order applies.", color = Nine.dim)
         if (app.connection.ble.unavailableReason() == "Bluetooth permission not granted") {
             androidx.compose.material3.Button(onClick = {
                 if (android.os.Build.VERSION.SDK_INT >= 31) perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))

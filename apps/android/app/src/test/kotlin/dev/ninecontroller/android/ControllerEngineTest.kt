@@ -44,4 +44,28 @@ class ControllerEngineTest {
         e.releaseAll()
         assertEquals("no duplicate emission when nothing changed", n, sent.size)
     }
+
+    @Test fun aFastTapIsHeldForTheMinimumAndNeverStuck() {
+        var t = 0L
+        val timers = ArrayList<Pair<Long, () -> Unit>>()
+        val out = ArrayList<InputState>()
+        val m = ControllerEngine(minPressMs = 40, nowMs = { t }, schedule = { ms, f -> timers += (t + ms) to f }) { s, _ -> out += s }
+        m.setButtons("a", Button.A.mask); t = 5; m.setButtons("a", 0)
+        assertEquals("still pressed 5 ms in", Button.A.mask, m.state.buttons)
+        t = 40; timers.filter { it.first <= t }.forEach { it.second() }
+        assertEquals("released at 40 ms", 0, m.state.buttons)
+        assertEquals(listOf(Button.A.mask, 0), out.map { it.buttons })
+        // A long press releases immediately.
+        timers.clear(); t = 100; m.setButtons("a", Button.A.mask); t = 200; m.setButtons("a", 0)
+        assertEquals(0, m.state.buttons); assertEquals(0, timers.size)
+        // Re-press during a deferred release: the old timer must not release the new press.
+        t = 300; m.setButtons("b", Button.B.mask); t = 305; m.setButtons("b", 0); t = 310; m.setButtons("b", Button.B.mask)
+        t = 345; timers.filter { it.first <= t }.forEach { it.second() }
+        assertEquals(Button.B.mask, m.state.buttons)
+        // Pause/disconnect releases everything at once, pending or not.
+        t = 400; m.setButtons("c", Button.X.mask); t = 401; m.setButtons("c", 0); m.releaseAll()
+        assertEquals(0, m.state.buttons)
+        timers.forEach { it.second() }
+        assertEquals(0, m.state.buttons)
+    }
 }
