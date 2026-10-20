@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controller-9 for iPhone · Install guide</title>
+<meta name="description" content="How to install the Controller-9 iPhone app by sideloading it with your own Apple ID.">
+<meta name="theme-color" content="#0B0C0D">
+<link rel="icon" href="/brand/controller9-favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root { --bg: #0B0C0D; --s1: #111315; --s2: #171A1C; --text: #EEF0F1; --muted: rgb(238 240 241 / .66); --dim: rgb(238 240 241 / .46);
+  --line: rgb(238 240 241 / .08); --line-2: rgb(238 240 241 / .14); --accent: #C6F432; --accent-ink: #11140A; --warn: #F5B14C;
+  --ui: "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, monospace; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--ui); letter-spacing: -0.011em; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+.wrap { max-width: 780px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }
+header { display: flex; justify-content: space-between; align-items: center; height: 64px; }
+header img { height: 26px; width: auto; display: block; }
+.micro { font: 500 11.5px/1.2 var(--ui); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.accent { color: var(--accent); }
+h1 { font-weight: 500; font-size: clamp(38px, 5vw + 8px, 64px); line-height: 1; letter-spacing: -0.04em; margin: 18px 0 0; }
+.lede { color: var(--muted); font-size: 18px; max-width: 56ch; margin: 20px 0 0; }
+.btn { display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 999px; font: 500 15px/1 var(--ui); text-decoration: none; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: rgb(238 240 241 / .06); box-shadow: inset 0 0 0 1px var(--line-2); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+.card { background: var(--s1); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); padding: 26px; margin-top: 16px; }
+.note { border-left: 2px solid var(--warn); padding: 4px 0 4px 16px; color: var(--muted); margin-top: 36px; }
+ol { list-style: none; padding: 0; margin: 48px 0 0; counter-reset: s; }
+ol > li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 22px 0; border-top: 1px solid var(--line); }
+ol > li::before { content: counter(s, decimal-leading-zero); font: 500 13px/1.6 var(--mono); color: var(--dim); }
+li h3 { font-weight: 500; font-size: 19px; letter-spacing: -0.015em; margin: 0 0 6px; }
+li p { color: var(--muted); margin: 0; }
+code { font: 13.5px var(--mono); background: var(--s2); padding: 2px 6px; border-radius: 6px; }
+.sha { font: 12px/1.5 var(--mono); color: var(--dim); word-break: break-all; margin-top: 10px; }
+footer { color: var(--dim); font-size: 13px; padding: 56px 0 64px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><a href="/" aria-label="Controller-9 home"><img src="/brand/controller9-wordmark.svg" alt="Controller-9" width="150" height="26"></a><a class="micro" href="/#download">All downloads</a></header>
+  <main>
+    <div class="micro accent" style="margin-top:56px">iPhone · iOS 17 or newer</div>
+    <h1>Install Controller-9 on your iPhone.</h1>
+    <p class="lede">Apple only lets apps outside the App Store install when they're signed with your own Apple ID. A free tool does that for you in about two minutes. The App Store version comes later.</p>
+    <div class="row">
+      <a class="btn primary" href="/{{IPA_FILE}}" download>Download for iPhone · .ipa · {{IPA_SIZE}}</a>
+      <a class="btn ghost" href="https://sideloadly.io/" rel="noopener">Get Sideloadly</a>
+    </div>
+    <div class="sha">SHA-256 {{IPA_SHA}}</div>
+    <ol>
+      <li><div><h3>Install Sideloadly on your computer</h3><p>Free for Mac and Windows from <a href="https://sideloadly.io/" rel="noopener">sideloadly.io</a>. AltStore works too, if you already use it.</p></div></li>
+      <li><div><h3>Connect your iPhone</h3><p>Plug it in with a cable, unlock it and tap <strong>Trust</strong> if it asks.</p></div></li>
+      <li><div><h3>Drop in the file and sign in</h3><p>Drag the <code>.ipa</code> into Sideloadly, enter your Apple ID and press <strong>Start</strong>. Your Apple ID goes to Apple only — never to us.</p></div></li>
+      <li><div><h3>Turn on Developer Mode</h3><p>On the iPhone: <strong>Settings → Privacy &amp; Security → Developer Mode</strong> → on, then restart when asked.</p></div></li>
+      <li><div><h3>Trust the app</h3><p><strong>Settings → General → VPN &amp; Device Management</strong> → tap your Apple ID → <strong>Trust</strong>.</p></div></li>
+      <li><div><h3>Open Controller-9 and pair</h3><p>Install the companion on your computer from the <a href="/#download">downloads</a>, choose <em>Pair a phone</em>, and scan the code with the app.</p></div></li>
+    </ol>
+    <p class="note">With a free Apple ID the app runs for 7 days, then Sideloadly re-signs it in a click; your settings and pairing stay. A paid Apple Developer account lasts a year.</p>
+    <div class="card">
+      <div class="micro">Tested</div>
+      <p style="margin:8px 0 0;color:var(--muted)">{{IPA_TESTED}}</p>
+    </div>
+  </main>
+  <footer>Controller-9 · Local network only, no account, no tracking.</footer>
+</div>
+</body>
+</html>

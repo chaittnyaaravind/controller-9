@@ -51,8 +51,9 @@ def card(p):
             return "".join(out)
         data = f.read_bytes()
         sha = hashlib.sha256(data).hexdigest()
+        guide = f'<a class="btn ghost" href="{e(p["guide"])}">Install guide</a>' if p.get("guide") else ""
         out.append(f'<div class="row"><a class="btn {"primary" if p["status"] == "available" else "ghost"}" href="/{e(p["file"])}" download>'
-                   f'Download · {human(len(data))}</a></div>')
+                   f'Download · {human(len(data))}</a>{guide}</div>')
         out.append(f'<div class="sha">SHA-256 {sha}</div>')
     out.append("</div>")
     return "".join(out)
@@ -73,6 +74,18 @@ def main():
     page = page.replace("{{HERO_PAD}}", pad).replace("{{LAYOUT_CARDS}}", layouts).replace("{{DOWNLOADS}}", downloads)
     assert "{{" not in page, "unfilled placeholder"
     (PUB / "index.html").write_text(page)
+    # iPhone install guide: published only while the iPhone build is listed (never for "soon").
+    ip = by.get("iphone")
+    gdir = PUB / "iphone"
+    if ip and ip["status"] in ("available", "preview"):
+        data = (PUB / ip["file"]).read_bytes()
+        g = (SITE / "src" / "iphone.html").read_text()
+        g = (g.replace("{{IPA_FILE}}", html.escape(ip["file"])).replace("{{IPA_SIZE}}", human(len(data)))
+              .replace("{{IPA_SHA}}", hashlib.sha256(data).hexdigest()).replace("{{IPA_TESTED}}", html.escape(ip["tested"])))
+        assert "{{" not in g
+        gdir.mkdir(exist_ok=True); (gdir / "index.html").write_text(g)
+    elif (gdir / "index.html").exists():
+        (gdir / "index.html").unlink()
     print(f"wrote site/public/index.html ({len(page) // 1000} KB), {sum(p['status'] != 'soon' for p in rel['platforms'])} downloads")
 
 
