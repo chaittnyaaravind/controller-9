@@ -124,10 +124,12 @@ jobs:
           $st = Get-Content evidence/status-vigem.json -Raw; if (-not ($st -match '"windows-vigem"' -and $st -match '"available": true')) { throw "ViGEm backend not ready" }
           $h = Start-Process $B -ArgumentList "host --ephemeral --pair --auto-approve --no-advertise --no-ble" -RedirectStandardOutput evidence/host.log -RedirectStandardError evidence/host.err -PassThru
           Start-Sleep -Seconds 3
+          python -m pip install --quiet pysdl2==0.9.17 pysdl2-dll==2.32.10
           $x = Start-Process python -ArgumentList "tools/windows-check/xinputcheck.py 16 5" -RedirectStandardOutput evidence/xinput.jsonl -RedirectStandardError evidence/xinput.err -PassThru
+          $sd = Start-Process python -ArgumentList "tools/windows-check/sdlcheck.py 16" -RedirectStandardOutput evidence/sdl.jsonl -RedirectStandardError evidence/sdl.err -PassThru
           Start-Sleep -Milliseconds 500
           & $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
-          $x.WaitForExit(); Stop-Process -Id $h.Id -Force
+          $x.WaitForExit(); $sd.WaitForExit(); Stop-Process -Id $h.Id -Force
           python tools/windows-check/verify.py evidence
           if ($LASTEXITCODE -ne 0) { throw "game-visible check failed" }
       - if: always()

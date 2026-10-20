@@ -14,6 +14,18 @@ for a in ["lx", "ly", "rx", "ry"]:
 assert ("lt", True) in axes and ("rt", True) in axes, sorted(axes)
 assert any(r.get("rumble") == "on" for r in rows), "checker never set rumble"
 assert sim["feedback_events"] >= 1, sim
+sdl = [json.loads(l) for l in open(f"{d}/sdl.jsonl", encoding="utf-8-sig") if l.strip().startswith("{")]
+head = next((r for r in sdl if "controller" in r), None)
+assert head, sdl[:5]
+sdl_downs = [r["button"] for r in sdl if r.get("down") == 1]
+sdl_want = ["a", "b", "x", "y", "leftshoulder", "rightshoulder", "back", "start", "leftstick", "rightstick", "dpup", "dpdown", "dpleft", "dpright"]
+assert sdl_downs[:len(sdl_want)] == sdl_want, sdl_downs
+sdl_axes = {r["axis"] for r in sdl if "axis" in r}
+for a in ["leftx", "lefty", "rightx", "righty", "lefttrigger", "righttrigger"]:
+    assert a in sdl_axes, (a, sorted(sdl_axes))
+sdl_msg = f"SDL {head['sdl']}: '{head['controller']}', rumble={head['rumble']}, buttons in order, guide={'guide' in sdl_downs}, all axes"
+print(sdl_msg)
+open(f"{d}/result.txt", "a").write(sdl_msg + "\n")
 msg = f"XInput: every button in order, all axes both ways, rumble reached the phone ({sim['feedback_events']} events)"
 print(msg)
 open(f"{d}/result.txt", "a").write(msg + "\n")
