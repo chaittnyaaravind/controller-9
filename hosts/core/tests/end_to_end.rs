@@ -222,3 +222,38 @@ async fn host_rejection_fails_pairing_and_feedback_reaches_controller() {
     tx.pump(Duration::from_millis(100)).await;
     assert_eq!(tx.feedback.len(), 1, "game rumble forwarded to the phone");
 }
+
+/// The user fixes a blocked backend (grants macOS Accessibility, installs the Windows driver) while
+/// the phone stays connected: the controller must appear without reconnecting, and input must flow.
+#[tokio::test]
+async fn pad_is_created_once_the_backend_becomes_available() {
+    use nine_host_core::backend::{Backend, BackendError, BackendKind, BackendStatus, VirtualPad};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    struct Toggle { on: AtomicBool, mock: MockBackend }
+    impl Backend for Toggle {
+        fn status(&self) -> BackendStatus {
+            let on = self.on.load(Ordering::SeqCst);
+            BackendStatus { name: "toggle".into(), kind: BackendKind::Mock, available: on, max_pads: 4, detail: String::new(), remedy: None }
+        }
+        fn create(&self, slot: u8, name: &str) -> Result<Box<dyn VirtualPad>, BackendError> {
+            if self.on.load(Ordering::SeqCst) { self.mock.create(slot, name) } else { Err(BackendError::Unavailable("permission off".into())) }
+        }
+    }
+    let toggle = Arc::new(Toggle { on: AtomicBool::new(false), mock: MockBackend::default() });
+    let h = Host::start(Store::in_memory(cfg()), toggle.clone()).await.unwrap();
+    let addr: SocketAddr = format!("127.0.0.1:{}", h.tcp_port()).parse().unwrap();
+    let (_id, mut c) = paired_controller(&h, addr, "Phone").await;
+    let info = c.open(None, None).await.unwrap();
+    let mut tx = InputSender::new(addr, info).await.unwrap();
+    let pressed = InputState { buttons: Button::A.mask(), ..InputState::NEUTRAL };
+    tx.send_input(pressed, 0).await.unwrap();
+    settle().await;
+    assert!(toggle.mock.log.lock().is_empty(), "no pad while the backend is blocked");
+
+    toggle.on.store(true, Ordering::SeqCst); // the user grants the permission
+    for _ in 0..30 { tx.send_input(pressed, 0).await.unwrap(); tokio::time::sleep(Duration::from_millis(50)).await; } // a phone keeps sending
+    assert_eq!(toggle.mock.log.lock().last().map(|(_, s)| *s), Some(pressed), "pad created and the held button applied");
+    tx.send_input(InputState::NEUTRAL, 0).await.unwrap();
+    settle().await;
+    assert_eq!(toggle.mock.log.lock().last().map(|(_, s)| *s), Some(InputState::NEUTRAL), "input keeps flowing");
+}

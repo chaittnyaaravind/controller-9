@@ -180,7 +180,7 @@ function render() {
         ? `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${installing ? "Installing the free ViGEmBus driver — approve the Windows prompt…" : "One free driver (ViGEmBus) is needed once. Windows will ask for permission."}</span>
            <button class="btn primary small" data-act="install-driver" ${installing ? "disabled" : ""}>${installing ? "Installing…" : "Install driver"}</button>`
         : b.name === "macos-keyboard"
-        ? `<b>Allow Controller-9 to press keys for you.</b><span class="fix">On Mac the phone plays as keyboard and mouse. macOS asks once: turn on Controller-9 under Privacy &amp; Security → Accessibility.</span>
+        ? `<b>Allow Controller-9 to press keys for you.</b><span class="fix">On Mac the phone plays as keyboard and mouse. Turn on Controller-9 under System Settings → Privacy &amp; Security → Accessibility. Already on? Switch it off and on again — macOS ties the permission to each version of the app. Your phone starts working the moment it's allowed.</span>
            <button class="btn primary small" data-act="request-access">Allow keyboard control</button>`
         : `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${esc(b.detail)}${b.remedy ? ` — ${esc(b.remedy)}` : ""}</span>`;
   } else if (!preview && snap.portsInUse) {

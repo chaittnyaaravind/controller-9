@@ -255,6 +255,9 @@ struct Slot {
     host_proc: Window,
     pad: Option<Box<dyn VirtualPad>>,
     pad_error: Option<String>,
+    /// When a missing pad is tried again (the user may fix the cause — grant a permission, install a
+    /// driver — while the phone stays connected).
+    pad_retry_at: Option<Instant>,
     phone: PhoneStats,
 }
 
@@ -842,7 +845,7 @@ fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile
         last_input: 0, superseded: 0, first_seen: VecDeque::new(), wins: VecDeque::new(), path_events: VecDeque::new(),
         last_rx: None, last_rx_us: None, last_tx_us: None, state: InputState::NEUTRAL, flags: 0, submitted_once: false,
         neutral_resets: 0, invalid: 0, jitter: Jitter::default(), gaps: Window::new(512), host_proc: Window::new(512),
-        pad, pad_error: pad_error.clone(), phone: PhoneStats::default(),
+        pad, pad_error: pad_error.clone(), pad_retry_at: None, phone: PhoneStats::default(),
     });
     drop(st);
     { let mut s = sh.store.lock(); s.touch(key); let _ = s.save(); }
@@ -1031,6 +1034,18 @@ fn tick(sh: &Shared, now: Instant) {
                 s.apply(InputState::NEUTRAL);
                 s.neutral_resets += 1;
                 events.push(HostEvent::NeutralReset { slot: i as u8 });
+            }
+            if s.connected && s.pad.is_none() && s.pad_retry_at.is_none_or(|t| now >= t) {
+                s.pad_retry_at = Some(now + Duration::from_secs(1));
+                if sh.backend.status().available {
+                    let (pad, err) = create_pad(sh, i, &s.name.clone());
+                    if pad.is_some() {
+                        tracing::info!(slot = i, "virtual controller created after the backend became available");
+                        s.pad = pad; s.pad_error = None; s.submitted_once = false;
+                        let cur = s.state; s.apply(cur);
+                        events.push(HostEvent::Notice { level: "info".into(), message: format!("Controller ready for {}", s.name) });
+                    } else { s.pad_error = err; }
+                }
             }
             if let Some(fb) = s.pad.as_mut().and_then(|p| p.poll_feedback()) {
                 send_feedback(sh, s, fb);

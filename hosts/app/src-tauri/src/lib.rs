@@ -87,6 +87,10 @@ pub fn run() {
                 }
                 Err(e) => return Err(e.into()),
             };
+            // macOS keyboard & mouse mode without Accessibility: show the system prompt right away
+            // (it also adds Controller-9 to the list), instead of waiting for the user to find a button.
+            #[cfg(target_os = "macos")]
+            if !preview { let st = host.snapshot().backend; if st.name == "macos-keyboard" && !st.available { nine_pad_macos::KeyboardBackend::request_access(); } }
             let mut ev = host.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
