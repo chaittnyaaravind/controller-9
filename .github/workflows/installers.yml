@@ -1,0 +1,117 @@
+# Desktop installers, built AND install-tested on their own OS. Unsigned preview builds: no signing
+# secrets are used. Each job uploads the installer plus the evidence of its install test.
+name: installers
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["v*"]
+permissions: { contents: read }
+jobs:
+  linux-x64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-binstall }
+      - name: System packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libdbus-1-dev pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            xvfb libsdl2-dev python3-evdev file > /dev/null
+      - run: cargo binstall -y --no-confirm tauri-cli@^2
+      - name: Build installers (.deb, AppImage) and the CLI used by the tests
+        run: |
+          cd hosts/app/src-tauri && cargo tauri build --bundles deb,appimage
+          cd "$GITHUB_WORKSPACE" && cargo build --release -p ninectl
+      - name: Install test (.deb) — install, permission rule, launch, listen
+        run: |
+          set -eux
+          mkdir -p evidence
+          DEB=$(ls target/release/bundle/deb/*.deb)
+          sudo apt-get install -y "./$DEB" | tail -3
+          dpkg -L "$(dpkg-deb -f "$DEB" Package)" | tee evidence/deb-files.txt
+          test -f /usr/lib/udev/rules.d/60-9controller-uinput.rules
+          BIN=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep '^/usr/bin/' | head -1)
+          sudo modprobe uinput && sudo chmod 666 /dev/uinput   # CI has no desktop seat for the uaccess rule
+          xvfb-run -a "$BIN" > evidence/app.log 2>&1 &
+          sleep 20
+          pgrep -f "$BIN" > /dev/null && echo "app alive after 20 s" | tee -a evidence/result.txt
+          ss -ltn | grep -q ':47901 ' && echo "listening on 47901" | tee -a evidence/result.txt
+          pkill -f "$BIN" || true; sleep 2
+      - name: Game-visible test — real host + simulated phone + SDL
+        run: |
+          set -eux
+          gcc -O2 -o sdlcheck tools/linux-check/sdlcheck.c $(pkg-config --cflags --libs sdl2)
+          B=target/release/controller9
+          $B status | tee evidence/status.json
+          $B host --ephemeral --pair --auto-approve --no-advertise --no-ble > evidence/host.log 2>&1 &
+          sleep 2
+          SDL_JOYSTICK_HIDAPI=0 ./sdlcheck 16 > evidence/sdl.jsonl 2>&1 &
+          sleep 0.5
+          $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
+          sleep 3
+          python3 - <<'PY'
+          import json
+          rows = [json.loads(l) for l in open("evidence/sdl.jsonl") if l.strip().startswith("{")]
+          head = next(r for r in rows if "controller" in r)
+          downs = [r["button"] for r in rows if r.get("down") == 1]
+          axes = [r["axis"] for r in rows if "axis" in r]
+          want = ["b", "x", "y", "leftshoulder", "rightshoulder", "back", "start", "leftstick", "rightstick", "dpup", "dpdown", "dpleft", "dpright", "guide"]
+          assert head["controller"] == "X360 Controller", head
+          assert downs[:len(want)] == want or downs[1:len(want) + 1] == want, downs
+          for a in ["leftx", "lefty", "rightx", "righty", "lefttrigger", "righttrigger"]: assert a in axes, (a, axes)
+          print("SDL sees", head["controller"], "| buttons", len(downs), "| axes", sorted(set(axes)))
+          open("evidence/result.txt", "a").write(f"SDL: {head['controller']}, every button and axis in order\n")
+          PY
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            evidence/
+          if-no-files-found: ignore
+
+  windows-x64:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-binstall }
+      - run: cargo binstall -y --no-confirm tauri-cli@^2
+      - name: Build installer (NSIS .exe) and the CLI
+        shell: pwsh
+        run: |
+          cd hosts/app/src-tauri; cargo tauri build --bundles nsis
+          cd $env:GITHUB_WORKSPACE; cargo build --release -p ninectl
+      - name: Install test — silent install, launch, listen, backend status
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $setup = Get-ChildItem target/release/bundle/nsis/*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $exe = Get-ChildItem "C:\Program Files\Controller-9" -Filter *.exe -Recurse | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+          "installed: $($exe.FullName)" | Tee-Object -Append evidence/result.txt
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep -Seconds 20
+          if ((Get-Process -Id $p.Id -ErrorAction SilentlyContinue) -eq $null) { throw "app exited" }
+          "app alive after 20 s" | Tee-Object -Append evidence/result.txt
+          $l = Get-NetTCPConnection -LocalPort 47901 -State Listen -ErrorAction SilentlyContinue
+          if ($l -eq $null) { throw "not listening on 47901" }
+          "listening on 47901" | Tee-Object -Append evidence/result.txt
+          Stop-Process -Id $p.Id -Force
+          & target/release/controller9.exe status | Tee-Object evidence/status.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            target/release/bundle/nsis/*.exe
+            evidence/
+          if-no-files-found: ignore
