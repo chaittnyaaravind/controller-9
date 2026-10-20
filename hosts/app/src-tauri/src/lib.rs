@@ -1,11 +1,13 @@
 //! Tauri shell: exposes the shared host core to the companion UI. No business logic here.
 use nine_host_core::backend::{Backend, MockBackend};
-use nine_host_core::host::PairingInfo;
+use nine_host_core::host::{HostError, PairingInfo};
 use nine_host_core::{Host, HostConfig, HostSnapshot, Store};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
-struct App { host: Host, preview: bool }
+/// `ports_in_use`: the configured ports (tcp, udp, stream) when they were taken by another program
+/// and the host fell back to free ones. Never written back to the saved settings.
+struct App { host: Host, preview: bool, ports_in_use: Option<(u16, u16, Option<u16>)> }
 
 fn native_backend() -> Arc<dyn Backend> {
     #[cfg(target_os = "linux")] { Arc::new(nine_pad_linux::UinputBackend::default()) }
@@ -37,6 +39,7 @@ fn snapshot(app: State<'_, App>) -> serde_json::Value {
     let mut v = serde_json::to_value(s).unwrap_or_default();
     v["preview"] = app.preview.into();
     v["version"] = env!("CARGO_PKG_VERSION").into();
+    v["portsInUse"] = app.ports_in_use.map(|(t, _, _)| t).into();
     v
 }
 #[tauri::command]
@@ -54,7 +57,10 @@ fn test_rumble(app: State<'_, App>, slot: u8) { app.host.test_rumble(slot) }
 #[tauri::command]
 fn get_config(app: State<'_, App>) -> HostConfig { app.host.config() }
 #[tauri::command]
-fn save_config(app: State<'_, App>, config: HostConfig) -> Result<(), String> { app.host.save_config(config) }
+fn save_config(app: State<'_, App>, mut config: HostConfig) -> Result<(), String> {
+    if let Some((t, u, st)) = app.ports_in_use { (config.tcp_port, config.udp_port, config.stream_port) = (t, u, st); }
+    app.host.save_config(config)
+}
 
 pub fn run() {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
@@ -62,19 +68,33 @@ pub fn run() {
     let preview = std::env::var("NINECTL_PREVIEW").is_ok_and(|v| v == "1");
     tauri::Builder::default()
         .setup(move |app| {
-            let store = match Store::default_dir().map(|d| Store::open(&d)) {
+            let open_store = || match Store::default_dir().map(|d| Store::open(&d)) {
                 Some(Ok(s)) => s,
                 Some(Err(e)) => { tracing::error!("config unreadable, using a temporary identity: {e}"); Store::in_memory(Default::default()) }
                 None => Store::in_memory(Default::default()),
             };
             let backend: Arc<dyn Backend> = if preview { Arc::new(MockBackend::default()) } else { native_backend() };
-            let host = tauri::async_runtime::block_on(Host::start(store, backend))?;
+            let mut ports_in_use = None;
+            // A second copy (or another program) holding the port must not crash the app: run on free
+            // ports instead — phones find the host through DNS-SD and the pairing QR, which carry the real port.
+            let host = match tauri::async_runtime::block_on(Host::start(open_store(), backend.clone())) {
+                Ok(h) => h,
+                Err(HostError::Bind(what, e)) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                    tracing::warn!("{what} is in use; starting on free ports");
+                    let mut s = open_store();
+                    ports_in_use = Some((s.config.tcp_port, s.config.udp_port, s.config.stream_port));
+                    (s.config.tcp_port, s.config.udp_port) = (0, 0);
+                    if s.config.stream_port.is_some() { s.config.stream_port = Some(0); }
+                    tauri::async_runtime::block_on(Host::start(s, backend))?
+                }
+                Err(e) => return Err(e.into()),
+            };
             let mut ev = host.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 while let Ok(e) = ev.recv().await { let _ = handle.emit("host-event", e); }
             });
-            app.manage(App { host, preview });
+            app.manage(App { host, preview, ports_in_use });
             Ok(())
         })
         .on_window_event(|w, e| {

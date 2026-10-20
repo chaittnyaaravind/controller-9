@@ -183,6 +183,9 @@ function render() {
         ? `<b>Allow Controller-9 to press keys for you.</b><span class="fix">On Mac the phone plays as keyboard and mouse. macOS asks once: turn on Controller-9 under Privacy &amp; Security → Accessibility.</span>
            <button class="btn primary small" data-act="request-access">Allow keyboard control</button>`
         : `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${esc(b.detail)}${b.remedy ? ` — ${esc(b.remedy)}` : ""}</span>`;
+  } else if (!preview && snap.portsInUse) {
+    banner.hidden = false;
+    banner.innerHTML = `<b>Another program is using port ${esc(String(snap.portsInUse))}.</b><span class="fix">Controller-9 is running on port ${esc(String(snap.tcpPort))} instead. Phones still find it; close the other copy to return to the usual port.</span>`;
   } else banner.hidden = true;
   $("#helpBackend").innerHTML = `<p><b>${esc(b.name)}</b> — ${esc(b.detail)}</p>${b.remedy ? `<p>${esc(b.remedy)}</p>` : ""}
     <p>Up to ${snap.maxSlots} players. Each phone becomes its own controller.</p>`;
