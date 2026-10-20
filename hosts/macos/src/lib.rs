@@ -9,3 +9,15 @@
 mod iohid;
 #[cfg(target_os = "macos")]
 pub use iohid::IoHidBackend;
+#[cfg(target_os = "macos")]
+mod keyboard;
+#[cfg(target_os = "macos")]
+pub use keyboard::{KeyboardBackend, MARK as KEYBOARD_EVENT_MARK};
+
+/// The backend the macOS hosts use: a real virtual gamepad when Apple's entitlement is present,
+/// otherwise keyboard & mouse mode (Accessibility permission only).
+#[cfg(target_os = "macos")]
+pub fn native_backend() -> std::sync::Arc<dyn nine_host_core::backend::Backend> {
+    use nine_host_core::backend::Backend;
+    if IoHidBackend.status().available { std::sync::Arc::new(IoHidBackend) } else { std::sync::Arc::new(KeyboardBackend) }
+}

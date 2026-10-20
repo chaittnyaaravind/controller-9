@@ -170,7 +170,7 @@ function render() {
   const b = snap.backend;
   const chip = $("#backendChip");
   chip.className = `chip ${b.kind === "native" && b.available ? "ok" : "warn"}`;
-  chip.textContent = preview ? "Design preview — no host" : snap.preview ? "Preview mode" : b.kind === "native" && b.available ? "Virtual controller ready" : "Virtual controller unavailable";
+  chip.textContent = preview ? "Design preview — no host" : snap.preview ? "Preview mode" : b.kind === "native" && b.available ? (b.name === "macos-keyboard" ? "Keyboard & mouse mode" : "Virtual controller ready") : "Virtual controller unavailable";
   const banner = $("#banner");
   if (!preview && (snap.preview || !b.available)) {
     banner.hidden = false;
@@ -179,6 +179,9 @@ function render() {
       : b.name === "windows-vigem"
         ? `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${installing ? "Installing the free ViGEmBus driver — approve the Windows prompt…" : "One free driver (ViGEmBus) is needed once. Windows will ask for permission."}</span>
            <button class="btn primary small" data-act="install-driver" ${installing ? "disabled" : ""}>${installing ? "Installing…" : "Install driver"}</button>`
+        : b.name === "macos-keyboard"
+        ? `<b>Allow Controller-9 to press keys for you.</b><span class="fix">On Mac the phone plays as keyboard and mouse. macOS asks once: turn on Controller-9 under Privacy &amp; Security → Accessibility.</span>
+           <button class="btn primary small" data-act="request-access">Allow keyboard control</button>`
         : `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${esc(b.detail)}${b.remedy ? ` — ${esc(b.remedy)}` : ""}</span>`;
   } else banner.hidden = true;
   $("#helpBackend").innerHTML = `<p><b>${esc(b.name)}</b> — ${esc(b.detail)}</p>${b.remedy ? `<p>${esc(b.remedy)}</p>` : ""}
@@ -215,6 +218,11 @@ document.addEventListener("click", async (e) => {
       toast(r && r.restartNeeded ? "Driver installed — restart Windows to finish" : "Driver installed — games now see an Xbox controller");
     } catch (err) { toast(String(err)); }
     installing = false; snap = await api.invoke("snapshot"); render();
+  }
+  if (act === "request-access") {
+    const ok = await api.invoke("request_input_access");
+    toast(ok ? "Keyboard control allowed" : "Turn on Controller-9 in System Settings → Privacy & Security → Accessibility");
+    snap = await api.invoke("snapshot"); render();
   }
   if (act === "unpair" && confirm("Forget this phone? It will need to pair again.")) { await api.invoke("unpair", { key: el.dataset.key }); toast("Device forgotten"); }
 });

@@ -9,7 +9,7 @@ struct App { host: Host, preview: bool }
 
 fn native_backend() -> Arc<dyn Backend> {
     #[cfg(target_os = "linux")] { Arc::new(nine_pad_linux::UinputBackend::default()) }
-    #[cfg(target_os = "macos")] { Arc::new(nine_pad_macos::IoHidBackend) }
+    #[cfg(target_os = "macos")] { nine_pad_macos::native_backend() }
     #[cfg(windows)] { nine_pad_windows::native_backend() }
 }
 
@@ -22,6 +22,13 @@ async fn install_driver() -> Result<serde_json::Value, String> {
         Ok(serde_json::json!({ "restartNeeded": o == nine_pad_windows::driver::Outcome::InstalledRestartNeeded }))
     }
     #[cfg(not(windows))] { Err("Only Windows needs a driver".into()) }
+}
+
+/// macOS keyboard & mouse mode: shows the system Accessibility prompt; true when already allowed.
+#[tauri::command]
+fn request_input_access() -> bool {
+    #[cfg(target_os = "macos")] { nine_pad_macos::KeyboardBackend::request_access() }
+    #[cfg(not(target_os = "macos"))] { true }
 }
 
 #[tauri::command]
@@ -76,7 +83,7 @@ pub fn run() {
                 tauri::async_runtime::block_on(host.shutdown());
             }
         })
-        .invoke_handler(tauri::generate_handler![snapshot, open_pairing, close_pairing, answer, unpair, disconnect, test_rumble, get_config, save_config, install_driver])
+        .invoke_handler(tauri::generate_handler![snapshot, open_pairing, close_pairing, answer, unpair, disconnect, test_rumble, get_config, save_config, install_driver, request_input_access])
         .run(tauri::generate_context!())
         .expect("failed to run Controller-9");
 }

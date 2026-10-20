@@ -5,6 +5,7 @@ pub mod client;
 pub mod discovery;
 pub mod hid;
 pub mod host;
+pub mod keymap;
 pub mod link;
 pub mod netif;
 #[cfg(feature = "ble")]
