@@ -4,9 +4,10 @@ rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip().startswith("{")]
 keys = [r["key"] for r in rows if "key" in r and r["down"]]
 # A B X Y LB RB View Menu LS RS Up Down Left Right (Guide has no key), then lx- lx+ ly- ly+ = A D S W
 want = [49, 8, 15, 3, 12, 14, 48, 53, 56, 9, 126, 125, 123, 124, 0, 2, 1, 13]
-assert keys == want, f"key order {keys}"
+assert keys[:len(want)] == want, f"key order {keys}"  # the sweep may wrap around to A at the end
 ups = [r["key"] for r in rows if "key" in r and not r["down"]]
-assert sorted(ups) == sorted(want), f"every key released: {sorted(ups)}"
+assert all(k in ups for k in want), f"every key released: {sorted(ups)}"
+assert len(ups) == len(keys), f"{len(keys)} presses but {len(ups)} releases — a key was left held"
 moves = [r for r in rows if "dx" in r]
 assert any(r["dx"] < 0 for r in moves) and any(r["dx"] > 0 for r in moves), "right stick x moves the pointer both ways"
 assert any(r["dy"] > 0 for r in moves) and any(r["dy"] < 0 for r in moves), "right stick y moves the pointer both ways"

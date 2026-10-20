@@ -1,0 +1,3 @@
+macOS keyboard & mouse mode — 2026-10-20 · macOS 27.0.1 · arm64
+PASS: 18 keys pressed and released in sweep order, pointer moved both ways on both axes (128 move events), LT/RT clicked right/left.
+All events were tagged and swallowed by the test tap (none reached an app).

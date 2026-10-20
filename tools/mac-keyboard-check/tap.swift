@@ -22,6 +22,8 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
     var o: [String: Any] = ["t": (CFAbsoluteTimeGetCurrent() - t0).rounded(toPlaces: 3), "type": Int(type.rawValue)]
     switch type {
     case .keyDown, .keyUp: o["key"] = event.getIntegerValueField(.keyboardEventKeycode); o["down"] = type == .keyDown
+    // Modifiers (Shift) arrive as flagsChanged; "down" is whether the Shift flag is now set.
+    case .flagsChanged: o["key"] = event.getIntegerValueField(.keyboardEventKeycode); o["down"] = event.flags.contains(.maskShift)
     case .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp: o["button"] = (type == .leftMouseDown || type == .leftMouseUp) ? "left" : "right"; o["down"] = type == .leftMouseDown || type == .rightMouseDown
     default: o["dx"] = event.getIntegerValueField(.mouseEventDeltaX); o["dy"] = event.getIntegerValueField(.mouseEventDeltaY)
     }
