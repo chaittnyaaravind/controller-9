@@ -1,0 +1,8 @@
+SuperTuxKart (real game) sees Controller-9 — 2026-10-20 · Ubuntu 24.04 arm64 VM · supertuxkart 1.4+dfsg-3ubuntu1
+Setup: real host (uinput backend, run with sudo over SSH: no desktop seat) + simulated phone (wave pattern), game under Xvfb.
+--- stdout.log
+[info   ] SDLController: Xbox 360 Controller plugged in: buttons: 11, axes: 6, hats: 1.
+[info   ] SDLController: Xbox 360 Controller uses game controller mapping X360 Controller.
+[info   ] SDLController: creating new configuration for Xbox 360 Controller.
+--- input.xml
+<gamepad name ="Xbox 360 Controller" deadzone="4096" desensitize="0" auto-center="20" force-feedback="1" enabled="true" configName="">
