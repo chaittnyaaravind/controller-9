@@ -1,5 +1,20 @@
 # Windows host and NineVhf driver
 
+## Default path: ViGEmBus (free, already signed)
+The hosts use `nine_pad_windows::native_backend()`: **ViGEmBus** first, NineVhf if installed, else a
+"blocked" status whose remedy tells the user to install ViGEmBus.
+- ViGEmBus (Nefarius, BSD-3, production-signed by its author) is a kernel bus driver that creates
+  Xbox 360 controllers. XInput, DirectInput, Windows.Gaming.Input, SDL and Steam all see them, and
+  the game's rumble comes back to the phone.
+- **We do not bundle it.** The user installs the official release (v1.22.0) once, from
+  github.com/nefarius/ViGEmBus/releases or `winget install ViGEm.ViGEmBus`. That needs admin
+  rights once; Controller-9 itself asks for no new permission.
+- The project is retired by its author (Aug 2023, no new features), but the signed driver still
+  installs and works on Windows 10/11. Some anti-cheat titles refuse virtual pads.
+- CI proof: `.github/workflows/installers.yml` → "Game-visible test" installs ViGEmBus (pinned
+  SHA-256), runs the real host + simulated phone, and asserts with `tools/windows-check/` that
+  XInput sees every button and axis and that rumble reaches the phone.
+
 ## Build the driver (Windows 11, x64)
 1. Install Visual Studio 2022 (Desktop C++), the matching **Windows SDK and WDK**.
 2. `cd hosts\windows\driver\NineVhf` → `msbuild NineVhf.vcxproj /p:Configuration=Release /p:Platform=x64`
