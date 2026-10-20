@@ -175,7 +175,10 @@ struct TouchSurface: UIViewRepresentable {
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             for t in touches {
                 let p = t.location(in: self)
-                guard let c = profile?.controls.last(where: { rect($0).contains(p) }) else { continue }
+                // The control under the finger always wins; near-misses go to the nearest edge (TouchHit).
+                guard let controls = profile?.controls,
+                      let id = TouchHit.hit(controls.map { ($0.id, rect($0)) }, p, minTarget: 44),
+                      let c = controls.first(where: { $0.id == id }) else { continue }
                 owner[ObjectIdentifier(t)] = c; origin[ObjectIdentifier(t)] = p
                 handle(c, p, origin: p, down: true)
             }
@@ -213,15 +216,10 @@ struct TouchSurface: UIViewRepresentable {
                 let (x, y) = MotionMath.radialDeadzone(dx, dy, profile?.sticks.deadzone ?? 0.08)
                 engine.setStick(c.bind, x, y); visuals.stick[c.id] = CGPoint(x: dx, y: dy); visuals.pressed[c.id] = true
             case .dpad:
-                let dx = Double(p.x - r.midX), dy = Double(r.midY - p.y)
-                var mask: UInt32 = 0
-                if hypot(dx, dy) >= Double(min(r.width, r.height)) * 0.12 {
-                    var a = atan2(dy, dx) * 180 / .pi; if a < 0 { a += 360 }
-                    let sectors: [UInt32] = [NineButton.right.mask, NineButton.right.mask | NineButton.up.mask, NineButton.up.mask, NineButton.up.mask | NineButton.left.mask,
-                                             NineButton.left.mask, NineButton.left.mask | NineButton.down.mask, NineButton.down.mask, NineButton.down.mask | NineButton.right.mask]
-                    mask = sectors[Int((a + 22.5) / 45) % 8]
-                }
-                if mask != visuals.dpad[c.id] ?? 0, mask != 0, c.haptic { haptics?.tap() }
+                // Cardinal-dominant zones with hysteresis: "left" means left, not left+up (NineAppCore/TouchMath).
+                let prev = visuals.dpad[c.id] ?? 0
+                let mask = DpadMath.resolve(dx: Double(p.x - r.midX), dy: Double(r.midY - p.y), radius: Double(min(r.width, r.height)) / 2, prev: prev)
+                if mask != prev, mask != 0, c.haptic { haptics?.tap() }
                 engine.setButtons(c.id, mask); visuals.dpad[c.id] = mask
             case .trigger, .pedal:
                 let v = min(max((Double((p.y - r.minY) / r.height) - 0.08) / 0.84, 0), 1)
