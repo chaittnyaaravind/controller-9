@@ -1,13 +1,14 @@
 //! Tauri shell: exposes the shared host core to the companion UI. No business logic here.
 use nine_host_core::backend::{Backend, MockBackend};
 use nine_host_core::host::{HostError, PairingInfo};
+use nine_host_core::store::PortOverride;
 use nine_host_core::{Host, HostConfig, HostSnapshot, Store};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
-/// `ports_in_use`: the configured ports (tcp, udp, stream) when they were taken by another program
-/// and the host fell back to free ones. Never written back to the saved settings.
-struct App { host: Host, preview: bool, ports_in_use: Option<(u16, u16, Option<u16>)> }
+/// `ports_in_use`: the configured TCP port when another program held it and the host runs on free
+/// ports for this launch (`Store::port_override`, never saved).
+struct App { host: Host, preview: bool, ports_in_use: Option<u16> }
 
 fn native_backend() -> Arc<dyn Backend> {
     #[cfg(target_os = "linux")] { Arc::new(nine_pad_linux::UinputBackend::default()) }
@@ -39,7 +40,7 @@ fn snapshot(app: State<'_, App>) -> serde_json::Value {
     let mut v = serde_json::to_value(s).unwrap_or_default();
     v["preview"] = app.preview.into();
     v["version"] = env!("CARGO_PKG_VERSION").into();
-    v["portsInUse"] = app.ports_in_use.map(|(t, _, _)| t).into();
+    v["portsInUse"] = app.ports_in_use.into();
     v
 }
 #[tauri::command]
@@ -57,10 +58,7 @@ fn test_rumble(app: State<'_, App>, slot: u8) { app.host.test_rumble(slot) }
 #[tauri::command]
 fn get_config(app: State<'_, App>) -> HostConfig { app.host.config() }
 #[tauri::command]
-fn save_config(app: State<'_, App>, mut config: HostConfig) -> Result<(), String> {
-    if let Some((t, u, st)) = app.ports_in_use { (config.tcp_port, config.udp_port, config.stream_port) = (t, u, st); }
-    app.host.save_config(config)
-}
+fn save_config(app: State<'_, App>, config: HostConfig) -> Result<(), String> { app.host.save_config(config) }
 
 pub fn run() {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
@@ -82,9 +80,9 @@ pub fn run() {
                 Err(HostError::Bind(what, e)) if e.kind() == std::io::ErrorKind::AddrInUse => {
                     tracing::warn!("{what} is in use; starting on free ports");
                     let mut s = open_store();
-                    ports_in_use = Some((s.config.tcp_port, s.config.udp_port, s.config.stream_port));
-                    (s.config.tcp_port, s.config.udp_port) = (0, 0);
-                    if s.config.stream_port.is_some() { s.config.stream_port = Some(0); }
+                    ports_in_use = Some(s.config.tcp_port);
+                    // Runtime-only: the saved settings keep the usual ports for the next launch.
+                    s.port_override = Some(PortOverride { tcp: 0, udp: 0, stream: s.config.stream_port.map(|_| 0) });
                     tauri::async_runtime::block_on(Host::start(s, backend))?
                 }
                 Err(e) => return Err(e.into()),

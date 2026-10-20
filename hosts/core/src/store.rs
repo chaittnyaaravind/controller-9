@@ -63,7 +63,13 @@ pub struct Store {
     pub identity: KeyPair,
     pub paired: Vec<PairedDevice>,
     pub config: HostConfig,
+    /// Ports for this run only (e.g. free ports because the usual ones are taken). `Host::start`
+    /// binds these instead of `config`'s; `save()` never writes them, so settings stay intact.
+    pub port_override: Option<PortOverride>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortOverride { pub tcp: u16, pub udp: u16, pub stream: Option<u16> }
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -115,7 +121,7 @@ impl Store {
 
     /// Ephemeral store (tests, `--ephemeral`): nothing touches disk.
     pub fn in_memory(config: HostConfig) -> Store {
-        Store { dir: None, identity: KeyPair::generate(), paired: Vec::new(), config }
+        Store { dir: None, identity: KeyPair::generate(), paired: Vec::new(), config, port_override: None }
     }
 
     pub fn open(dir: &Path) -> Result<Store, StoreError> {
@@ -147,7 +153,7 @@ impl Store {
             Some(s) => serde_json::from_str(&s).map_err(|e| StoreError::Corrupt("config.json".into(), e.to_string()))?,
             None => HostConfig::default(),
         };
-        Ok(Store { dir: Some(dir.to_path_buf()), identity, paired, config })
+        Ok(Store { dir: Some(dir.to_path_buf()), identity, paired, config, port_override: None })
     }
 
     pub fn save(&self) -> Result<(), StoreError> {

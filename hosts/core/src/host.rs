@@ -349,7 +349,8 @@ pub enum HostError {
 
 impl Host {
     pub async fn start(store: Store, backend: Arc<dyn Backend>) -> Result<Host, HostError> {
-        let cfg = store.config.clone();
+        let mut cfg = store.config.clone();
+        if let Some(o) = store.port_override { (cfg.tcp_port, cfg.udp_port, cfg.stream_port) = (o.tcp, o.udp, o.stream); }
         let tcp = TcpListener::bind((cfg.bind.as_str(), cfg.tcp_port)).await
             .map_err(|e| HostError::Bind(format!("tcp/{}", cfg.tcp_port), e))?;
         let udp = UdpSocket::bind((cfg.bind.as_str(), cfg.udp_port)).await
