@@ -34,6 +34,21 @@ must not run a game controller as root.
 Alternatives (not adopted): a DriverKit HID dext (separate entitlements and system-extension
 approval, more user friction) or the licensed libvirtualhid macOS broker.
 
+## Keyboard & mouse mode (the $0 path, default without the entitlement)
+`nine_pad_macos::native_backend()` uses the virtual gamepad when the entitlement exists, otherwise
+**keyboard & mouse mode** (`hosts/macos/src/keyboard.rs`, layout in `hosts/core/src/keymap.rs`):
+left stick = WASD, D-pad = arrows, A Space · B C · X R · Y F · LB Q · RB E · View Tab · Menu Esc ·
+LS Shift · RS V, right stick = mouse (relative deltas, so mouse-look works), RT = left click,
+LT = right click. One phone at a time. Every key and button is released on disconnect/timeout.
+- **New permission: Accessibility** (System Settings → Privacy & Security → Accessibility), needed
+  for `CGEventPost`. The app asks through macOS's own prompt (`CGRequestPostEventAccess`) from the
+  "Allow keyboard control" button; until granted the backend reports Blocked with that remedy. No
+  usage-description string exists for it in Info.plist.
+- Games that read only controllers (GameController.framework) won't react; games with keyboard
+  controls do. Events carry user-data tag 0x4339.
+- Live proof: `sh tools/mac-keyboard-check/run.sh` (outside any sandbox; the test tap swallows
+  every tagged event so nothing reaches your apps) → `tests/results/mac-keyboard-mode.txt`.
+
 ## Permissions the desktop app declares
 `hosts/app/src-tauri/Info.plist` (merged into the app bundle): **Bluetooth** (`NSBluetoothAlwaysUsageDescription`,
 to reach phones over BLE when Wi-Fi is unavailable) and **Local Network** (`NSLocalNetworkUsageDescription`,
