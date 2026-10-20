@@ -30,7 +30,7 @@ def out(**kw):
 
 secs = float(sys.argv[1]) if len(sys.argv) > 1 else 15
 rumble_at = float(sys.argv[2]) if len(sys.argv) > 2 else None
-t0 = time.perf_counter(); slot = None; prev = 0; rumbled = False; axes_seen = set()
+t0 = time.perf_counter(); slot = None; prev = 0; rumbled = False; rumble_off_at = None; axes_seen = set()
 while time.perf_counter() - t0 < secs:
     now = time.perf_counter() - t0
     for i in ([slot] if slot is not None else range(4)):
@@ -47,8 +47,10 @@ while time.perf_counter() - t0 < secs:
                               ("lt", g.lt, 250), ("rt", g.rt, 250)):
             key = (name, v > 0)
             if abs(v) >= full and key not in axes_seen: axes_seen.add(key); out(t=round(now, 3), axis=name, v=v)
+    # Rumble for 1 s without pausing the polling loop (a blocking sleep would miss input).
     if slot is not None and rumble_at is not None and not rumbled and now >= rumble_at:
         set_state(slot, ctypes.byref(VIBRATION(65535, 32768))); out(t=round(now, 3), rumble="on")
-        time.sleep(1); set_state(slot, ctypes.byref(VIBRATION(0, 0))); out(t=round(time.perf_counter() - t0, 3), rumble="off")
-        rumbled = True
+        rumbled = True; rumble_off_at = now + 1
+    if rumble_off_at is not None and now >= rumble_off_at and slot is not None:
+        set_state(slot, ctypes.byref(VIBRATION(0, 0))); out(t=round(now, 3), rumble="off"); rumble_off_at = None
     time.sleep(0.002)
