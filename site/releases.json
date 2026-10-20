@@ -1,6 +1,6 @@
 {
   "comment": "Status rules (docs/RELEASES.md): 'available' only after the file was installed and tested on a real device; 'preview' runs with the stated limitation; 'soon' has no file. Sizes and SHA-256 are computed by tools/build.py, never typed.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "platforms": [
     {
       "id": "android",
@@ -32,10 +32,10 @@
     {
       "id": "windows",
       "name": "Windows",
-      "status": "preview",
+      "status": "available",
       "meta": "Windows 10 or 11 · x64",
-      "text": "The computer companion: pairs, shows live diagnostics and passes rumble. Games on Windows can't see the controller yet — that needs a signed driver. Not code-signed yet: if SmartScreen warns, choose More info → Run anyway.",
-      "file": "downloads/Controller-9-0.1.0-windows-x64-setup.exe"
+      "text": "Games see an Xbox 360 controller, with rumble back to your phone. On first run, press Install driver once: it adds the free, signed ViGEmBus driver (Windows asks for permission). Not code-signed yet: if SmartScreen warns, choose More info → Run anyway.",
+      "file": "downloads/Controller-9-0.1.1-windows-x64-setup.exe"
     },
     {
       "id": "linux",
@@ -46,15 +46,15 @@
       "files": [
         {
           "label": "x86_64 .deb",
-          "file": "downloads/Controller-9-0.1.0-linux-amd64.deb"
+          "file": "downloads/Controller-9-0.1.1-linux-amd64.deb"
         },
         {
           "label": "arm64 .deb",
-          "file": "downloads/Controller-9-0.1.0-linux-arm64.deb"
+          "file": "downloads/Controller-9-0.1.1-linux-arm64.deb"
         },
         {
           "label": "AppImage",
-          "file": "downloads/Controller-9-0.1.0-linux-x86_64.AppImage"
+          "file": "downloads/Controller-9-0.1.1-linux-x86_64.AppImage"
         }
       ]
     }
