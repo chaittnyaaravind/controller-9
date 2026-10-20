@@ -4,7 +4,7 @@ name: installers
 on:
   workflow_dispatch: {}
   push:
-    tags: ["v*"]
+    tags: ["installers-*"]   # own trigger: v* tags also start release.yml (incl. costly macOS jobs)
 permissions: { contents: read }
 jobs:
   linux-x64:
