@@ -79,14 +79,43 @@ main, footer { position: relative; z-index: 1; }
 .cue { position: absolute; left: var(--gutter); bottom: -56px; display: flex; gap: 10px; align-items: center; }
 .cue i { width: 1px; height: 28px; background: linear-gradient(var(--accent), transparent); }
 
+/* giant wordmark behind the hero mark; four-corner frame */
+.giant { position: fixed; left: 50%; top: 78%; translate: -50% -50%; z-index: 0; pointer-events: none; white-space: nowrap;
+  font: 500 clamp(80px, 19vw, 300px)/1 var(--ui); letter-spacing: -0.06em; color: var(--text); opacity: 0; display: none; }
+.gl .giant { display: block; }
+.corner { position: absolute; z-index: 2; }
+.corner.bl { left: var(--gutter); bottom: 28px; }
+.corner.br { right: var(--gutter); bottom: 28px; text-align: right; }
+.caption { background: rgb(17 19 21 / .62); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 0 0 1px var(--line-2), inset 0 1px 0 rgb(255 255 255 / .05); border-radius: var(--r-card); padding: 16px 18px; max-width: 280px; }
+.caption p { color: var(--muted); font-size: 13.5px; line-height: 1.45; margin-top: 8px; }
+.idx { font: 500 12px/1 var(--mono); color: var(--dim); letter-spacing: .04em; }
+/* headline: masked line slide-up once the scene has started */
+.line { display: block; overflow: hidden; padding-bottom: .06em; margin-bottom: -.06em; }
+.line > span { display: block; transform: translateY(105%); transition: transform 900ms var(--ease-out); }
+.ready .line > span { transform: none; }
+.line:nth-child(2) > span { transition-delay: 90ms; }
+.fadein { opacity: 0; transform: translateY(14px); transition: opacity 700ms var(--ease-out) 280ms, transform 700ms var(--ease-out) 280ms; }
+.ready .fadein { opacity: 1; transform: none; }
+/* exploded-view callouts, positioned each frame from the 3D layers */
+.callout { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; opacity: 0; visibility: hidden; will-change: transform, opacity; }
+#leaders { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; opacity: 0; display: none; }
+.gl #leaders { display: block; }
+#leaders path { fill: none; stroke: rgb(238 240 241 / .35); stroke-width: 1; }
+#leaders circle { fill: var(--accent); }
+.callout span { display: block; font: 500 11.5px/1.35 var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text); white-space: nowrap; }
+.callout span em { display: block; font-style: normal; text-transform: none; letter-spacing: -0.01em; color: var(--muted); font-size: 13px; margin-top: 2px; }
+
 /* story: pinned stage, text panels driven by scroll */
 #gl-zone { position: relative; }
-.story { height: 520vh; position: relative; }
+.story { height: 640vh; position: relative; }
 .stage { position: sticky; top: 0; height: 100svh; }
 .panel { position: absolute; left: var(--gutter); top: 50%; translate: 0 -50%; max-width: 440px; opacity: 0; visibility: hidden; will-change: opacity, transform; }
 .panel .micro { margin-bottom: 14px; }
 .panel h2 { font-size: clamp(36px, 4.2vw + 6px, 68px); line-height: 1; letter-spacing: -0.04em; }
 .panel p { color: var(--muted); font-size: 18px; margin-top: 18px; max-width: 38ch; }
+.panel.inside { top: 18%; translate: 0 0; max-width: 360px; }
+.panel.inside h2 { font-size: clamp(32px, 3vw + 6px, 52px); }
 .panel .name { font: 500 13px/1 var(--mono); color: var(--accent); margin-top: 22px; letter-spacing: .02em; }
 .stage .wrap { height: 100%; }
 
@@ -157,6 +186,7 @@ footer img { height: 24px; width: auto; }
 .static .stage .wrap { display: grid; gap: 56px; padding-top: 24px; padding-bottom: 96px; }
 .static .panel { position: static; translate: none; opacity: 1; visibility: visible; max-width: 640px; }
 .static .cue { display: none; }
+.static .line > span, .static .fadein { transform: none; opacity: 1; transition: none; }
 
 @media (max-width: 900px) {
   .nav ul { display: none; }
@@ -169,6 +199,7 @@ footer img { height: 24px; width: auto; }
   .layout:nth-child(5) { grid-column: span 2; }
 }
 @media (max-width: 760px) {
+  .corner { display: none; }
   .hero { align-items: flex-end; min-height: calc(100svh - 64px); padding-bottom: 72px; }
   .gl .hero .copy { padding-top: 38svh; }
   .panel { top: auto; bottom: 9svh; translate: none; max-width: none; right: var(--gutter); }
@@ -187,6 +218,7 @@ footer img { height: 24px; width: auto; }
 </head>
 <body>
 <canvas id="gl" aria-hidden="true"></canvas>
+<div class="giant" id="giant" aria-hidden="true">CONTROLLER-9</div>
 <header class="nav" id="nav">
   <div class="wrap">
     <a class="logo" href="#top" aria-label="Controller-9 home"><img src="/brand/controller9-wordmark.svg" alt="Controller-9" width="160" height="28"></a>
@@ -205,10 +237,10 @@ footer img { height: 24px; width: auto; }
     <section class="hero">
       <div class="wrap">
         <div class="copy">
-          <div class="micro accent">Phone → game controller</div>
-          <h1>Your phone is the controller<em>.</em></h1>
-          <p class="sub">Pair once over your own Wi-Fi or Bluetooth, pick a layout you already know, and play. Tilt to steer, feel the rumble. No account, no cloud.</p>
-          <div class="cta">
+          <div class="micro accent fadein">Phone → game controller</div>
+          <h1><span class="line"><span>Your phone is</span></span><span class="line"><span>the controller<em>.</em></span></span></h1>
+          <p class="sub fadein">Pair once over your own Wi-Fi or Bluetooth, pick a layout you already know, and play. Tilt to steer, feel the rumble. No account, no cloud.</p>
+          <div class="cta fadein">
             <a class="btn primary" href="#download">Download</a>
             <a class="btn ghost" href="#story">See how it feels</a>
           </div>
@@ -216,23 +248,34 @@ footer img { height: 24px; width: auto; }
         <div class="poster" aria-hidden="true"><div><img src="/assets/pad-xbox.svg" alt=""></div></div>
         <div class="cue micro"><i></i>Scroll</div>
       </div>
+      <div class="corner br fadein"><div class="idx">v0.1.0 · Android · iPhone · Mac · Windows · Linux</div></div>
     </section>
 
+    <svg id="leaders" aria-hidden="true"><path/><path/><path/><path/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/></svg>
+    <div class="callout" aria-hidden="true"><span>Glass<em>Round buttons touched as circles · 20/20 accurate</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Controller screen<em>Five layouts, drawn to fit your phone</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Sensors &amp; radios<em>Grip-relative steering · Wi-Fi + Bluetooth together</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Link<em>Encrypted end to end · ~100 updates/s</em></span></div>
     <section class="story" id="story" aria-label="How Controller-9 works, in three moves">
       <div class="stage">
         <div class="wrap">
-          <div class="panel" data-at="0.08,0.15,0.27,0.33">
+          <div class="panel" data-at="0.06,0.11,0.19,0.23">
             <div class="micro accent">01 · Turn it sideways</div>
             <h2>It's a phone. Then it's a controller.</h2>
             <p>Open the app, turn the phone, and your screen becomes a full controller — sticks, triggers, bumpers, a real D-pad.</p>
           </div>
-          <div class="panel" data-at="0.34,0.40,0.53,0.59">
-            <div class="micro accent">02 · Tilt to steer</div>
+          <div class="panel inside" data-at="0.24,0.29,0.44,0.50">
+            <div class="micro accent">02 · Inside</div>
+            <h2>Every layer does one job well.</h2>
+            <p>Glass that knows which control your thumb is on. A screen with the layout you choose. Sensors that read your grip, and two radios that carry every press.</p>
+          </div>
+          <div class="panel" data-at="0.51,0.56,0.66,0.70">
+            <div class="micro accent">03 · Tilt to steer</div>
             <h2>Straight ahead is however you hold it.</h2>
             <p>Steering is measured from your grip, not from the phone being upright. Lean back, hold it tilted, recenter any time.</p>
           </div>
-          <div class="panel" data-at="0.60,0.66,0.90,0.96">
-            <div class="micro accent">03 · Five layouts</div>
+          <div class="panel" data-at="0.71,0.76,0.92,0.97">
+            <div class="micro accent">04 · Five layouts</div>
             <h2>The controller you already know.</h2>
             <p>Xbox, DualSense, DualShock 4, Switch Pro and 8BitDo Pro 2 styles. The bottom face button always sends A, whatever it is called.</p>
             <div class="name" id="layout-name" aria-live="polite">Xbox-style</div>
