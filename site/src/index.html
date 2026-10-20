@@ -108,7 +108,7 @@ main, footer { position: relative; z-index: 1; }
 
 /* story: pinned stage, text panels driven by scroll */
 #gl-zone { position: relative; }
-.story { height: 640vh; position: relative; }
+.story { height: 900vh; position: relative; }
 .stage { position: sticky; top: 0; height: 100svh; }
 .panel { position: absolute; left: var(--gutter); top: 50%; translate: 0 -50%; max-width: 440px; opacity: 0; visibility: hidden; will-change: opacity, transform; }
 .panel .micro { margin-bottom: 14px; }
@@ -259,23 +259,33 @@ footer img { height: 24px; width: auto; }
     <section class="story" id="story" aria-label="How Controller-9 works, in three moves">
       <div class="stage">
         <div class="wrap">
-          <div class="panel" data-at="0.06,0.11,0.19,0.23">
-            <div class="micro accent">01 · Turn it sideways</div>
-            <h2>It's a phone. Then it's a controller.</h2>
-            <p>Open the app, turn the phone, and your screen becomes a full controller — sticks, triggers, bumpers, a real D-pad.</p>
+          <div class="panel" data-at="0.03,0.06,0.10,0.115">
+            <div class="micro accent">01 · Fusion</div>
+            <h2>A controller, meet a phone.</h2>
+            <p>Everything a controller does — sticks, triggers, bumpers, a real D-pad — is about to move somewhere you already carry.</p>
           </div>
-          <div class="panel inside" data-at="0.24,0.29,0.44,0.50">
-            <div class="micro accent">02 · Inside</div>
+          <div class="panel" data-at="0.12,0.14,0.18,0.195">
+            <div class="micro accent">01 · Fusion</div>
+            <h2>Now they're one.</h2>
+            <p>Controller-9 puts a full controller on your phone's screen, with grip-relative steering and rumble you can feel.</p>
+          </div>
+          <div class="panel" data-at="0.205,0.225,0.30,0.32">
+            <div class="micro accent">02 · Launch</div>
+            <h2>Pair once. Launch any game.</h2>
+            <p>Encrypted, local, about a hundred updates a second. No account, no cloud — just play.</p>
+          </div>
+          <div class="panel inside" data-at="0.38,0.43,0.54,0.60">
+            <div class="micro accent">03 · Inside</div>
             <h2>Every layer does one job well.</h2>
             <p>Glass that knows which control your thumb is on. A screen with the layout you choose. Sensors that read your grip, and two radios that carry every press.</p>
           </div>
-          <div class="panel" data-at="0.51,0.56,0.66,0.70">
-            <div class="micro accent">03 · Tilt to steer</div>
+          <div class="panel" data-at="0.61,0.65,0.72,0.75">
+            <div class="micro accent">04 · Tilt to steer</div>
             <h2>Straight ahead is however you hold it.</h2>
             <p>Steering is measured from your grip, not from the phone being upright. Lean back, hold it tilted, recenter any time.</p>
           </div>
-          <div class="panel" data-at="0.71,0.76,0.92,0.97">
-            <div class="micro accent">04 · Five layouts</div>
+          <div class="panel" data-at="0.76,0.80,0.93,0.97">
+            <div class="micro accent">05 · Five layouts</div>
             <h2>The controller you already know.</h2>
             <p>Xbox, DualSense, DualShock 4, Switch Pro and 8BitDo Pro 2 styles. The bottom face button always sends A, whatever it is called.</p>
             <div class="name" id="layout-name" aria-live="polite">Xbox-style</div>
