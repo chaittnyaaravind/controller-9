@@ -130,6 +130,8 @@ jobs:
           Start-Sleep -Milliseconds 500
           & $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
           $x.WaitForExit(); $sd.WaitForExit(); Stop-Process -Id $h.Id -Force
+          pnputil /enum-drivers | Select-String -Context 0,6 -Pattern "xusb|vigem" | Out-File evidence/drivers.txt
+          Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -match "Xbox|XUSB|Virtual Gamepad|Game" } | Format-List FriendlyName,Status,Problem,InstanceId | Out-File evidence/pnp.txt
           python tools/windows-check/verify.py evidence
           if ($LASTEXITCODE -ne 0) { throw "game-visible check failed" }
       - if: always()
@@ -138,5 +140,6 @@ jobs:
           name: windows-x64
           path: |
             target/release/bundle/nsis/*.exe
+            target/release/controller9.exe
             evidence/
           if-no-files-found: ignore
