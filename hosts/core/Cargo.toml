@@ -18,6 +18,8 @@ mdns-sd.workspace = true
 directories.workspace = true
 qrcode.workspace = true
 if-addrs = "=0.15.0"
+# Already in the tree via tokio; used only to mark input/feedback datagrams as Expedited Forwarding.
+socket2 = "=0.6.5"
 btleplug = { version = "=0.13.5", optional = true }
 uuid = { version = "=1.28.0", optional = true }
 futures = { version = "=0.3.34", optional = true }

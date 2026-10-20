@@ -354,6 +354,8 @@ impl Host {
             .map_err(|e| HostError::Bind(format!("tcp/{}", cfg.tcp_port), e))?;
         let udp = UdpSocket::bind((cfg.bind.as_str(), cfg.udp_port)).await
             .map_err(|e| HostError::Bind(format!("udp/{}", cfg.udp_port), e))?;
+        // DSCP 46 (Expedited Forwarding) → Wi-Fi WMM voice queue: pongs and rumble skip bulk traffic. Best effort.
+        if let Err(e) = socket2::SockRef::from(&udp).set_tos_v4(0xB8) { tracing::debug!("could not mark UDP as EF: {e}"); }
         let (tcp_port, udp_port) = (tcp.local_addr().unwrap().port(), udp.local_addr().unwrap().port());
         let stream_listener = match cfg.stream_port {
             Some(p) => Some(TcpListener::bind((cfg.bind.as_str(), p)).await.map_err(|e| HostError::Bind(format!("tcp/{p} (stream binding)"), e))?),
@@ -713,6 +715,12 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
                             }
                         }
                         Control::PairCode => {
+                            // A new code request supersedes an unanswered one: drop its pending entry and prompt.
+                            if let PairFlow::AwaitVerdict { id, .. } = flow {
+                                sh.pending.lock().remove(&id);
+                                sh.emit(HostEvent::PairingResolved { id, ok: false });
+                                flow = PairFlow::Idle;
+                            }
                             let r = sh.pairing.lock().begin_attempt(Instant::now());
                             if let Err(refusal) = r { send(&mut wr, &mut t, &Control::error(refusal.code())).await?; continue; }
                             let nb = nine_proto::random_bytes::<16>();

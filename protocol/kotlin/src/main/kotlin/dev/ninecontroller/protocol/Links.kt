@@ -24,7 +24,8 @@ interface DatagramLink : AutoCloseable {
 }
 
 class UdpLink(host: InetAddress, port: Int) : DatagramLink {
-    private val socket = DatagramSocket().apply { connect(InetSocketAddress(host, port)) }
+    // DSCP 46 (Expedited Forwarding, TOS 0xB8) → Wi-Fi WMM voice queue, like iOS .interactiveVoice. Best effort.
+    private val socket = DatagramSocket().apply { runCatching { trafficClass = 0xB8 }; connect(InetSocketAddress(host, port)) }
     private val buf = ByteArray(512)
     override fun send(d: ByteArray) = socket.send(DatagramPacket(d, d.size))
     override fun receive(timeoutMs: Int): ByteArray? {
