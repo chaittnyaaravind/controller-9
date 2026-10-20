@@ -33,6 +33,8 @@ public final class ConnectionManager {
     public private(set) var links: [LinkReport] = []
     public var sensorHz = 0.0
     public var onRumble: (@Sendable (Int, Int, Int) -> Void)?
+    /// Called with the host id whenever a computer is chosen to connect to (it becomes "last used").
+    public var onHostChosen: (@Sendable (String) -> Void)?
     public let ble = BlePeripheral()
 
     private let store: FileStore
@@ -147,6 +149,7 @@ public final class ConnectionManager {
     public func connect(_ host: PairedHost) {
         want = host
         var s = store.settings; s.lastHost = host.id; store.saveSettings(s)
+        onHostChosen?(host.id) // the app's in-memory settings must learn it too, or its next save wipes it
         startSession(host, attempt: 0, reason: "", failed: nil, preferred: nil)
     }
 

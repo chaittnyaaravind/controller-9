@@ -53,6 +53,7 @@ final class AppModel {
         #endif
         let h = haptics
         connection.onRumble = { low, high, ms in Task { @MainActor in h.rumble(low: low, high: high, ms: ms) } }
+        connection.onHostChosen = { [weak self] id in Task { @MainActor in if self?.settings.lastHost != id { self?.settings.lastHost = id } } }
         applyHaptics()
     }
 

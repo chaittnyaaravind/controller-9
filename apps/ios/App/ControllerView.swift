@@ -112,8 +112,14 @@ struct ControllerView: View {
         AppDelegate.lock(p.orientation == .landscape ? .landscape : .portrait)
         UIApplication.shared.isIdleTimerDisabled = true
         model.connection.setProfileName(p.name)
-        if case .idle = model.connection.state, let id = model.settings.lastHost, let h = model.hosts.first(where: { $0.id == id }) { model.connection.connect(h) }
-        if case .failed = model.connection.state, let id = model.settings.lastHost, let h = model.hosts.first(where: { $0.id == id }) { model.connection.connect(h) }
+        // Play connects by itself: the last computer used, or the only one paired.
+        let target = model.hosts.first(where: { $0.id == model.settings.lastHost }) ?? (model.hosts.count == 1 ? model.hosts.first : nil)
+        if let h = target {
+            switch model.connection.state {
+            case .idle, .failed: model.connection.connect(h)
+            default: break
+            }
+        }
         let conn = model.connection
         let e = ControllerEngine { s, f in conn.submit(s, f) }
         e.configure(p.motion)

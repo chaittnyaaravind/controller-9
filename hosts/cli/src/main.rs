@@ -45,6 +45,8 @@ enum Cmd {
         #[arg(long, default_value_t = 0)] stats_every: u64,
         /// Test only: every N seconds send each connected phone a heavy-motor, then a light-motor rumble.
         #[arg(long, default_value_t = 0)] rumble_test_every: u64,
+        /// Test only: print a JSON "input:" line whenever a slot's received state changes (sampled every 4 ms).
+        #[arg(long)] trace_input: bool,
     },
     /// Print the virtual-controller backend status for this OS.
     Status,
@@ -112,8 +114,8 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
-        Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open } =>
-            run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open).await,
+        Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open, trace_input } =>
+            run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open, trace_input).await,
         Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port, pattern } =>
             run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port, &pattern).await,
     }
@@ -121,7 +123,7 @@ async fn main() -> Result<()> {
 
 #[allow(clippy::too_many_arguments)]
 async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::PathBuf>, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
-                  no_ble: bool, stream_port: Option<u16>, stats_every: u64, rumble_test_every: u64, keep_pairing_open: bool) -> Result<()> {
+                  no_ble: bool, stream_port: Option<u16>, stats_every: u64, rumble_test_every: u64, keep_pairing_open: bool, trace_input: bool) -> Result<()> {
     let mut store = if ephemeral { Store::in_memory(Default::default()) } else {
         Store::open(&match config_dir { Some(d) => d, None => Store::default_dir().context("no config directory")? })?
     };
@@ -161,6 +163,23 @@ async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::Pat
                     println!("rumble: {}", serde_json::json!({ "t": nine_host_core::time::rfc3339_now(), "slot": s.slot, "low": low, "high": high, "ms": 400 }));
                 }
                 heavy = !heavy;
+            }
+        });
+    }
+    if trace_input {
+        let h = host.clone();
+        tokio::spawn(async move {
+            let mut last: std::collections::HashMap<u8, String> = std::collections::HashMap::new();
+            loop {
+                tokio::time::sleep(Duration::from_millis(4)).await;
+                for s in h.snapshot().slots.iter().filter(|s| s.connected) {
+                    let now = serde_json::to_string(&s.state).unwrap_or_default();
+                    if last.get(&s.slot) != Some(&now) {
+                        let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                        println!("input: {}", serde_json::json!({ "t": nine_host_core::time::rfc3339_now(), "ms": ms, "slot": s.slot, "state": s.state }));
+                        last.insert(s.slot, now);
+                    }
+                }
             }
         });
     }

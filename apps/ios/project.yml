@@ -44,3 +44,24 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.ninecontroller.ios
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+  Controller9UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: Controller9
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.ninecontroller.ios.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+schemes:
+  Controller9:
+    build:
+      targets:
+        Controller9: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [Controller9UITests]

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01AA99E992CFE6E2EBBC7702 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E75942FBC27D4F18800E9 /* Haptics.swift */; };
+		2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */; };
 		39383F0809097A2E6E6A9305 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0389A46C22099564F524D888 /* ProfileViews.swift */; };
 		3A216675B137F31B366F6A82 /* NineAppCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D9802B7130CBEB8352E1744 /* NineAppCore */; };
 		567623F680F1765D5A36BA16 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 537D7D91D902DB0FF6E7E0AB /* profiles */; };
@@ -21,9 +22,21 @@
 		FD6C4FAA2B2CC719E5781196 /* HomeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691FB4A35569621FF7A0CC63 /* HomeViews.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		6594C020491C0C7DFE6CF466 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4698C6FFB6A01A284E2166DC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 497D58427636AF2A1EC96FE3;
+			remoteInfo = Controller9;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		0389A46C22099564F524D888 /* ProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViews.swift; sourceTree = "<group>"; };
+		1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerAccuracyUITests.swift; sourceTree = "<group>"; };
 		1DC57FA9F1614812A3C44B72 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24B714CD7F522A2ADD59DB4D /* Controller9UITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = Controller9UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A4FA6334178DAB5A430D26C /* Controller9.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Controller9.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F51ECA9922754BD22CDB19E /* MotionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionInput.swift; sourceTree = "<group>"; };
 		393E75942FBC27D4F18800E9 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
@@ -89,8 +102,17 @@
 			isa = PBXGroup;
 			children = (
 				2A4FA6334178DAB5A430D26C /* Controller9.app */,
+				24B714CD7F522A2ADD59DB4D /* Controller9UITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4B675B459A0A1F1DE3C9A462 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
+			);
+			path = UITests;
 			sourceTree = "<group>";
 		};
 		8297A6F36370CED9452DAFF2 = {
@@ -99,6 +121,7 @@
 				1FD84A8B34DB2192C00B2B82 /* 9-controller */,
 				23624B987CD7464606FEE6B2 /* App */,
 				1B68E79BF24CFA5A0E4BCD55 /* Packages */,
+				4B675B459A0A1F1DE3C9A462 /* UITests */,
 				412C344D8E2754367E0E3C6A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -134,6 +157,24 @@
 			productReference = 2A4FA6334178DAB5A430D26C /* Controller9.app */;
 			productType = "com.apple.product-type.application";
 		};
+		823E9AFFBA7D5D787ABCF70E /* Controller9UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D5E620FBCC4F235B0FF56DBD /* Build configuration list for PBXNativeTarget "Controller9UITests" */;
+			buildPhases = (
+				7289F185121725CD3A618C23 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				757BCD1F44D4E39F05DA983E /* PBXTargetDependency */,
+			);
+			name = Controller9UITests;
+			packageProductDependencies = (
+			);
+			productName = Controller9UITests;
+			productReference = 24B714CD7F522A2ADD59DB4D /* Controller9UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -146,6 +187,11 @@
 					497D58427636AF2A1EC96FE3 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
+					};
+					823E9AFFBA7D5D787ABCF70E = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = 497D58427636AF2A1EC96FE3;
 					};
 				};
 			};
@@ -167,6 +213,7 @@
 			projectRoot = "";
 			targets = (
 				497D58427636AF2A1EC96FE3 /* Controller9 */,
+				823E9AFFBA7D5D787ABCF70E /* Controller9UITests */,
 			);
 		};
 /* End PBXProject section */
@@ -200,7 +247,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7289F185121725CD3A618C23 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		757BCD1F44D4E39F05DA983E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 497D58427636AF2A1EC96FE3 /* Controller9 */;
+			targetProxy = 6594C020491C0C7DFE6CF466 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		43E6F886538F76717FFF301D /* Debug */ = {
@@ -269,6 +332,40 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
+		};
+		4F003F19681A16EF2E92E426 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ninecontroller.ios.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Controller9;
+			};
+			name = Debug;
+		};
+		66B648D0FCE85A7E358EEC40 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ninecontroller.ios.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Controller9;
+			};
+			name = Release;
 		};
 		9B01B7ABCF9B1C5D3634D6AA /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -381,6 +478,15 @@
 			buildConfigurations = (
 				BC4789F94A21D14B321FB858 /* Debug */,
 				9B01B7ABCF9B1C5D3634D6AA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D5E620FBCC4F235B0FF56DBD /* Build configuration list for PBXNativeTarget "Controller9UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4F003F19681A16EF2E92E426 /* Debug */,
+				66B648D0FCE85A7E358EEC40 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
