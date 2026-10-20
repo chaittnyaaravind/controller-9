@@ -1,5 +1,8 @@
 package dev.ninecontroller.android.ui.controller
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.WindowInsets
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.view.WindowManager
@@ -216,7 +219,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     // A steering session with no center at all: capture the player's grip once, automatically.
     LaunchedEffect(spec.key, spec.motion.enabled) { if (spec.motion.enabled && s.steering == null) { delay(800); recenter(auto = true) } }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg).windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
         val density = LocalDensity.current
         val minTarget = with(density) { Nine.target.toPx() }

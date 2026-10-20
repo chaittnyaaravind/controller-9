@@ -1,5 +1,8 @@
 package dev.ninecontroller.android.ui.editor
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.WindowInsets
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
@@ -78,7 +81,7 @@ fun LayoutEditorScreen(app: NineApp, nav: NavController, profileId: String) {
     }
     fun update(id: String, f: (ControlDef) -> ControlDef) { controls = controls.map { if (it.id == id) f(it) else it } }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg).windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
         val d = LocalDensity.current
         // 5% guide grid
