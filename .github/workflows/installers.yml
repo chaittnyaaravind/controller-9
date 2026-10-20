@@ -35,11 +35,14 @@ jobs:
           test -f /usr/lib/udev/rules.d/60-9controller-uinput.rules
           BIN=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep '^/usr/bin/' | head -1)
           sudo modprobe uinput && sudo chmod 666 /dev/uinput   # CI has no desktop seat for the uaccess rule
-          xvfb-run -a "$BIN" > evidence/app.log 2>&1 &
+          # A desktop session always has a D-Bus session bus; WebKitGTK waits for one, so provide it.
+          dbus-run-session -- xvfb-run -a "$BIN" > evidence/app.log 2>&1 &
           sleep 20
-          pgrep -f "$BIN" > /dev/null && echo "app alive after 20 s" | tee -a evidence/result.txt
-          ss -ltn | grep -q ':47901 ' && echo "listening on 47901" | tee -a evidence/result.txt
-          pkill -f "$BIN" || true; sleep 2
+          pgrep -f "^$BIN" > /dev/null || { echo "app NOT running"; cat evidence/app.log; exit 1; }
+          echo "app alive after 20 s" | tee -a evidence/result.txt
+          ss -ltn | grep -q ':47901 ' || { echo "NOT listening on 47901"; cat evidence/app.log; exit 1; }
+          echo "listening on 47901" | tee -a evidence/result.txt
+          pkill -f "^$BIN" || true; sleep 2
       - name: Game-visible test — real host + simulated phone + SDL
         run: |
           set -eux
@@ -48,7 +51,7 @@ jobs:
           $B status | tee evidence/status.json
           $B host --ephemeral --pair --auto-approve --no-advertise --no-ble > evidence/host.log 2>&1 &
           sleep 2
-          SDL_JOYSTICK_HIDAPI=0 ./sdlcheck 16 > evidence/sdl.jsonl 2>&1 &
+          sudo SDL_JOYSTICK_HIDAPI=0 ./sdlcheck 16 > evidence/sdl.jsonl 2>&1 &   # /dev/input/event* is root:input on CI
           sleep 0.5
           $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
           sleep 3
@@ -76,6 +79,7 @@ jobs:
           if-no-files-found: ignore
 
   windows-x64:
+    if: ${{ !endsWith(github.ref_name, '-linux') }}   # tag installers-*-linux re-runs Linux only
     runs-on: windows-2025
     timeout-minutes: 75
     steps:
