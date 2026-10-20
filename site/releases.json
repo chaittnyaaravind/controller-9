@@ -13,10 +13,11 @@
     {
       "id": "mac",
       "name": "Mac",
-      "status": "preview",
-      "meta": "macOS 13 or newer · Apple silicon and Intel",
-      "file": "downloads/Controller-9-0.1.0-mac-universal.dmg",
-      "text": "The computer companion: pairs, shows live diagnostics and passes rumble. Games on Mac can't see the controller yet — that needs a permission from Apple. Not notarized yet: after the first launch is blocked, open System Settings → Privacy & Security and choose Open Anyway."
+      "status": "available",
+      "meta": "macOS 13 or newer · Apple silicon and Intel · keyboard & mouse mode",
+      "file": "downloads/Controller-9-0.1.1-mac-universal.dmg",
+      "text": "The phone plays your Mac games as keyboard and mouse: left stick is WASD, A is Space, the right stick moves the mouse, the triggers click. Allow it once under Privacy & Security → Accessibility. Games that only accept a controller can't see it yet — that needs a permission from Apple. Not notarized yet: after the first launch is blocked, open System Settings → Privacy & Security and choose Open Anyway.",
+      "tested": "Version 0.1.1, installed from this DMG and launched on macOS 27.0.1 (Apple silicon). Keyboard & mouse mode passed a live test: all 18 keys, pointer movement both ways on both axes, and both clicks, in order."
     },
     {
       "id": "iphone",
