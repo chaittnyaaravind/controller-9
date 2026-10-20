@@ -19,9 +19,92 @@ pub mod abi {
 mod vhf;
 #[cfg(windows)]
 pub use vhf::VhfBackend;
+#[cfg(windows)]
+mod vigem;
+#[cfg(windows)]
+pub use vigem::VigemBackend;
+
+/// The backend the Windows hosts use: ViGEmBus (a production-signed, freely installable driver that
+/// creates Xbox 360 controllers every XInput game sees) when present, else the NineVhf driver when
+/// installed, else ViGEm's "blocked" status, which tells the user how to install ViGEmBus.
+#[cfg(windows)]
+pub fn native_backend() -> std::sync::Arc<dyn nine_host_core::backend::Backend> {
+    use nine_host_core::backend::Backend;
+    let vigem = VigemBackend;
+    if vigem.status().available { return std::sync::Arc::new(vigem); }
+    let vhf = VhfBackend::default();
+    if vhf.status().available { return std::sync::Arc::new(vhf); }
+    std::sync::Arc::new(vigem)
+}
+
+/// XInput gamepad fields from the shared input model. Portable so it is tested on every OS.
+pub mod xinput {
+    use nine_proto::input::{Button, InputState};
+
+    pub const DPAD_UP: u16 = 0x0001; pub const DPAD_DOWN: u16 = 0x0002;
+    pub const DPAD_LEFT: u16 = 0x0004; pub const DPAD_RIGHT: u16 = 0x0008;
+    pub const START: u16 = 0x0010; pub const BACK: u16 = 0x0020;
+    pub const LTHUMB: u16 = 0x0040; pub const RTHUMB: u16 = 0x0080;
+    pub const LB: u16 = 0x0100; pub const RB: u16 = 0x0200; pub const GUIDE: u16 = 0x0400;
+    pub const A: u16 = 0x1000; pub const B: u16 = 0x2000; pub const X: u16 = 0x4000; pub const Y: u16 = 0x8000;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct Pad { pub buttons: u16, pub lt: u8, pub rt: u8, pub lx: i16, pub ly: i16, pub rx: i16, pub ry: i16 }
+
+    const MAP: [(Button, u16); 15] = [
+        (Button::A, A), (Button::B, B), (Button::X, X), (Button::Y, Y), (Button::Lb, LB), (Button::Rb, RB),
+        (Button::View, BACK), (Button::Menu, START), (Button::Ls, LTHUMB), (Button::Rs, RTHUMB),
+        (Button::Up, DPAD_UP), (Button::Down, DPAD_DOWN), (Button::Left, DPAD_LEFT), (Button::Right, DPAD_RIGHT),
+        (Button::Guide, GUIDE),
+    ];
+
+    /// Both models use Y-positive-up and the same i16 stick range; triggers narrow 16 → 8 bits.
+    pub fn pad(s: &InputState) -> Pad {
+        let buttons = MAP.iter().filter(|(b, _)| s.buttons & b.mask() != 0).fold(0, |acc, (_, x)| acc | x);
+        Pad { buttons, lt: (s.lt >> 8) as u8, rt: (s.rt >> 8) as u8, lx: s.lx, ly: s.ly, rx: s.rx, ry: s.ry }
+    }
+
+    /// XInput motors are 0–255 and hold until changed; the phone's rumble is 0–65535 with a duration,
+    /// so a running motor is sent with the longest duration and re-sent on every change (as on Linux).
+    pub fn feedback(large: u8, small: u8) -> nine_proto::frame::Feedback {
+        let on = large != 0 || small != 0;
+        nine_proto::frame::Feedback { low: large as u16 * 257, high: small as u16 * 257, ms: if on { 5000 } else { 0 } }
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use super::xinput;
+    use nine_proto::input::{Button, InputState};
+
+    #[test]
+    fn every_button_maps_to_its_own_xinput_bit() {
+        let mut seen = 0u16;
+        for b in Button::ALL {
+            let p = xinput::pad(&InputState { buttons: b.mask(), ..InputState::NEUTRAL });
+            assert_eq!(p.buttons.count_ones(), 1, "{b:?}");
+            assert_eq!(seen & p.buttons, 0, "{b:?} reuses a bit");
+            seen |= p.buttons;
+        }
+        assert_eq!(xinput::pad(&InputState { buttons: Button::Menu.mask(), ..InputState::NEUTRAL }).buttons, xinput::START);
+        assert_eq!(xinput::pad(&InputState { buttons: Button::View.mask(), ..InputState::NEUTRAL }).buttons, xinput::BACK);
+    }
+
+    #[test]
+    fn axes_and_triggers_keep_their_range_and_direction() {
+        let p = xinput::pad(&InputState { buttons: 0, lx: -32767, ly: 32767, rx: 123, ry: -5, lt: 65535, rt: 255 });
+        assert_eq!((p.lx, p.ly, p.rx, p.ry), (-32767, 32767, 123, -5));
+        assert_eq!((p.lt, p.rt), (255, 0));
+        assert_eq!(xinput::pad(&InputState::NEUTRAL), xinput::Pad::default());
+    }
+
+    #[test]
+    fn rumble_scales_and_stops() {
+        let f = xinput::feedback(255, 128);
+        assert_eq!((f.low, f.high, f.ms), (65535, 128 * 257, 5000));
+        assert_eq!(xinput::feedback(0, 0).ms, 0);
+    }
+
     #[test]
     fn ioctl_codes_match_ctl_code_macro() {
         // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x901, METHOD_BUFFERED, FILE_WRITE_ACCESS)

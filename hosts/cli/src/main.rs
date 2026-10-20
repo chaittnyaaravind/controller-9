@@ -97,7 +97,7 @@ fn sweep_state(t: f64) -> (InputState, String) {
 fn native_backend() -> Arc<dyn Backend> {
     #[cfg(target_os = "linux")] { Arc::new(nine_pad_linux::UinputBackend::default()) }
     #[cfg(target_os = "macos")] { Arc::new(nine_pad_macos::IoHidBackend) }
-    #[cfg(windows)] { Arc::new(nine_pad_windows::VhfBackend::default()) }
+    #[cfg(windows)] { nine_pad_windows::native_backend() }
     #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))] { Arc::new(nine_host_core::backend::BlockedBackend { status: nine_host_core::BackendStatus {
         name: "none".into(), kind: nine_host_core::BackendKind::Blocked, available: false, max_pads: 0, detail: "unsupported OS".into(), remedy: None } }) }
 }

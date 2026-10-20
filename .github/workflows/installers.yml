@@ -111,6 +111,28 @@ jobs:
           "listening on 47901" | Tee-Object -Append evidence/result.txt
           Stop-Process -Id $p.Id -Force
           & target/release/controller9.exe status | Tee-Object evidence/status.json
+      - name: Game-visible test — ViGEmBus + real host + simulated phone + XInput, rumble back
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Official, production-signed ViGEmBus release, pinned by SHA-256 (what users install themselves).
+          $url = "https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe"
+          Invoke-WebRequest $url -OutFile vigem.exe
+          $sha = (Get-FileHash vigem.exe -Algorithm SHA256).Hash.ToLower()
+          if ($sha -ne "89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a") { throw "ViGEmBus hash $sha" }
+          $i = Start-Process .\vigem.exe -ArgumentList "/exenoui /qn /norestart" -Wait -PassThru
+          "ViGEmBus installer exit $($i.ExitCode)" | Tee-Object -Append evidence/result.txt
+          $B = "target/release/controller9.exe"
+          & $B status | Tee-Object evidence/status-vigem.json
+          if (-not ((Get-Content evidence/status-vigem.json -Raw) -match '"windows-vigem"')) { throw "ViGEm backend not selected" }
+          $h = Start-Process $B -ArgumentList "host --ephemeral --pair --auto-approve --no-advertise --no-ble" -RedirectStandardOutput evidence/host.log -RedirectStandardError evidence/host.err -PassThru
+          Start-Sleep -Seconds 3
+          $x = Start-Process python -ArgumentList "tools/windows-check/xinputcheck.py 16 5" -RedirectStandardOutput evidence/xinput.jsonl -RedirectStandardError evidence/xinput.err -PassThru
+          Start-Sleep -Milliseconds 500
+          & $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
+          $x.WaitForExit(); Stop-Process -Id $h.Id -Force
+          python tools/windows-check/verify.py evidence
+          if ($LASTEXITCODE -ne 0) { throw "game-visible check failed" }
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -1,6 +1,6 @@
 [package]
 name = "nine-pad-windows"
-description = "Controller-9 Windows backend: client for the NineVhf KMDF virtual-HID driver"
+description = "Controller-9 Windows backend: ViGEmBus Xbox 360 pads, or the NineVhf KMDF virtual-HID driver"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,4 +14,5 @@ nine-host-core.workspace = true
 nine-proto.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+vigem-client = { version = "=0.1.4", features = ["unstable_xtarget_notification"] }
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Devices_DeviceAndDriverInstallation"] }
