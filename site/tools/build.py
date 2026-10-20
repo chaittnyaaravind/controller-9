@@ -29,6 +29,20 @@ def card(p):
     out = [f'<div class="card reveal" data-platform="{e(p["id"])}">',
            f'<div class="top"><div><h3>{e(p["name"])}</h3><div class="meta">{e(p["meta"])}</div></div><span class="chip {cls}">{label}</span></div>',
            f'<p>{e(p["text"])}</p>']
+    if p["status"] in ("available", "preview") and "files" in p:
+        rows, shas = [], []
+        for item in p["files"]:
+            f = PUB / item["file"]
+            if not f.is_file():
+                if not DRAFT: sys.exit(f"missing download for {p['id']}: {f}")
+                rows.append(f'<span class="btn ghost" aria-disabled="true">{e(item["label"])} · building…</span>'); continue
+            data = f.read_bytes()
+            rows.append(f'<a class="btn ghost" href="/{e(item["file"])}" download>{e(item["label"])} · {human(len(data))}</a>')
+            shas.append(f'{e(item["label"])} {hashlib.sha256(data).hexdigest()}')
+        out.append('<div class="row">' + "".join(rows) + "</div>")
+        out.append("".join(f'<div class="sha">SHA-256 {x}</div>' for x in shas))
+        out.append("</div>")
+        return "".join(out)
     if p["status"] in ("available", "preview"):
         f = PUB / p["file"]
         if not f.is_file():
