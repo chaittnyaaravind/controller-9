@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libdbus-1-dev pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
             xvfb libsdl2-dev python3-evdev file > /dev/null
-      - run: cargo binstall -y --no-confirm tauri-cli@^2
+      - run: cargo binstall --no-confirm tauri-cli@^2
       - name: Build installers (.deb, AppImage) and the CLI used by the tests
         run: |
           cd hosts/app/src-tauri && cargo tauri build --bundles deb,appimage
@@ -83,7 +83,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-binstall }
-      - run: cargo binstall -y --no-confirm tauri-cli@^2
+      - run: cargo binstall --no-confirm tauri-cli@^2
       - name: Build installer (NSIS .exe) and the CLI
         shell: pwsh
         run: |
