@@ -112,6 +112,37 @@ data class Feedback(val low: Int, val high: Int, val ms: Int) {
 }
 
 /** Receiver freshness: only counters above the highest accepted are applied (stale/replay rejection). */
+enum class Seen { NEW, DUPLICATE, TOO_OLD }
+
+/**
+ * Replay window for a session whose datagrams may arrive over several links (SPEC §6.4, §8.5);
+ * mirrors protocol/rust/src/frame.rs `ReplayWindow`. Every counter is processed at most once; a
+ * counter 64 or more behind the newest is refused. Thread-safe (one receiver thread per link).
+ */
+class ReplayWindow {
+    private var highest = 0L
+    private var bitmap = 0L
+    var accepted = 0L; private set
+    var duplicate = 0L; private set
+
+    @Synchronized fun check(counter: Long): Seen {
+        if (counter <= 0L) return Seen.TOO_OLD
+        if (counter > highest) {
+            val shift = counter - highest
+            bitmap = if (shift >= 64) 0L else bitmap shl shift.toInt()
+            bitmap = bitmap or 1L
+            highest = counter; accepted++
+            return Seen.NEW
+        }
+        val off = highest - counter
+        if (off >= 64) return Seen.TOO_OLD
+        val bit = 1L shl off.toInt()
+        if (bitmap and bit != 0L) { duplicate++; return Seen.DUPLICATE }
+        bitmap = bitmap or bit; accepted++
+        return Seen.NEW
+    }
+}
+
 class Freshness {
     var highest = 0L; private set
     var accepted = 0L; private set

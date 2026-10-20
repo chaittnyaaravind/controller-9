@@ -18,6 +18,9 @@ pub enum Control {
     Open {
         #[serde(default, skip_serializing_if = "Option::is_none")] resume_slot: Option<u8>,
         #[serde(default, skip_serializing_if = "Option::is_none")] profile: Option<String>,
+        /// Add this link to the caller's live session `join` instead of opening a new one (SPEC §8.5).
+        /// Only sent to hosts whose hello carries `multipath: true`.
+        #[serde(default, skip_serializing_if = "Option::is_none")] join: Option<u32>,
     },
     PairQr { proof: String },
     PairCode,
@@ -67,6 +70,9 @@ pub struct HostHello {
     /// Wi-Fi, hotspot, USB tethering and Wi-Fi Direct. Additive.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub addrs: Vec<String>,
+    /// The host accepts `open.join` (several links in one session, SPEC §8.5). Additive.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub multipath: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -87,13 +93,14 @@ mod tests {
 
     #[test]
     fn json_shapes_match_spec() {
-        assert_eq!(String::from_utf8(Control::Open { resume_slot: Some(2), profile: None }.to_json()).unwrap(), r#"{"t":"open","resumeSlot":2}"#);
+        assert_eq!(String::from_utf8(Control::Open { resume_slot: Some(2), profile: None, join: None }.to_json()).unwrap(), r#"{"t":"open","resumeSlot":2}"#);
         assert_eq!(String::from_utf8(Control::PairCode.to_json()).unwrap(), r#"{"t":"pair_code"}"#);
         let s = Control::Session { slot: 1, session_id: 7, udp_port: 47900, k_in: SecretB64("a".into()), k_out: SecretB64("b".into()), heartbeat_ms: 50, idle_heartbeat_ms: 200, timeout_ms: 250 };
         let j = String::from_utf8(s.to_json()).unwrap();
         assert!(j.contains(r#""sessionId":7"#) && j.contains(r#""kIn":"a""#) && j.contains(r#""t":"session""#));
         assert!(!format!("{s:?}").contains("\"a\""), "secrets must be redacted in Debug");
-        assert_eq!(Control::from_json(br#"{"t":"open","extra":1}"#).unwrap(), Control::Open { resume_slot: None, profile: None });
+        assert_eq!(Control::from_json(br#"{"t":"open","extra":1}"#).unwrap(), Control::Open { resume_slot: None, profile: None, join: None });
+        assert_eq!(String::from_utf8(Control::Open { resume_slot: None, profile: None, join: Some(9) }.to_json()).unwrap(), r#"{"t":"open","join":9}"#);
         assert!(Control::from_json(br#"{"t":"launch_missiles"}"#).is_err());
         assert!(Control::from_json(b"not json").is_err());
     }

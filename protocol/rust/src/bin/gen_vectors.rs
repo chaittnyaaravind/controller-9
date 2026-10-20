@@ -6,6 +6,7 @@ use nine_proto::motion::{shape, Steering};
 use nine_proto::noise::{Handshake, KeyPair, Role};
 use nine_proto::pairing;
 use nine_proto::profile::{Motion, Profile, StickAxis};
+use nine_proto::steering::{self as st, CalibrationV2, HeldPose, Pose, Quat, RangeResult, RelativeSteering, Vec3};
 use serde_json::{json, Value};
 
 fn hex(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
@@ -183,10 +184,93 @@ fn policy_v() -> Value {
     })).collect::<Vec<_>>())
 }
 
+/// Relative steering (docs/STEERING.md). Every input is written out explicitly (quaternions,
+/// gravity vectors, calibrations as JSON), so mirrors need only the steering code under test.
+fn steering_v() -> Value {
+    // Deterministic pseudo-random wobble (no rand dependency): 32-bit LCG.
+    let mut seed: u32 = 0x9c9c_0001;
+    let mut rnd = move || { seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223); seed as f64 / u32::MAX as f64 };
+    let (x, y, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let grip = Quat::axis_angle(z, 20.0).mul(Quat::axis_angle(x, 55.0)).mul(Quat::axis_angle(y, 90.0)).mul(Quat::axis_angle(z, 4.0));
+    let wheel = Vec3::SCREEN_CLOCKWISE;
+    let tipped = Quat::axis_angle(x, 25.0).rotate(wheel).normalized().unwrap();
+    let turned = |n: Quat, deg: f64, a: Vec3| n.mul(Quat::axis_angle(a, deg));
+    let held = |q: Quat, spread: f64| HeldPose { pose: Pose::Orientation(q), spread_deg: spread, samples: 50 };
+    let q = |q: Quat| json!(q.to_vec());
+    let v = |v: Vec3| json!(v.to_vec());
+
+    let twist: Vec<Value> = [(grip, 0.0, wheel), (grip, 17.5, wheel), (grip, -33.0, wheel), (grip, 170.0, wheel), (grip, 15.0, tipped), (Quat::IDENTITY, 42.0, x)]
+        .iter().map(|(n, d, a)| { let r = st::relative(*n, turned(*n, *d, *a)); json!({"r": q(r), "axis": v(wheel), "out_deg": st::twist_deg(r, wheel)}) }).collect();
+    let down = Vec3::new(0.0, 0.0, -1.0);
+    let q0 = Quat::axis_angle(x, 30.0).mul(Quat::axis_angle(z, 90.0));
+    let gravity: Vec<Value> = [(q0, 22.5), (q0, -22.5), (q0, 90.0), (Quat::IDENTITY, 30.0)]
+        .iter().map(|(n, d)| { let g0 = n.conj().rotate(down); let g = turned(*n, *d, wheel).conj().rotate(down);
+            json!({"g0": v(g0), "g": v(g), "axis": v(wheel), "out_deg": st::gravity_twist_deg(g0, g, wheel)}) }).collect();
+
+    let neutral = CalibrationV2::neutral_only(&held(grip, 0.3), 1_760_000_000_000, "vectors");
+    let mut ranges = Vec::new();
+    for (l, r, ls, rs) in [(turned(grip, -25.0, wheel), turned(grip, 40.0, wheel), 0.4, 0.5), (turned(grip, -30.0, tipped), turned(grip, 30.0, tipped), 0.4, 0.4),
+                           (turned(grip, -5.0, wheel), turned(grip, 30.0, wheel), 0.4, 0.4), (turned(grip, -30.0, wheel), grip.mul(Quat::axis_angle(x, 30.0)), 0.4, 0.4),
+                           (turned(grip, -30.0, wheel), turned(grip, 30.0, wheel), 6.0, 0.4)] {
+        let out = match st::range(&neutral, &held(l, ls), &held(r, rs)) {
+            RangeResult::Ok { cal, axis_to_screen_normal_deg } => json!({"ok": true, "axis": cal.axis, "leftDeg": cal.left_deg, "rightDeg": cal.right_deg, "axisToScreenNormalDeg": axis_to_screen_normal_deg}),
+            RangeResult::Retry(_) => json!({"ok": false}),
+        };
+        ranges.push(json!({"left": {"q": q(l), "spread": ls}, "right": {"q": q(r), "spread": rs}, "expect": out}));
+    }
+
+    let mut samples: Vec<Pose> = (0..80).map(|_| Pose::Orientation(grip.mul(Quat::axis_angle(Vec3::new(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5), rnd() * 0.5))))
+        .collect();
+    samples.push(Pose::Orientation(turned(grip, 25.0, wheel))); // one bump the estimator must reject
+    let cap = st::capture(&samples, 20).unwrap();
+    let Pose::Orientation(cq) = cap.pose else { unreachable!() };
+    let capture = json!({"samples": samples.iter().map(|p| match p { Pose::Orientation(x) => q(*x), _ => unreachable!() }).collect::<Vec<_>>(),
+        "minSamples": 20, "expect": {"q": q(cq), "spread": cap.spread_deg, "samples": cap.samples}});
+
+    // A drive: calibrated unequal range, real filter and dead zone, a recenter mid-way (blend), and a
+    // turn past ±180° (unwrap). Each sample may carry a recenter calibration applied before it.
+    let RangeResult::Ok { cal: full, .. } = st::range(&neutral, &held(turned(grip, -28.0, wheel), 0.4), &held(turned(grip, 36.0, wheel), 0.4)) else { unreachable!() };
+    let m = Motion { enabled: true, lock_deg: 45.0, deadzone: 0.03, sensitivity: 1.1, curve: 1.2, min_cutoff: 1.5, beta: 0.03, ..Motion::default() };
+    let mut s = RelativeSteering::new(Some(full.clone()), m);
+    let mut seq = Vec::new();
+    let mut new_neutral = grip;
+    for i in 0..240 {
+        let t = i as f64 / 200.0;
+        let mut recenter = Value::Null;
+        if i == 120 {
+            new_neutral = turned(grip, 12.0, wheel);
+            let (c, _) = st::recenter(s.calibration(), &held(new_neutral, 0.3), 1_760_000_000_500, "vectors");
+            s.recalibrate(Some(c.clone()), t);
+            recenter = serde_json::to_value(&c).unwrap();
+        }
+        let deg = if i < 200 { 22.0 * (t * 3.0).sin() + (rnd() - 0.5) * 0.6 } else { 150.0 + (i - 200) as f64 * 1.5 };
+        let pose = turned(new_neutral, deg, wheel).mul(Quat::axis_angle(x, (rnd() - 0.5) * 2.0)); // plus a little tilt
+        let out = s.update(Pose::Orientation(pose), t);
+        seq.push(json!({"t": t, "q": q(pose), "recenter": recenter, "out": out, "angle": s.angle_deg}));
+    }
+    let good = serde_json::to_string(&full).unwrap();
+    let decode = vec![
+        json!({"json": good, "valid": true}),
+        json!({"json": good.replace("\"v\":2", "\"v\":1"), "valid": false}),
+        json!({"json": r#"{"v":2,"kind":"orientation","q":[0,0,0,0],"noiseDeg":0.1,"measuredAt":1}"#, "valid": false}),
+        json!({"json": r#"{"v":2,"kind":"orientation","q":[1,0,0,0],"leftDeg":3,"rightDeg":30,"noiseDeg":0.1,"measuredAt":1}"#, "valid": false}),
+        json!({"json": r#"{"v":2,"kind":"orientation","q":[1,0,0,0],"leftDeg":30,"noiseDeg":0.1,"measuredAt":1}"#, "valid": false}),
+        json!({"json": r#"{"v":2,"kind":"gravity","g":[0,-1,0],"noiseDeg":0.2,"measuredAt":1}"#, "valid": true}),
+        json!({"json": "not json", "valid": false}),
+    ];
+    json!({
+        "tolerance": 1e-6,
+        "twist": twist, "gravity": gravity, "neutral": neutral, "range": ranges, "capture": capture,
+        "drive": {"motion": {"lockDeg": m.lock_deg, "deadzone": m.deadzone, "sensitivity": m.sensitivity, "curve": m.curve, "invert": m.invert, "minCutoff": m.min_cutoff, "beta": m.beta},
+                  "calibration": full, "samples": seq},
+        "decode": decode,
+    })
+}
+
 fn main() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../vectors");
     std::fs::create_dir_all(&dir).unwrap();
-    for (name, v) in [("noise_xx", noise()), ("frames", frames()), ("pairing", pairing_v()), ("motion", motion_v()), ("profiles", profiles_v()), ("link", link_v()), ("policy", policy_v())] {
+    for (name, v) in [("noise_xx", noise()), ("frames", frames()), ("pairing", pairing_v()), ("motion", motion_v()), ("profiles", profiles_v()), ("link", link_v()), ("policy", policy_v()), ("steering", steering_v())] {
         let p = dir.join(format!("{name}.json"));
         std::fs::write(&p, serde_json::to_string_pretty(&v).unwrap() + "\n").unwrap();
         println!("wrote {}", p.display());

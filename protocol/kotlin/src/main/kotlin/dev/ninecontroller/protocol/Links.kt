@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit
 /** Carries INPUT datagrams (SPEC §6.1) over one physical link. */
 interface DatagramLink : AutoCloseable {
     fun send(d: ByteArray)
+    /** Send an INPUT datagram; [edge] = it carries a button/pedal/flag change and must not be coalesced away. */
+    fun sendInput(d: ByteArray, edge: Boolean) = send(d)
     /** Next datagram from the host, or null after [timeoutMs]. */
     fun receive(timeoutMs: Int): ByteArray?
 }

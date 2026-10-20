@@ -191,6 +191,61 @@ impl Counter {
     pub fn bump(&mut self) -> u64 { self.0 += 1; self.0 }
 }
 
+/// What a [`ReplayWindow`] decided about one authenticated datagram.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Seen {
+    /// First time this counter arrived: process it.
+    New,
+    /// Already received (the same datagram sent over another link, or a replay): drop.
+    Duplicate,
+    /// Older than the window: drop.
+    TooOld,
+}
+
+/// Receiver-side replay protection for a session that may receive the same datagrams over several
+/// links at once (SPEC §6.4, §8.5). A 64-counter sliding window (as in RFC 4303 §3.4.3): every
+/// counter is processed at most once, and a counter more than 64 behind the newest is refused.
+///
+/// The window alone does not order *input*: the receiver applies an input frame only if its counter
+/// is also greater than the last applied input's, so a late copy can never restore an older button,
+/// trigger or stick state.
+#[derive(Debug, Default, Clone)]
+pub struct ReplayWindow { highest: u64, bitmap: u64, accepted: u64, duplicate: u64, too_old: u64, lost: u64 }
+
+impl ReplayWindow {
+    pub const SIZE: u64 = 64;
+
+    /// Call only after AEAD authentication succeeded.
+    pub fn check(&mut self, counter: u64) -> Seen {
+        if counter == 0 { self.too_old += 1; return Seen::TooOld; }
+        if counter > self.highest {
+            let shift = counter - self.highest;
+            // Counters that leave the window without ever arriving are lost.
+            for off in Self::SIZE.saturating_sub(shift)..Self::SIZE {
+                if self.highest > off && (self.bitmap >> off) & 1 == 0 { self.lost += 1; }
+            }
+            if shift > Self::SIZE && self.highest != 0 { self.lost += shift - Self::SIZE; }
+            self.bitmap = if shift >= Self::SIZE { 0 } else { self.bitmap << shift };
+            self.bitmap |= 1;
+            self.highest = counter;
+            self.accepted += 1;
+            return Seen::New;
+        }
+        let off = self.highest - counter;
+        if off >= Self::SIZE { self.too_old += 1; return Seen::TooOld; }
+        if (self.bitmap >> off) & 1 == 1 { self.duplicate += 1; return Seen::Duplicate; }
+        self.bitmap |= 1 << off;
+        self.accepted += 1;
+        Seen::New
+    }
+    pub fn highest(&self) -> u64 { self.highest }
+    pub fn accepted(&self) -> u64 { self.accepted }
+    pub fn duplicate(&self) -> u64 { self.duplicate }
+    pub fn too_old(&self) -> u64 { self.too_old }
+    /// Counters that slid out of the window without arriving on any link.
+    pub fn lost(&self) -> u64 { self.lost }
+}
+
 /// Receiver-side freshness: accept only counters greater than the highest accepted one.
 #[derive(Debug, Default, Clone)]
 pub struct Freshness { highest: u64, accepted: u64, stale: u64, lost: u64 }
@@ -278,5 +333,34 @@ mod tests {
         assert!(f.accept(5)); // 3, 4 lost
         assert!(!f.accept(4)); // late
         assert_eq!((f.accepted(), f.stale(), f.lost(), f.highest()), (3, 2, 2, 5));
+    }
+
+    #[test]
+    fn replay_window_dedups_copies_from_two_links() {
+        let mut w = ReplayWindow::default();
+        // Link A delivers 1..=4; link B delivers the same datagrams later: all duplicates.
+        for c in 1..=4 { assert_eq!(w.check(c), Seen::New); }
+        for c in 1..=4 { assert_eq!(w.check(c), Seen::Duplicate); }
+        // A per-link ping (counter 6) overtaken by input 7 on the other link is still processed once.
+        assert_eq!(w.check(7), Seen::New);
+        assert_eq!(w.check(6), Seen::New);
+        assert_eq!(w.check(6), Seen::Duplicate);
+        assert_eq!(w.check(0), Seen::TooOld);
+        assert_eq!((w.accepted(), w.duplicate(), w.highest()), (6, 5, 7));
+    }
+
+    #[test]
+    fn replay_window_refuses_old_and_counts_loss_once_out_of_window() {
+        let mut w = ReplayWindow::default();
+        assert_eq!(w.check(1), Seen::New);
+        assert_eq!(w.check(3), Seen::New); // 2 missing but still inside the window
+        assert_eq!(w.lost(), 0);
+        // 2 slides out unseen (1) and 4..=36 never fit the new window (33).
+        assert_eq!(w.check(100), Seen::New);
+        assert_eq!(w.lost(), 34);
+        assert_eq!(w.check(36), Seen::TooOld); // 100 - 36 = 64: outside
+        assert_eq!(w.check(37), Seen::New); // late but inside: processed once
+        assert_eq!(w.check(37), Seen::Duplicate);
+        assert_eq!(w.too_old(), 1);
     }
 }

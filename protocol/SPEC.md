@@ -270,7 +270,7 @@ notify characteristics. BLE is a fallback: input is coalesced to the latest stat
 event; achieved rates are measured per pair (TEST_PLAN), never assumed.
 
 ### 8.4 Link selection and failover
-Clients use one link at a time per host and never send the same input over two links. On failover
+In single-link mode clients use one link at a time per host (redundant mode: §8.5). On failover
 the client opens a new session on the next link (new handshake, new session keys, `resumeSlot`);
 the host's slot takeover rule (§7) neutralizes the slot before the new session's first frame, and
 the old session's datagrams are rejected because its session id is gone. Policy:
@@ -278,6 +278,29 @@ the old session's datagrams are rejected because its session id is gone. Policy:
 
 `HostHello` may carry `"links": ["ip","stream","ble"]` and `"addrs": ["192.168.1.20", …]` (the host's
 local IPv4 addresses) — additive; older peers ignore them.
+
+### 8.5 Several links in one session (redundant mode)
+A host that sends `"multipath": true` in its hello accepts `open` with `join: <sessionId>` on a second
+link. The joining link runs its own complete Noise XX handshake; the host accepts the join only if that
+handshake's controller static key owns the live session `sessionId` (pairing and pinning therefore
+apply to every link), and answers with the **same** `session` message (slot, session id, keys). The
+slot, virtual pad, held input and counters are untouched. A session may have up to 4 links.
+
+* The controller seals each datagram once, with one counter for the whole session, and may send the
+  same bytes over every link. Pings are per link (each link's pong comes back over that link).
+* Receivers replace rule 4 of §6.4 with a 64-counter replay window: each counter is processed at most
+  once (later copies are *duplicates*, dropped and counted per link), a counter 64 or more below the
+  newest is refused, and an **input** frame is applied only if its counter is greater than the last
+  applied input frame's, so a late copy can never restore an older state. For a single link this is
+  equivalent to the old rule for input; out-of-order pings are now answered instead of dropped.
+* A link ending removes only that link. The session ends (neutralize, reconnect grace) when its last
+  link ends. The 250 ms input timeout applies to the session: input from any link keeps it fresh.
+* `bye` (control or datagram) ends the whole session. To retire one link, close it.
+* Host feedback (`feedback` datagrams) is sealed once and sent over every link; `rumble` control
+  messages go over one link.
+* Each link queues independently and never waits for another. A new input frame may replace queued
+  input frames that carried only analog changes; frames with a button, pedal (zero ↔ non-zero) or flag
+  change keep their place, and order is never changed.
 
 ## 9. Versioning
 

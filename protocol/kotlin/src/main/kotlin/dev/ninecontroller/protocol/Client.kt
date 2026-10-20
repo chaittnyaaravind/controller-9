@@ -86,8 +86,20 @@ class ControlConnection private constructor(
      * `error(backend_unavailable)`; the caller's control-reader loop surfaces it (a timed read here
      * cannot be cancelled on non-socket links).
      */
-    fun open(resumeSlot: Int?, profile: String?): SessionInfo {
-        send(Control.Open(resumeSlot, profile))
+    fun open(resumeSlot: Int?, profile: String?): SessionInfo = openWith(Control.Open(resumeSlot, profile))
+
+    /**
+     * Add this link to the live session [sessionId] (SPEC §8.5). The host replies with the same slot,
+     * session id and keys after checking that this handshake's identity owns the session; nothing is
+     * reset on the host. Only for hosts whose hello says `multipath`.
+     */
+    fun join(sessionId: Int): SessionInfo {
+        if (!host.multipath) throw RefusedException("multipath_unsupported")
+        return openWith(Control.Open(join = sessionId.toLong() and 0xFFFFFFFFL))
+    }
+
+    private fun openWith(o: Control.Open): SessionInfo {
+        send(o)
         val s = when (val r = recv()) {
             is Control.Session -> r
             is Control.PairRequired -> throw RefusedException("not_paired")
@@ -141,35 +153,56 @@ class ControlConnection private constructor(
     }
 }
 
-/** Input channel over any [DatagramLink]. `send*` from one sender thread; `receive` from another. */
-class InputChannel(private val link: DatagramLink, val info: SessionInfo) : AutoCloseable {
-    /** IP binding: UDP to the host's input port. */
-    constructor(host: InetAddress, info: SessionInfo) : this(UdpLink(host, info.udpPort), info)
+/**
+ * Datagram crypto of one session, shared by every link attached to it (SPEC §8.5): one counter (so a
+ * nonce is never reused across links), one sender clock and one replay window for host datagrams,
+ * which may arrive once per link.
+ */
+class SessionCrypto(val info: SessionInfo) {
     private var counter = 0L
-    private val freshIn = Freshness()
     private val epochNs = System.nanoTime()
+    val rx = ReplayWindow()
+    fun nowUs(): Long = (System.nanoTime() - epochNs) / 1000
+    @Synchronized fun seal(type: PacketType, payload: ByteArray): ByteArray =
+        Datagram.seal(info.kIn, Header(type, info.sessionId, ++counter), payload)
+    /** One input frame, sealed once; the same bytes may be sent over every link. */
+    fun sealInput(state: InputState, flags: Int): ByteArray = seal(PacketType.INPUT, InputFrame(nowUs(), state, flags).encode())
+}
+
+/**
+ * Input channel over one [DatagramLink]. `send*` from one sender thread; `receive` from another.
+ * Several channels (one per link) may share one [SessionCrypto].
+ */
+class InputChannel(private val link: DatagramLink, val info: SessionInfo, val crypto: SessionCrypto = SessionCrypto(info)) : AutoCloseable {
+    /** IP binding: UDP to the host's input port. */
+    constructor(host: InetAddress, info: SessionInfo, crypto: SessionCrypto = SessionCrypto(info)) : this(UdpLink(host, info.udpPort), info, crypto)
     private val pings = java.util.concurrent.ConcurrentHashMap<Int, Long>()
     private var nextPing = 1
+    /** Round trip of this link alone (its pings are answered on the link they came over). */
     val rttMs = Window(256)
     var sent = 0L; private set
 
-    fun nowUs(): Long = (System.nanoTime() - epochNs) / 1000
+    fun nowUs(): Long = crypto.nowUs()
 
-    @Synchronized private fun seal(type: PacketType, payload: ByteArray): ByteArray =
-        Datagram.seal(info.kIn, Header(type, info.sessionId, ++counter), payload)
+    private fun seal(type: PacketType, payload: ByteArray): ByteArray = crypto.seal(type, payload)
 
-    fun sendInput(state: InputState, flags: Int) {
-        val d = seal(PacketType.INPUT, InputFrame(nowUs(), state, flags).encode())
-        link.send(d); sent++
-    }
+    fun sendInput(state: InputState, flags: Int) = sendRaw(crypto.sealInput(state, flags))
 
-    fun ping() {
+    /** Send an already sealed datagram of this session (the same bytes go over every link). */
+    fun sendRaw(d: ByteArray) { link.send(d); sent++ }
+    /** Send a sealed INPUT datagram; see [DatagramLink.sendInput]. */
+    fun sendRawInput(d: ByteArray, edge: Boolean) { link.sendInput(d, edge); sent++ }
+
+    /** Seal a ping for this link and remember it for the round-trip measurement. */
+    fun pingDatagram(): ByteArray {
         val id = nextPing++
         val t = nowUs()
         pings[id] = t
         if (pings.size > 64) pings.keys.minOrNull()?.let { pings.remove(it) }
-        link.send(seal(PacketType.PING, Ping(t, id).encode()))
+        return seal(PacketType.PING, Ping(t, id).encode())
     }
+
+    fun ping() = link.send(pingDatagram())
 
     fun bye() { runCatching { link.send(seal(PacketType.BYE, ByteArray(0))) } }
 
@@ -177,7 +210,7 @@ class InputChannel(private val link: DatagramLink, val info: SessionInfo) : Auto
     fun receive(timeoutMs: Int): Feedback? {
         val d = link.receive(timeoutMs) ?: return null
         val (h, pt) = try { Datagram.open(info.kOut, d) } catch (_: FrameException) { return null }
-        if (!freshIn.accept(h.counter)) return null
+        if (crypto.rx.check(h.counter) != Seen.NEW) return null
         return when (h.type) {
             PacketType.PONG -> { runCatching { Pong.decode(pt) }.getOrNull()?.let { pong ->
                 if (pings.remove(pong.id) != null) rttMs.push((nowUs() - pong.tUs) / 1000.0) }; null }

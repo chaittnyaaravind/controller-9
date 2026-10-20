@@ -9,6 +9,7 @@ pub mod pairing;
 pub mod policy;
 pub mod profile;
 pub mod stats;
+pub mod steering;
 
 pub const PROTO_VERSION: u8 = 1;
 pub const DEFAULT_TCP_PORT: u16 = 47901;

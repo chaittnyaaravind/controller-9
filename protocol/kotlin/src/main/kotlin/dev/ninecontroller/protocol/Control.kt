@@ -8,7 +8,8 @@ import kotlinx.serialization.json.Json
 /** Control-channel messages (SPEC §4). The JSON discriminator is `t`. */
 @Serializable
 sealed class Control {
-    @Serializable @SerialName("open") data class Open(val resumeSlot: Int? = null, val profile: String? = null) : Control()
+    /** [join]: add this link to the caller's live session instead of opening one (SPEC §8.5); only to hosts with `multipath`. */
+    @Serializable @SerialName("open") data class Open(val resumeSlot: Int? = null, val profile: String? = null, val join: Long? = null) : Control()
     @Serializable @SerialName("pair_qr") data class PairQr(val proof: String) : Control()
     @Serializable @SerialName("pair_code") data object PairCode : Control()
     @Serializable @SerialName("nonce") data class Nonce(val n: String) : Control()
@@ -43,5 +44,5 @@ sealed class Control {
 }
 
 @Serializable data class InitHello(val proto: List<Int>)
-@Serializable data class HostHello(val proto: Int, val name: String, val id: String, val os: String, val links: List<String> = emptyList(), val addrs: List<String> = emptyList())
+@Serializable data class HostHello(val proto: Int, val name: String, val id: String, val os: String, val links: List<String> = emptyList(), val addrs: List<String> = emptyList(), val multipath: Boolean = false)
 @Serializable data class ControllerHello(val proto: Int, val name: String, val platform: String, val app: String)
