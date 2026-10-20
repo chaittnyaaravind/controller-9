@@ -55,7 +55,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Micro("Controller-9", color: Nine.accent)
+                Image("Wordmark").resizable().scaledToFit().frame(height: 26).accessibilityLabel("Controller-9").padding(.bottom, 6)
                 Text("Your controller").font(.system(size: 30, weight: .medium)).tracking(-0.6).accessibilityAddTraits(.isHeader)
                 statusCard
                 Micro("Computers")
@@ -81,9 +81,17 @@ struct HomeView: View {
                 }
                 Micro("Layout")
                 NavigationLink { ProfilesView() } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(model.activeProfile?.name ?? "No layout").font(.headline).foregroundStyle(Nine.text)
-                        if let p = model.activeProfile { Text("\(p.controls.count) controls\(p.motion.enabled ? " · motion steering" : "")").foregroundStyle(Nine.muted) }
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let pad = model.activePad { PadPreview(preset: pad) }
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(model.activeProfile?.name ?? "No layout").font(.headline).foregroundStyle(Nine.text)
+                                if let pad = model.activePad { Text(pad.tagline).foregroundStyle(Nine.muted) }
+                                else if let p = model.activeProfile { Text("\(p.controls.count) controls\(p.motion.enabled ? " · motion steering" : "")").foregroundStyle(Nine.muted) }
+                            }
+                            Spacer()
+                            Text("Change").foregroundStyle(Nine.muted)
+                        }
                     }.card()
                 }
                 HStack(spacing: 18) {
@@ -118,7 +126,12 @@ struct HomeView: View {
                 }
             }
             HStack(spacing: 10) {
-                NavigationLink("Play") { ControllerView() }.buttonStyle(PrimaryButton()).disabled(model.activeProfile == nil)
+                // One primary action per screen: with nothing paired, "Add a computer" is the lime button.
+                if model.hosts.isEmpty {
+                    NavigationLink("Play") { ControllerView() }.buttonStyle(SecondaryButton()).disabled(model.activeProfile == nil)
+                } else {
+                    NavigationLink("Play") { ControllerView() }.buttonStyle(PrimaryButton()).disabled(model.activeProfile == nil)
+                }
                 switch model.connection.state {
                 case .connected, .reconnecting: Button("Disconnect") { model.connection.disconnect() }.foregroundStyle(Nine.text)
                 default: EmptyView()
