@@ -170,8 +170,12 @@ struct AddHostView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Pair over Bluetooth").font(.headline)
                     Text("Works with Wi-Fi off. Open “Pair a phone” on the computer (it needs Bluetooth), keep this screen open, then compare codes.").foregroundStyle(Nine.muted)
-                    Button("Pair over Bluetooth") { error = nil; model.connection.pairWithCode(endpoint: nil, name: "computer over Bluetooth") }.foregroundStyle(Nine.text)
-                    Text("No router? Turn on this iPhone's Personal Hotspot and join it from the computer — or connect the iPhone by USB cable with Personal Hotspot on — then scan the computer's QR code.").font(.footnote).foregroundStyle(Nine.dim)
+                    Button("Start Bluetooth pairing") { error = nil; model.connection.pairWithCode(endpoint: nil, name: "computer over Bluetooth") }
+                        .buttonStyle(SecondaryButton()).padding(.top, 4)
+                }.card()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Personal Hotspot or USB").font(.headline)
+                    Text("No router? Turn on this iPhone's Personal Hotspot and join it from the computer, or connect the iPhone by USB cable with Personal Hotspot on. Then scan the computer's QR code.").foregroundStyle(Nine.muted)
                 }.card()
                 Micro("Manual address")
                 TextField("192.168.1.20 or 192.168.1.20:47901", text: $manual)
@@ -183,7 +187,7 @@ struct AddHostView: View {
                     let port = parts.count > 1 ? UInt16(parts[1]) ?? defaultTCPPort : defaultTCPPort
                     error = nil
                     model.connection.pairWithCode(endpoint: .hostPort(host: .init(String(a)), port: .init(rawValue: port)!), name: String(a))
-                }.foregroundStyle(Nine.text)
+                }.buttonStyle(SecondaryButton())
                 if case let .failed(m) = model.connection.state { Text(m).foregroundStyle(Nine.bad) }
                 if case let .connecting(h) = model.connection.state { Text("Connecting to \(h)…").foregroundStyle(Nine.muted) }
                 if let error { Text(error).foregroundStyle(Nine.bad) }

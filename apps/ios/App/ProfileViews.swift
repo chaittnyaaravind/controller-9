@@ -285,7 +285,10 @@ struct SettingsView: View {
             Section("Feel") {
                 Toggle("Vibration", isOn: $model.settings.hapticsEnabled)
                 if !model.haptics.supportsRumble { Text("Game rumble needs a device with Core Haptics; button clicks still work.").font(.footnote).foregroundStyle(Nine.dim) }
-                Slider(value: $model.settings.hapticStrength, in: 0...1).disabled(!model.settings.hapticsEnabled).accessibilityLabel("Vibration strength")
+                VStack(alignment: .leading, spacing: 6) {
+                    LabeledContent("Vibration strength", value: "\(Int((model.settings.hapticStrength * 100).rounded()))%")
+                    Slider(value: $model.settings.hapticStrength, in: 0...1).accessibilityLabel("Vibration strength")
+                }.disabled(!model.settings.hapticsEnabled)
                 Toggle("Show latency on the controller", isOn: $model.settings.showStats)
                 Picker("Motion sensor rate", selection: $model.settings.sensorHz) { Text("100 Hz").tag(100); Text("200 Hz").tag(200) }
             }

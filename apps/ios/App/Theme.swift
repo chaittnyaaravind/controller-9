@@ -39,4 +39,15 @@ struct PrimaryButton: ButtonStyle {
     }
 }
 
+/// Secondary action: hairline pill, so it reads as a button without competing with the accent.
+struct SecondaryButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.body.weight(.medium)).padding(.horizontal, 18).padding(.vertical, 10)
+            .background(Nine.text.opacity(configuration.isPressed ? 0.1 : 0.06), in: Capsule())
+            .overlay(Capsule().strokeBorder(Nine.line2, lineWidth: 1))
+            .foregroundStyle(Nine.text)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1).animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 func fmt(_ v: Double?, _ digits: Int = 1) -> String { v.map { String(format: "%.\(digits)f", $0) } ?? "—" }
