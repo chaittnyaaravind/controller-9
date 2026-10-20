@@ -8,7 +8,9 @@ on:
     paths: [apps/ios/**, protocol/swift/**, protocol/profiles/**, tools/ios-ci/**, .github/workflows/ios.yml]
   workflow_dispatch: {}
 permissions: { contents: read }
-concurrency: { group: ios-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   ios:
     runs-on: macos-15
