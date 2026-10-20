@@ -54,18 +54,18 @@ import dev.ninecontroller.android.ui.theme.NineType
 
 // ---------------------------------------------------------------- brand
 
-/** The Controller-9 mark (squared stick gate + 9). [small] drops the link wave for sizes under 32dp. */
+/** The Controller-9 mark ("Pocket Pad"). [small] uses the heavier cut drawn for sizes under 32dp. */
 @Composable
 fun BrandMark(size: Dp, modifier: Modifier = Modifier, small: Boolean = size < 32.dp) =
     Image(painterResource(if (small) R.drawable.c9_mark_small else R.drawable.c9_mark), null, modifier.size(size))
 
-/** Mark + logotype lockup; cap height is 0.44 of the mark, as in brand/svg/controller9-wordmark.svg. */
+/** Mark + logotype lockup; cap height is 0.40 of the mark, gap 8/48, as in brand/svg/controller9-wordmark.svg. */
 @Composable
 fun Wordmark(markSize: Dp = 28.dp, modifier: Modifier = Modifier) =
     Row(modifier.semantics(mergeDescendants = true) { contentDescription = "Controller-9" }, verticalAlignment = Alignment.CenterVertically) {
         BrandMark(markSize)
-        Spacer(Modifier.size(markSize * 10 / 48))
-        Image(painterResource(R.drawable.c9_logotype), null, Modifier.height(markSize * 0.44f * 24 / 20))
+        Spacer(Modifier.size(markSize * 8 / 48))
+        Image(painterResource(R.drawable.c9_logotype), null, Modifier.height(markSize * 0.40f * 22 / 20))
     }
 
 // ---------------------------------------------------------------- layout

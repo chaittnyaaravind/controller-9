@@ -36,4 +36,20 @@ for s, b in zip(sizes, blobs):
     off += len(b)
 open(out, "wb").write(head + dirs + b"".join(blobs))
 EOF
-echo "icons written to $OUT"
+# iOS app icon: one opaque 1024 square (iOS applies its own corner mask; no alpha allowed).
+IOS="$ROOT/apps/ios/App/Assets.xcassets/AppIcon.appiconset"; mkdir -p "$IOS"
+printf '<!doctype html><style>html,body{margin:0}img{display:block;width:1024px;height:1024px}</style><img src="file://%s">' \
+  "$ROOT/brand/svg/controller9-app-icon-square.svg" >"$TMP/square.html"
+"$CHROME" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files \
+  --window-size=1024,1024 --screenshot="$TMP/square.png" "file://$TMP/square.html" 2>/dev/null
+sips -s format jpeg -s formatOptions best "$TMP/square.png" --out "$TMP/square.jpg" >/dev/null
+sips -s format png "$TMP/square.jpg" --out "$IOS/AppIcon-1024.png" >/dev/null
+printf '{"images":[{"filename":"AppIcon-1024.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"brand/raster.sh","version":1}}\n' >"$IOS/Contents.json"
+printf '{"info":{"author":"brand/raster.sh","version":1}}\n' >"$ROOT/apps/ios/App/Assets.xcassets/Contents.json"
+
+# Web: apple-touch-icon and PNG favicon.
+mkdir -p "$ROOT/site/brand"
+sips -z 180 180 "$IOS/AppIcon-1024.png" --out "$ROOT/site/brand/apple-touch-icon.png" >/dev/null
+px 64 "$ROOT/site/brand/favicon-64.png"
+
+echo "icons written to $OUT, $IOS and site/brand"
