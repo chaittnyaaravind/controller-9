@@ -1,0 +1,43 @@
+{
+  "comment": "Status rules (docs/RELEASES.md): 'available' only after the file was installed and tested on a real device; 'preview' runs with the stated limitation; 'soon' has no file. Sizes and SHA-256 are computed by tools/build.py, never typed.",
+  "version": "0.1.0",
+  "platforms": [
+    {
+      "id": "android",
+      "name": "Android",
+      "status": "available",
+      "meta": "Android 8 or newer · APK",
+      "file": "downloads/Controller-9-0.1.0.apk",
+      "text": "The phone app. Open the file on your phone and allow installing from your browser when Android asks."
+    },
+    {
+      "id": "mac",
+      "name": "Mac",
+      "status": "preview",
+      "meta": "macOS 13 or newer · Apple silicon",
+      "file": "downloads/Controller-9-0.1.0-mac-arm64.dmg",
+      "text": "The computer companion: pairs, shows live diagnostics and passes rumble. Games on Mac can't see the controller yet — that needs a permission from Apple. Not notarized yet: after the first launch is blocked, open System Settings → Privacy & Security and choose Open Anyway."
+    },
+    {
+      "id": "iphone",
+      "name": "iPhone",
+      "status": "soon",
+      "meta": "iOS 17 or newer",
+      "text": "The iPhone app is built and tested on an iPhone 15. Apple only allows public installs through the App Store or TestFlight, which comes next."
+    },
+    {
+      "id": "windows",
+      "name": "Windows",
+      "status": "soon",
+      "meta": "Windows 11",
+      "text": "Windows needs a signed driver so games see a real controller. It is not shipped until that driver is signed."
+    },
+    {
+      "id": "linux",
+      "name": "Linux",
+      "status": "soon",
+      "meta": "x86_64 · arm64",
+      "text": "Linux works today: games see a standard Xbox 360-style controller. Packages are on the way."
+    }
+  ]
+}

@@ -131,7 +131,7 @@ def main():
         (ui / name).write_text(files[name])
 
     # Website.
-    web = ROOT / "site" / "brand"
+    web = ROOT / "site" / "public" / "brand"
     web.mkdir(parents=True, exist_ok=True)
     for name in ("controller9-mark.svg", "controller9-wordmark.svg", "controller9-favicon.svg", "controller9-app-icon.svg"):
         (web / name).write_text(files[name])

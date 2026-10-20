@@ -48,8 +48,8 @@ printf '{"images":[{"filename":"AppIcon-1024.png","idiom":"universal","platform"
 printf '{"info":{"author":"brand/raster.sh","version":1}}\n' >"$ROOT/apps/ios/App/Assets.xcassets/Contents.json"
 
 # Web: apple-touch-icon and PNG favicon.
-mkdir -p "$ROOT/site/brand"
-sips -z 180 180 "$IOS/AppIcon-1024.png" --out "$ROOT/site/brand/apple-touch-icon.png" >/dev/null
-px 64 "$ROOT/site/brand/favicon-64.png"
+mkdir -p "$ROOT/site/public/brand"
+sips -z 180 180 "$IOS/AppIcon-1024.png" --out "$ROOT/site/public/brand/apple-touch-icon.png" >/dev/null
+px 64 "$ROOT/site/public/brand/favicon-64.png"
 
 echo "icons written to $OUT, $IOS and site/brand"

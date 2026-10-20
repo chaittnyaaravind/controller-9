@@ -33,3 +33,9 @@ must not run a game controller as root.
 
 Alternatives (not adopted): a DriverKit HID dext (separate entitlements and system-extension
 approval, more user friction) or the licensed libvirtualhid macOS broker.
+
+## Permissions the desktop app declares
+`hosts/app/src-tauri/Info.plist` (merged into the app bundle): **Bluetooth** (`NSBluetoothAlwaysUsageDescription`,
+to reach phones over BLE when Wi-Fi is unavailable) and **Local Network** (`NSLocalNetworkUsageDescription`,
+`NSBonjourServices: _ninectl._tcp`). Without the Bluetooth reason, macOS terminates the app the moment it
+scans (TCC privacy violation) — found by the install test of the first DMG on 2026-10-19.

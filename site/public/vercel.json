@@ -1,0 +1,13 @@
+{
+  "headers": [
+    { "source": "/downloads/(.*)\\.apk", "headers": [
+      { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+      { "key": "Content-Disposition", "value": "attachment" } ] },
+    { "source": "/downloads/(.*)\\.dmg", "headers": [
+      { "key": "Content-Type", "value": "application/x-apple-diskimage" },
+      { "key": "Content-Disposition", "value": "attachment" } ] },
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" } ] }
+  ]
+}
