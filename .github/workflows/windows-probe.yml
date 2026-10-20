@@ -15,6 +15,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: windows-x64, path: art, run-id: "${{ inputs.run_id }}", github-token: "${{ github.token }}" }
+      - name: Add Microsoft's Xbox 360 controller driver (absent on Windows Server)
+        if: ${{ inputs.xusb == 'yes' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Microsoft Update Catalog: "Microsoft - Game Devices, Other hardware - XBOX 360 Controller For Windows"
+          # (update 31f327c0-b9b6-4829-afe4-7cbf52b3a384), Microsoft-signed xusb21, pinned by SHA-256.
+          Invoke-WebRequest "https://catalog.s.download.windowsupdate.com/msdownload/update/driver/drvs/2013/01/20289581_7385d6be1b053a35955a910f11436729a1d4cb56.cab" -OutFile xusb.cab
+          $h = (Get-FileHash xusb.cab -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne "49bd427e53f5c63a1a03b791cf6deeefe3a2ac5700dc4db5e39fad98f3070fa6") { throw "xusb.cab hash $h" }
+          New-Item -ItemType Directory xusb | Out-Null
+          expand.exe xusb.cab -F:* xusb | Out-Null
+          pnputil /add-driver xusb\xusb21.inf /install
       - name: Diagnose and run the game-visible test
         shell: pwsh
         run: |
