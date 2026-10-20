@@ -1,0 +1,50 @@
+{
+  "name": "Controller-9",
+  "subtitle": "Your phone is the controller",
+  "identifier": "app.vercel.controller-9",
+  "sourceURL": "https://controller-9.vercel.app/altstore.json",
+  "website": "https://controller-9.vercel.app",
+  "iconURL": "https://controller-9.vercel.app/brand/apple-touch-icon.png",
+  "tintColor": "#C6F432",
+  "nsfw": false,
+  "featuredApps": [
+    "dev.ninecontroller.ios"
+  ],
+  "apps": [
+    {
+      "name": "Controller-9",
+      "bundleIdentifier": "dev.ninecontroller.ios",
+      "developerName": "Controller-9",
+      "subtitle": "Your phone is the controller",
+      "category": "utilities",
+      "tintColor": "#C6F432",
+      "localizedDescription": "Turn your iPhone into a game controller for your computer: five familiar layouts, grip-relative tilt steering and rumble, over your own Wi-Fi or Bluetooth. No account, no cloud. Needs the free Controller-9 companion on your Mac, Windows or Linux computer.",
+      "iconURL": "https://controller-9.vercel.app/brand/apple-touch-icon.png",
+      "screenshots": [
+        "https://controller-9.vercel.app/assets/screens/01-home.png",
+        "https://controller-9.vercel.app/assets/screens/02-profiles.png",
+        "https://controller-9.vercel.app/assets/screens/03-controller.png"
+      ],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "buildVersion": "1",
+          "date": "2026-10-19",
+          "downloadURL": "https://controller-9.vercel.app/downloads/Controller-9-0.1.0-iphone-sideload.ipa",
+          "size": 884510,
+          "minOSVersion": "17.0",
+          "localizedDescription": "First release: five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth."
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSBluetoothAlwaysUsageDescription": "Connect to your computer over Bluetooth when Wi-Fi is off or unavailable.",
+          "NSCameraUsageDescription": "Scan the pairing code shown on your computer.",
+          "NSLocalNetworkUsageDescription": "Find and connect to Controller-9 on computers on your Wi-Fi network."
+        }
+      }
+    }
+  ],
+  "news": []
+}
