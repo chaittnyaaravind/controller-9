@@ -37,6 +37,9 @@ ol > li::before { content: counter(s, decimal-leading-zero); font: 500 13px/1.6 
 li h3 { font-weight: 500; font-size: 19px; letter-spacing: -0.015em; margin: 0 0 6px; }
 li p { color: var(--muted); margin: 0; }
 code { font: 13.5px var(--mono); background: var(--s2); padding: 2px 6px; border-radius: 6px; }
+.sec { font-weight: 500; font-size: 24px; letter-spacing: -0.02em; margin: 64px 0 0; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.tag { font: 500 11px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase; color: var(--accent); background: rgb(198 244 50 / .1); padding: 6px 9px; border-radius: 99px; }
+ol { margin-top: 24px !important; }
 .sha { font: 12px/1.5 var(--mono); color: var(--dim); word-break: break-all; margin-top: 10px; }
 footer { color: var(--dim); font-size: 13px; padding: 56px 0 64px; }
 </style>
@@ -47,21 +50,36 @@ footer { color: var(--dim); font-size: 13px; padding: 56px 0 64px; }
   <main>
     <div class="micro accent" style="margin-top:56px">iPhone · iOS 17 or newer</div>
     <h1>Install Controller-9 on your iPhone.</h1>
-    <p class="lede">Apple only lets apps outside the App Store install when they're signed with your own Apple ID. A free tool does that for you in about two minutes. The App Store version comes later.</p>
+    <p class="lede">Free, with your own Apple ID — no App Store needed. Pick one of two ways. AltStore keeps the app refreshed and updated by itself; Sideloadly is the quickest one-off.</p>
+
+    <h2 class="sec">Option A · AltStore <span class="tag">Recommended · refreshes itself</span></h2>
     <div class="row">
-      <a class="btn primary" href="/{{IPA_FILE}}" download>Download for iPhone · .ipa · {{IPA_SIZE}}</a>
+      <a class="btn primary" href="altstore://source?url={{SITE}}/altstore.json">Add Controller-9 to AltStore</a>
+      <a class="btn ghost" href="https://altstore.io/" rel="noopener">Get AltStore</a>
+    </div>
+    <ol>
+      <li><div><h3>Install AltServer on your computer and AltStore on your iPhone</h3><p>Both free from <a href="https://altstore.io/" rel="noopener">altstore.io</a> (Mac and Windows). AltServer installs AltStore onto the iPhone over a cable, once.</p></div></li>
+      <li><div><h3>Turn on Developer Mode and trust AltStore</h3><p><strong>Settings → Privacy &amp; Security → Developer Mode</strong> → on, restart; then <strong>Settings → General → VPN &amp; Device Management</strong> → your Apple ID → <strong>Trust</strong>.</p></div></li>
+      <li><div><h3>Add the Controller-9 source</h3><p>Tap <strong>Add Controller-9 to AltStore</strong> above on your iPhone — or in AltStore go to <strong>Sources → +</strong> and paste <code>{{SITE}}/altstore.json</code>.</p></div></li>
+      <li><div><h3>Install</h3><p>Open <strong>Browse</strong>, tap <strong>Controller-9 → Free</strong>. From now on AltStore refreshes it in the background whenever your iPhone and computer share Wi-Fi — which is every time you play — and shows updates when we release them.</p></div></li>
+    </ol>
+
+    <h2 class="sec">Option B · Sideloadly <span class="tag">Quickest</span></h2>
+    <div class="row">
+      <a class="btn ghost" href="/{{IPA_FILE}}" download>Download the app · .ipa · {{IPA_SIZE}}</a>
       <a class="btn ghost" href="https://sideloadly.io/" rel="noopener">Get Sideloadly</a>
     </div>
     <div class="sha">SHA-256 {{IPA_SHA}}</div>
     <ol>
-      <li><div><h3>Install Sideloadly on your computer</h3><p>Free for Mac and Windows from <a href="https://sideloadly.io/" rel="noopener">sideloadly.io</a>. AltStore works too, if you already use it.</p></div></li>
-      <li><div><h3>Connect your iPhone</h3><p>Plug it in with a cable, unlock it and tap <strong>Trust</strong> if it asks.</p></div></li>
+      <li><div><h3>Install Sideloadly on your computer and connect your iPhone</h3><p>Free from <a href="https://sideloadly.io/" rel="noopener">sideloadly.io</a>. Plug the iPhone in, unlock it and tap <strong>Trust</strong>.</p></div></li>
       <li><div><h3>Drop in the file and sign in</h3><p>Drag the <code>.ipa</code> into Sideloadly, enter your Apple ID and press <strong>Start</strong>. Your Apple ID goes to Apple only — never to us.</p></div></li>
-      <li><div><h3>Turn on Developer Mode</h3><p>On the iPhone: <strong>Settings → Privacy &amp; Security → Developer Mode</strong> → on, then restart when asked.</p></div></li>
-      <li><div><h3>Trust the app</h3><p><strong>Settings → General → VPN &amp; Device Management</strong> → tap your Apple ID → <strong>Trust</strong>.</p></div></li>
-      <li><div><h3>Open Controller-9 and pair</h3><p>Install the companion on your computer from the <a href="/#download">downloads</a>, choose <em>Pair a phone</em>, and scan the code with the app.</p></div></li>
+      <li><div><h3>Developer Mode and trust</h3><p>Same as AltStore step 2, but trust the app itself.</p></div></li>
     </ol>
-    <p class="note">With a free Apple ID the app runs for 7 days, then Sideloadly re-signs it in a click; your settings and pairing stay. A paid Apple Developer account lasts a year.</p>
+    <p class="note">Apple's rules for free Apple IDs: an app signed this way runs for 7 days before it needs a refresh (AltStore does it for you; with Sideloadly, drag the file in again — settings and pairing stay), and at most 3 such apps at a time.</p>
+
+    <h2 class="sec">Then pair</h2>
+    <p style="color:var(--muted)">Install the companion on your computer from the <a href="/#download">downloads</a>, choose <em>Pair a phone</em>, and scan the code with Controller-9.</p>
+
     <div class="card">
       <div class="micro">Tested</div>
       <p style="margin:8px 0 0;color:var(--muted)">{{IPA_TESTED}}</p>
