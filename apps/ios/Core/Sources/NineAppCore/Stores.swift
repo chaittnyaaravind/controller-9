@@ -50,7 +50,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var hapticsEnabled = true
     public var hapticStrength = 0.7
     public var sensorHz = 100
+    /// Schema-1 absolute centre (screen-frame angle). Read only to tell the player to set a new neutral.
     public var calibrationDeg = 0.0
+    /// Relative steering calibration, schema 2 (docs/STEERING.md); nil until the first neutral is captured.
+    public var steering: SteeringCalibrationV2?
     public var showStats = true
     /// "auto" or a LinkKind raw value.
     public var linkOverride: String? = "auto"

@@ -19,9 +19,9 @@ struct ControllerView: View {
     @State private var visuals = Visuals()
     @State private var motion = MotionInput()
     @State private var engine: ControllerEngine?
-    @State private var calibration: String?
-    @State private var calibrator: Calibrator?
-    @State private var lastAngle = Double.nan
+    @State private var steering: SteeringSession?
+    /// Short, non-blocking steering status ("Hold still…", "Center set"); never a modal during play.
+    @State private var banner: String?
 
     var body: some View {
         if let profile = model.activeProfile {
@@ -50,10 +50,6 @@ struct ControllerView: View {
             .toolbar(.hidden, for: .navigationBar)
             .onAppear { start(profile) }
             .onDisappear { stop() }
-            .alert("Calibrate steering", isPresented: .constant(calibration != nil)) {
-                Button("Try again") { runCalibration() }
-                Button("Cancel", role: .cancel) { calibration = nil; calibrator = nil; engine?.setCalibrating(false) }
-            } message: { Text(calibration ?? "") }
         }
     }
 
@@ -88,7 +84,8 @@ struct ControllerView: View {
             Circle().fill(color).frame(width: 7, height: 7)
             Micro(text, color: Nine.text)
             if model.settings.showStats, case .connected = model.connection.state { Micro("\(fmt(model.connection.stats.rttP50)) ms", color: Nine.dim) }
-            if p.motion.enabled { Button { runCalibration() } label: { Micro("Center", color: Nine.text) } }
+            if let banner { Micro(banner, color: Nine.accent).accessibilityAddTraits(.updatesFrequently) }
+            if p.motion.enabled { Button { recenter() } label: { Micro("Center", color: Nine.text) }.accessibilityHint("Hold your normal grip still for a second") }
             NavigationLink { LayoutEditorView(profileId: p.id) } label: { Micro("Edit", color: Nine.text) }
             Button { dismiss() } label: { Micro("Exit", color: Nine.text) }
         }
@@ -107,14 +104,14 @@ struct ControllerView: View {
         e.configure(p.motion)
         engine = e
         if p.motion.enabled {
-            var steering = Steering(p.motion)
-            steering.setCenter(model.settings.calibrationDeg)
-            let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation ?? .landscapeRight
+            let s = SteeringSession(calibration: model.settings.steering, motion: p.motion) { event in
+                Task { @MainActor in steeringEvent(event) }
+            }
+            steering = s
+            if s.capturing { banner = model.settings.calibrationDeg != 0 ? "Steering now follows your grip · hold still" : "Hold your grip still" }
             let vis = visuals
-            motion.start(hz: model.settings.sensorHz, orientation: orientation) { gx, gy, gz, t in
-                if let a = MotionMath.wheelAngleDeg(gx, gy, gz) { Task { @MainActor in lastAngle = a } }
-                Task { @MainActor in calibrator?.add(gx, gy, gz) }
-                let v = steering.update(gx, gy, gz, t: t)
+            motion.start(hz: model.settings.sensorHz) { pose, t in
+                let v = s.update(pose, t: t)
                 e.setMotion(v)
                 Task { @MainActor in vis.steering = v }
             }
@@ -124,28 +121,35 @@ struct ControllerView: View {
 
     private func stop() {
         motion.stop()
+        steering = nil
         engine?.releaseAll()
         engine = nil
         UIApplication.shared.isIdleTimerDisabled = false
         AppDelegate.lock(.all)
     }
 
-    private func recenter() { if !lastAngle.isNaN { model.settings.calibrationDeg = lastAngle; restartMotion() } }
-    private func restartMotion() { if let p = model.activeProfile { motion.stop(); engine = nil; start(p) } }
+    /// Recenter on the current grip: steering keeps working and blends to the new center (no restart, no modal).
+    private func recenter() {
+        guard let steering else { return }
+        steering.recenter()
+        banner = "Hold your grip still"
+    }
 
-    private func runCalibration() {
-        engine?.setCalibrating(true)
-        calibrator = Calibrator()
-        calibration = "Hold the phone at your neutral steering position…"
-        Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            let cal = calibrator?.finish()
-            calibrator = nil
-            engine?.setCalibrating(false)
-            if let cal, cal.steady { model.settings.calibrationDeg = cal.centerDeg; calibration = nil; restartMotion() }
-            else if let cal { calibration = String(format: "The phone moved during calibration (±%.1f°). Hold it still and try again.", cal.spreadDeg) }
-            else { calibration = "Couldn’t read the motion sensor. Hold the phone upright, not flat." }
+    private func steeringEvent(_ event: SteeringSession.Event) {
+        switch event {
+        case let .neutralSet(cal, regrip):
+            model.settings.steering = cal
+            model.settings.calibrationDeg = 0
+            model.haptics.tap()
+            show(regrip ? "Grip changed a lot · check the steering range" : "Center set", for: regrip ? 4 : 1.5)
+        case .unsteady:
+            banner = "Phone moved · hold still to set the center"
         }
+    }
+
+    private func show(_ text: String, for seconds: Double) {
+        banner = text
+        Task { try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9)); if banner == text { banner = nil } }
     }
 }
 
