@@ -2,7 +2,7 @@
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use nine_proto::control::{self, Control, ControllerHello, HostHello, InitHello};
-use nine_proto::frame::{self, Counter, Feedback, Freshness, Header, InputFrame, PacketType, Ping, Pong};
+use nine_proto::frame::{self, Counter, Feedback, Header, InputFrame, PacketType, Ping, Pong, ReplayWindow, Seen};
 use nine_proto::input::InputState;
 use nine_proto::noise::{Handshake, KeyPair, Role, Transport};
 use nine_proto::pairing::{commitment, qr_proof, sas_code, PairUri};
@@ -123,7 +123,18 @@ impl Connection {
     }
 
     pub async fn open(&mut self, resume: Option<u8>, profile: Option<&str>) -> Result<SessionInfo, ClientError> {
-        self.send(&Control::Open { resume_slot: resume, profile: profile.map(String::from) }).await?;
+        self.open_with(Control::Open { resume_slot: resume, profile: profile.map(String::from), join: None }).await
+    }
+
+    /// Add this link to the live session `session_id` (SPEC §8.5). The host answers with the same
+    /// slot, session id and keys; datagrams sealed once can then be sent over every joined link.
+    pub async fn join(&mut self, session_id: u32) -> Result<SessionInfo, ClientError> {
+        if !self.host.multipath { return Err(ClientError::Refused("host does not support multipath".into())); }
+        self.open_with(Control::Open { resume_slot: None, profile: None, join: Some(session_id) }).await
+    }
+
+    async fn open_with(&mut self, open: Control) -> Result<SessionInfo, ClientError> {
+        self.send(&open).await?;
         let key = |s: &str| -> Result<[u8; 32], ClientError> { B64.decode(s).map_err(proto)?.try_into().map_err(|_| proto("key length")) };
         let mut info = match self.recv().await? {
             Control::Session { slot, session_id, udp_port, k_in, k_out, heartbeat_ms, idle_heartbeat_ms, timeout_ms } => SessionInfo {
@@ -182,7 +193,8 @@ pub struct InputSender {
     pub path: DatagramPath,
     pub info: SessionInfo,
     counter: Counter,
-    fresh_in: Freshness,
+    /// Replay window, not strict ordering: with several links, pongs and feedback copies interleave.
+    fresh_in: ReplayWindow,
     pings: HashMap<u32, u64>,
     next_ping: u32,
     pub rtt_ms: Window,
@@ -199,7 +211,7 @@ impl InputSender {
     }
 
     pub fn over(path: DatagramPath, info: SessionInfo) -> Self {
-        Self { path, info, counter: Counter::default(), fresh_in: Freshness::default(), pings: HashMap::new(), next_ping: 1,
+        Self { path, info, counter: Counter::default(), fresh_in: ReplayWindow::default(), pings: HashMap::new(), next_ping: 1,
             rtt_ms: Window::new(4096), feedback: Vec::new(), epoch: std::time::Instant::now() }
     }
 
@@ -229,6 +241,25 @@ impl InputSender {
         Ok(())
     }
 
+    /// Ping over another link of the same session (sealed with this sender's counter, so the session
+    /// counter stays unique); collect its pong with [`Self::pump_from`].
+    pub async fn ping_over(&mut self, path: &DatagramPath) -> Result<(), ClientError> {
+        let id = self.next_ping;
+        self.next_ping += 1;
+        let t = self.now_us();
+        self.pings.insert(id, t);
+        let d = self.seal(PacketType::Ping, &Ping { t_us: t, id }.encode());
+        path.send(&d).await
+    }
+
+    /// Like [`Self::pump`], for host datagrams arriving on another link of the same session.
+    pub async fn pump_from(&mut self, path: &mut DatagramPath, dur: std::time::Duration) -> usize {
+        let end = tokio::time::Instant::now() + dur;
+        let mut n = 0;
+        while let Ok(Some(d)) = tokio::time::timeout_at(end, path.recv()).await { self.handle(&d); n += 1; }
+        n
+    }
+
     pub async fn bye(&mut self) -> Result<(), ClientError> {
         let d = self.seal(PacketType::Bye, &[]);
         self.path.send(&d).await?;
@@ -248,7 +279,7 @@ impl InputSender {
 
     fn handle(&mut self, d: &[u8]) {
         let Ok((h, pt)) = frame::open(&self.info.k_out, d) else { return };
-        if !self.fresh_in.accept(h.counter) { return; }
+        if self.fresh_in.check(h.counter) != Seen::New { return; }
         match h.ptype {
             PacketType::Pong => if let Ok(p) = Pong::decode(&pt)
                 && self.pings.remove(&p.id).is_some() { self.rtt_ms.push((self.now_us() - p.t_us) as f64 / 1000.0); },
@@ -257,6 +288,9 @@ impl InputSender {
         }
     }
 }
+
+struct AbortOnDrop(tokio::task::AbortHandle);
+impl Drop for AbortOnDrop { fn drop(&mut self) { self.0.abort(); } }
 
 /// Client side of the stream binding (SPEC §8.2) over any reliable byte stream: returns a framed
 /// control stream for [`Connection::connect_over`] and a datagram path for [`InputSender::over`].
@@ -268,7 +302,7 @@ where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
     let (ctl_out_w, mut ctl_out_r) = tokio::io::duplex(1 << 17);
     let (up_tx, mut up_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let (down_tx, down_rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    tokio::spawn(async move {
+    let reader = tokio::spawn(async move {
         let mut rr = RecordReader::default();
         let mut buf = [0u8; 4096];
         while let Ok(n) = rd.read(&mut buf).await {
@@ -282,7 +316,11 @@ where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
             }
         }
     });
+    // When the caller drops the link (control stream and datagram path), the writer ends; stop the
+    // reader too so the socket really closes and the host sees this link go away.
+    let reader = reader.abort_handle();
     tokio::spawn(async move {
+        let _close = AbortOnDrop(reader);
         loop {
             tokio::select! {
                 f = read_frame(&mut ctl_out_r) => match f { Ok(b) => if wr.write_all(&Record::Control(b).encode()).await.is_err() { return }, Err(_) => return },

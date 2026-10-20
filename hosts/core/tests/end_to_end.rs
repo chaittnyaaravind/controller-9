@@ -123,7 +123,8 @@ async fn replay_stale_tamper_and_unknown_session_are_dropped() {
     settle().await;
     assert!(!mock.log.lock().iter().any(|(_, s)| *s == a), "stale frame applied");
     let s = h.snapshot();
-    assert_eq!(s.slots[0].stale, 2, "late + replay");
+    assert_eq!(s.slots[0].stale, 1, "late frame: authenticated, never applied");
+    assert_eq!(s.slots[0].duplicates, 1, "exact replay: dropped as a duplicate");
     assert_eq!(s.slots[0].invalid, 1, "tampered");
     assert_eq!(s.malformed_datagrams, 1);
     assert_eq!(s.unknown_session_datagrams, 1);

@@ -6,7 +6,7 @@ use crate::time::mono_us;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use nine_proto::control::{self, Control, ControllerHello, HostHello, InitHello, SecretB64};
-use nine_proto::frame::{self, Counter, Feedback, Freshness, Header, InputFrame, PacketType, Ping, Pong};
+use nine_proto::frame::{self, Counter, Feedback, Header, InputFrame, PacketType, Ping, Pong, ReplayWindow, Seen};
 use nine_proto::input::{InputState, FLAG_PAUSED};
 use nine_proto::noise::{Handshake, KeyPair, Role, Transport};
 use nine_proto::pairing::{commitment, format_code, sas_code, PairUri};
@@ -40,6 +40,10 @@ pub enum HostEvent {
     SlotDisconnected { slot: u8, name: String, grace_s: u32 },
     SlotReleased { slot: u8 },
     NeutralReset { slot: u8 },
+    /// Another link joined a live session (SPEC §8.5): same player, same slot.
+    PathUp { slot: u8, link: String },
+    /// One link of a session ended; the session continues while another link is up.
+    PathDown { slot: u8, link: String, reason: String },
     Notice { level: String, message: String },
 }
 
@@ -85,6 +89,43 @@ pub struct SlotSnapshot {
     pub device_id: String,
     /// "live" | "stale" | "holding" | "waiting" — see [`slot_health`].
     pub health: &'static str,
+    /// Every link currently attached to this player's session (SPEC §8.5).
+    pub paths: Vec<PathSnapshot>,
+    /// More than one link delivered fresh datagrams in the last second.
+    pub redundant: bool,
+    /// Copies of a datagram that another link had already delivered (dropped, by design).
+    pub duplicates: u64,
+    /// Input frames that arrived after a newer one (late copy or reorder); never applied.
+    pub superseded: u64,
+    /// Recent link changes, newest last: "Bluetooth LE up", "Wi-Fi / LAN down: …".
+    pub path_events: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PathSnapshot {
+    pub link: LinkKind,
+    pub link_label: String,
+    pub peer: String,
+    pub connected_s: u64,
+    pub silent_ms: Option<u64>,
+    /// Same rule as the slot, applied to this link alone.
+    pub health: &'static str,
+    /// Datagrams this link delivered first.
+    pub first: u64,
+    /// Datagrams this link delivered after another link already had.
+    pub late_copies: u64,
+    /// Share of the last 64 datagrams this link delivered first (0..1).
+    pub first_share: f64,
+    /// How far behind the first copy this link's copies arrived (median / p95), ms.
+    pub behind_p50_ms: Option<f64>,
+    pub behind_p95_ms: Option<f64>,
+    pub gap_p95_ms: Option<f64>,
+    /// Round trip measured by the phone on this link.
+    pub rtt_p50_ms: Option<f32>,
+    pub rtt_p95_ms: Option<f32>,
+    /// The link currently delivering most input first.
+    pub preferred: bool,
 }
 
 /// Input older than this is reported as stale in the UI. The controller is neutralized much
@@ -135,24 +176,55 @@ pub struct PairingInfo { pub uri: String, pub qr_svg: String, pub seconds_left: 
 /// Where replies (pong, feedback) for a session go: the UDP source address, or a link-owned channel
 /// (stream / BLE bindings) that frames them for its medium.
 #[derive(Clone, Debug)]
-pub enum Reply { Udp(SocketAddr), Link(mpsc::UnboundedSender<Vec<u8>>) }
+pub enum Reply { Udp(SocketAddr), Link(u64, mpsc::UnboundedSender<Vec<u8>>) }
 
 impl Reply {
     fn send(&self, sh: &Shared, bytes: Vec<u8>) {
         match self {
             Reply::Udp(a) => { let _ = sh.udp.try_send_to(&bytes, *a); }
-            Reply::Link(tx) => { let _ = tx.send(bytes); }
+            Reply::Link(_, tx) => { let _ = tx.send(bytes); }
         }
     }
 }
 
+/// One link (control channel + its datagrams) attached to a session. A session has 1..=MAX_PATHS.
+struct Path {
+    conn_id: u64,
+    link: LinkKind,
+    peer: String,
+    /// Source IP of the control connection; UDP datagrams from it belong to this path.
+    peer_ip: Option<IpAddr>,
+    ctl_tx: mpsc::UnboundedSender<Control>,
+    reply: Option<Reply>,
+    connected_at: Instant,
+    last_rx: Option<Instant>,
+    last_rx_us: Option<u64>,
+    first: u64,
+    late: u64,
+    gaps: Window,
+    behind: Window,
+    rtt_p50_ms: Option<f32>,
+    rtt_p95_ms: Option<f32>,
+}
+
+impl Path {
+    fn new(conn_id: u64, link: LinkKind, peer: &str, peer_ip: Option<IpAddr>, ctl_tx: &mpsc::UnboundedSender<Control>) -> Path {
+        Path { conn_id, link, peer: peer.into(), peer_ip, ctl_tx: ctl_tx.clone(), reply: None, connected_at: Instant::now(),
+            last_rx: None, last_rx_us: None, first: 0, late: 0, gaps: Window::new(256), behind: Window::new(256), rtt_p50_ms: None, rtt_p95_ms: None }
+    }
+    fn is_ip(&self) -> bool { !matches!(self.link, LinkKind::Ble | LinkKind::Stream) }
+}
+
+pub const MAX_PATHS: usize = 4;
+
 struct Slot {
+    /// Link of the most recent path (shown while the slot is held in grace with no path).
     link: LinkKind,
     key: [u8; 32],
     name: String,
     platform: String,
     profile: Option<String>,
-    conn_id: u64,
+    paths: Vec<Path>,
     connected: bool,
     connected_at: Instant,
     grace_until: Option<Instant>,
@@ -160,12 +232,19 @@ struct Slot {
     k_in: [u8; 32],
     k_out: [u8; 32],
     out_counter: Counter,
-    fresh: Freshness,
+    window: ReplayWindow,
+    /// Counter of the last applied input frame: input is applied only in increasing counter order.
+    last_input: u64,
+    superseded: u64,
+    /// Arrival time of recent first copies (counter, time), to measure how far behind other links are.
+    first_seen: VecDeque<(u64, Instant)>,
+    /// conn_id of the path that delivered each of the last 64 first copies.
+    wins: VecDeque<u64>,
+    path_events: VecDeque<String>,
     last_rx: Option<Instant>,
     last_rx_us: Option<u64>,
     /// Sender timestamp of the previous input frame (phone clock), for gap diagnosis.
     last_tx_us: Option<u64>,
-    reply: Option<Reply>,
     state: InputState,
     flags: u16,
     submitted_once: bool,
@@ -176,11 +255,29 @@ struct Slot {
     host_proc: Window,
     pad: Option<Box<dyn VirtualPad>>,
     pad_error: Option<String>,
-    ctl_tx: mpsc::UnboundedSender<Control>,
     phone: PhoneStats,
 }
 
 impl Slot {
+    /// Which path a datagram came over: link bindings name their connection; UDP matches the
+    /// control connection's source IP (the phone sends both from the same interface).
+    fn path_of(&self, from: &Reply) -> Option<usize> {
+        match from {
+            Reply::Link(id, _) => self.paths.iter().position(|p| p.conn_id == *id),
+            Reply::Udp(a) => self.paths.iter().position(|p| p.is_ip() && p.peer_ip == Some(a.ip()))
+                .or_else(|| self.paths.iter().position(Path::is_ip)),
+        }
+    }
+    fn send_all(&self, m: &Control) { for p in &self.paths { let _ = p.ctl_tx.send(m.clone()); } }
+    fn note(&mut self, e: String) { if self.path_events.len() >= 8 { self.path_events.pop_front(); } self.path_events.push_back(e); }
+    /// The path delivering most datagrams first lately (ties: the earliest attached).
+    fn preferred(&self) -> Option<usize> {
+        if self.paths.is_empty() { return None; }
+        let share = |p: &Path| self.wins.iter().filter(|w| **w == p.conn_id).count();
+        let mut best = 0;
+        for i in 1..self.paths.len() { if share(&self.paths[i]) > share(&self.paths[best]) { best = i; } }
+        Some(best)
+    }
     fn apply(&mut self, s: InputState) -> bool {
         if self.submitted_once && s == self.state { return false; }
         self.state = s;
@@ -227,7 +324,7 @@ pub(crate) struct Shared {
 
 impl Shared {
     fn emit(&self, e: HostEvent) { let _ = self.events.send(e); }
-    fn id(&self) -> u64 { self.next_id.fetch_add(1, Ordering::Relaxed) }
+    pub(crate) fn id(&self) -> u64 { self.next_id.fetch_add(1, Ordering::Relaxed) }
     /// BLE advert filter (SPEC §8.3): hint = first 4 bytes of our host id, or zeros while pairing is open.
     pub(crate) fn ble_hint_ok(&self, hint: &[u8]) -> bool {
         let ours: Vec<u8> = (0..4).filter_map(|i| u8::from_str_radix(self.host_id.get(2 * i..2 * i + 2)?, 16).ok()).collect();
@@ -353,7 +450,7 @@ impl Host {
             let key = B64.decode(key_b64).ok();
             let st = self.sh.state.lock();
             for s in st.slots.iter().flatten() {
-                if Some(s.key.to_vec()) == key { let _ = s.ctl_tx.send(Control::Bye { reason: Some("unpaired".into()) }); }
+                if Some(s.key.to_vec()) == key { s.send_all(&Control::Bye { reason: Some("unpaired".into()) }); }
             }
         }
         removed
@@ -361,13 +458,18 @@ impl Host {
 
     pub fn disconnect_slot(&self, slot: u8) {
         let st = self.sh.state.lock();
-        if let Some(Some(s)) = st.slots.get(slot as usize) { let _ = s.ctl_tx.send(Control::Bye { reason: Some("disconnected by host".into()) }); }
+        if let Some(Some(s)) = st.slots.get(slot as usize) { s.send_all(&Control::Bye { reason: Some("disconnected by host".into()) }); }
     }
 
     /// Ask the game's controller to rumble the phone (manual test from the host UI).
-    pub fn test_rumble(&self, slot: u8) {
+    pub fn test_rumble(&self, slot: u8) { self.rumble(slot, 30000, 30000, 250) }
+
+    /// Rumble one phone: heavy (`low`) and light (`high`) motor magnitudes, like a console pad. Sent on
+    /// the session's preferred link only (a control message, so one copy is enough).
+    pub fn rumble(&self, slot: u8, low: u16, high: u16, ms: u16) {
         let st = self.sh.state.lock();
-        if let Some(Some(s)) = st.slots.get(slot as usize) { let _ = s.ctl_tx.send(Control::Rumble { low: 30000, high: 30000, ms: 250 }); }
+        if let Some(Some(s)) = st.slots.get(slot as usize)
+            && let Some(p) = s.preferred() { let _ = s.paths[p].ctl_tx.send(Control::Rumble { low, high, ms: ms.min(5000) }); }
     }
 
     pub fn snapshot(&self) -> HostSnapshot {
@@ -379,18 +481,37 @@ impl Host {
         let slots = st.slots.iter().enumerate().filter_map(|(i, s)| s.as_ref().map(|s| {
             let p50 = s.gaps.percentile(50.0);
             let silent_ms = s.last_rx.map(|t| now.duration_since(t).as_millis() as u64);
+            let preferred = s.preferred();
+            let link = preferred.map(|p| s.paths[p].link).unwrap_or(s.link);
+            let paths: Vec<PathSnapshot> = s.paths.iter().enumerate().map(|(pi, p)| {
+                let silent = p.last_rx.map(|t| now.duration_since(t).as_millis() as u64);
+                let wins = s.wins.iter().filter(|w| **w == p.conn_id).count();
+                PathSnapshot {
+                    link: p.link, link_label: p.link.label().into(), peer: p.peer.clone(),
+                    connected_s: now.duration_since(p.connected_at).as_secs(), silent_ms: silent, health: slot_health(true, silent),
+                    first: p.first, late_copies: p.late,
+                    first_share: if s.wins.is_empty() { 0.0 } else { wins as f64 / s.wins.len() as f64 },
+                    behind_p50_ms: p.behind.percentile(50.0), behind_p95_ms: p.behind.percentile(95.0), gap_p95_ms: p.gaps.percentile(95.0),
+                    rtt_p50_ms: p.rtt_p50_ms, rtt_p95_ms: p.rtt_p95_ms, preferred: preferred == Some(pi),
+                }
+            }).collect();
+            let live = paths.iter().filter(|p| p.silent_ms.is_some_and(|ms| ms <= 1000)).count();
+            let mut phone = s.phone.clone();
+            if let Some(p) = preferred.map(|p| &s.paths[p]) { phone.rtt_p50_ms = p.rtt_p50_ms; phone.rtt_p95_ms = p.rtt_p95_ms; }
             SlotSnapshot {
                 device_id: nine_proto::host_id(&s.key), health: slot_health(s.connected, silent_ms),
-                slot: i as u8, link: s.link, link_label: s.link.label().into(), connected: s.connected,
+                redundant: live >= 2, duplicates: s.window.duplicate(), superseded: s.superseded,
+                path_events: s.path_events.iter().cloned().collect(), paths,
+                slot: i as u8, link, link_label: link.label().into(), connected: s.connected,
                 grace_s_left: s.grace_until.map(|g| g.saturating_duration_since(now).as_secs() as u32),
                 name: s.name.clone(), platform: s.platform.clone(), profile: s.profile.clone(),
                 connected_s: now.duration_since(s.connected_at).as_secs(),
                 silent_ms,
-                frames: s.fresh.accepted(), rate_hz: p50.filter(|v| *v > 0.0).map(|v| 1000.0 / v),
-                lost: s.fresh.lost(), stale: s.fresh.stale(), invalid: s.invalid, jitter_ms: s.jitter.ms(),
+                frames: s.window.accepted(), rate_hz: p50.filter(|v| *v > 0.0).map(|v| 1000.0 / v),
+                lost: s.window.lost(), stale: s.window.too_old() + s.superseded, invalid: s.invalid, jitter_ms: s.jitter.ms(),
                 interarrival_p50_ms: p50, interarrival_p95_ms: s.gaps.percentile(95.0),
                 host_processing_p95_us: s.host_proc.percentile(95.0), neutral_resets: s.neutral_resets,
-                motion: s.flags & nine_proto::input::FLAG_MOTION != 0, phone: s.phone.clone(),
+                motion: s.flags & nine_proto::input::FLAG_MOTION != 0, phone,
                 state: StateDto { buttons: s.state.buttons, lx: s.state.lx, ly: s.state.ly, rx: s.state.rx, ry: s.state.ry, lt: s.state.lt, rt: s.state.rt },
                 pad_ok: s.pad.is_some() && s.pad_error.is_none(), pad_error: s.pad_error.clone(),
             }
@@ -412,7 +533,7 @@ impl Host {
             let mut st = self.sh.state.lock();
             for s in st.slots.iter_mut().flatten() {
                 s.apply(InputState::NEUTRAL);
-                let _ = s.ctl_tx.send(Control::Bye { reason: Some("host shutting down".into()) });
+                s.send_all(&Control::Bye { reason: Some("host shutting down".into()) });
             }
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -495,12 +616,15 @@ async fn handle_conn(sh: &Arc<Shared>, stream: TcpStream, peer: SocketAddr) -> s
     stream.set_nodelay(true)?;
     let link = crate::netif::kind_for_local(stream.local_addr().ok().map(|a| a.ip()));
     let (rd, wr) = stream.into_split();
-    serve_control(sh, rd, wr, peer.to_string(), link).await
+    serve_control(sh, rd, wr, peer.to_string(), link, sh.id(), Some(peer.ip())).await
 }
 
 /// Runs one controller's control channel over any reliable framed byte stream (TCP, stream
 /// binding, BLE GATT pipes). Input datagrams arrive separately via [`handle_datagram`].
-pub(crate) async fn serve_control<R, W>(sh: &Arc<Shared>, mut rd: R, mut wr: W, peer: String, link: LinkKind) -> std::io::Result<()>
+/// `conn_id` names this link (link bindings tag their datagrams with it); `peer_ip` is set for the IP
+/// binding, whose UDP datagrams are matched to the link by source address.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn serve_control<R, W>(sh: &Arc<Shared>, mut rd: R, mut wr: W, peer: String, link: LinkKind, conn_id: u64, peer_ip: Option<IpAddr>) -> std::io::Result<()>
 where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
     let mut hs = Handshake::new(Role::Responder, KeyPair::from_secret(sh.secret));
     let (mut t, hello, supported) = tokio::time::timeout(HANDSHAKE_TIMEOUT, async {
@@ -508,7 +632,8 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
         let p1 = hs.read_message(&m1).map_err(io_err)?;
         let supported = serde_json::from_slice::<InitHello>(&p1).map(|h| h.proto.contains(&1)).unwrap_or(false);
         let hh = HostHello { proto: 1, name: sh.cfg.name.clone(), id: sh.host_id.clone(), os: std::env::consts::OS.into(), links: sh.links(),
-            addrs: if sh.cfg.bind == "0.0.0.0" { crate::netif::local_ipv4().into_iter().map(|a| a.ip.to_string()).take(8).collect() } else { vec![sh.cfg.bind.clone()] } };
+            addrs: if sh.cfg.bind == "0.0.0.0" { crate::netif::local_ipv4().into_iter().map(|a| a.ip.to_string()).take(8).collect() } else { vec![sh.cfg.bind.clone()] },
+            multipath: true };
         let m2 = hs.write_message(&serde_json::to_vec(&hh).unwrap()).map_err(io_err)?;
         wr.write_all(&control::frame(&m2)).await?;
         let m3 = read_frame(&mut rd, control::MAX_PREHANDSHAKE_FRAME).await?;
@@ -526,7 +651,6 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
     let platform: String = hello.platform.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
     let remote = t.remote_static;
     let h = t.handshake_hash;
-    let conn_id = sh.id();
     tracing::info!(%peer, %name, %platform, "controller handshake complete");
 
     let (ctl_tx, mut ctl_rx) = mpsc::unbounded_channel::<Control>();
@@ -550,12 +674,20 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
                     };
                     match msg {
                         Control::Bye { .. } => return Ok(()),
-                        Control::Open { resume_slot, profile } => {
+                        Control::Open { resume_slot, profile, join } => {
                             if !sh.store.lock().is_paired(&remote) {
                                 send(&mut wr, &mut t, &Control::PairRequired { modes: vec!["qr".into(), "code".into()] }).await?;
                                 continue;
                             }
-                            match open_session(sh, &remote, &name, &platform, profile, resume_slot, conn_id, &ctl_tx, link) {
+                            if slot_idx.is_some() { send(&mut wr, &mut t, &Control::error("bad_message")).await?; continue; }
+                            if let Some(sid) = join {
+                                match join_session(sh, &remote, sid, Path::new(conn_id, link, &peer, peer_ip, &ctl_tx)) {
+                                    Ok((idx, reply)) => { slot_idx = Some(idx); send(&mut wr, &mut t, &reply).await?; }
+                                    Err(code) => send(&mut wr, &mut t, &Control::Error { code: "join_refused".into(), message: Some(code.into()) }).await?,
+                                }
+                                continue;
+                            }
+                            match open_session(sh, &remote, &name, &platform, profile, resume_slot, Path::new(conn_id, link, &peer, peer_ip, &ctl_tx)) {
                                 Some((idx, reply, pad_err)) => {
                                     slot_idx = Some(idx);
                                     send(&mut wr, &mut t, &reply).await?;
@@ -608,7 +740,10 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
                         Control::Stats { rtt_p50_ms, rtt_p95_ms, sensor_hz, send_hz, battery_pct } => {
                             if let Some(i) = slot_idx {
                                 let mut st = sh.state.lock();
-                                if let Some(s) = st.slots[i].as_mut().filter(|s| s.conn_id == conn_id) {
+                                if let Some(s) = st.slots[i].as_mut()
+                                    && let Some(pi) = s.paths.iter().position(|p| p.conn_id == conn_id) {
+                                    // Round trip is per link; the rest describes the phone.
+                                    s.paths[pi].rtt_p50_ms = rtt_p50_ms; s.paths[pi].rtt_p95_ms = rtt_p95_ms;
                                     s.phone = PhoneStats { rtt_p50_ms, rtt_p95_ms, sensor_hz, send_hz, battery_pct };
                                 }
                             }
@@ -639,7 +774,10 @@ where R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send {
         sh.emit(HostEvent::PairingResolved { id, ok: false });
     }
     sh.pending.lock().retain(|_, p| p.conn_id != conn_id);
-    if let Some(i) = slot_idx { end_session(sh, i, conn_id); }
+    if let Some(i) = slot_idx {
+        let why = match &result { Ok(()) => "closed".to_string(), Err(e) => e.to_string() };
+        end_path(sh, i, conn_id, &why);
+    }
     result
 }
 
@@ -666,9 +804,8 @@ fn settle(sh: &Shared, flow: &mut PairFlow, key: &[u8; 32], name: &str, platform
     Some(out)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile: Option<String>, resume: Option<u8>,
-                conn_id: u64, ctl_tx: &mpsc::UnboundedSender<Control>, link: LinkKind) -> Option<(usize, Control, Option<String>)> {
+                path: Path) -> Option<(usize, Control, Option<String>)> {
     let mut st = sh.state.lock();
     let idx = st.slots.iter().position(|s| s.as_ref().is_some_and(|s| &s.key == key))
         .or_else(|| resume.map(|r| r as usize).filter(|&r| r < st.slots.len() && st.slots[r].is_none()))
@@ -680,7 +817,8 @@ fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile
     let (pad, pad_error) = match old {
         Some(mut o) => {
             st.sessions.remove(&o.session_id);
-            if o.conn_id != conn_id && o.connected { let _ = o.ctl_tx.send(Control::Bye { reason: Some("replaced by a newer connection".into()) }); }
+            // A fresh open (not a join) replaces the whole previous session, on every link it had.
+            if o.connected { o.send_all(&Control::Bye { reason: Some("replaced by a newer connection".into()) }); }
             o.apply(InputState::NEUTRAL);
             match o.pad.take() { Some(p) => (Some(p), None), None => create_pad(sh, idx, name) }
         }
@@ -688,23 +826,50 @@ fn open_session(sh: &Shared, key: &[u8; 32], name: &str, platform: &str, profile
     };
     st.sessions.insert(sid, idx);
     st.slots[idx] = Some(Slot {
-        link,
+        link: path.link,
         key: *key, name: name.into(), platform: platform.into(), profile: profile.map(|p| p.chars().take(48).collect()),
-        conn_id, connected: true, connected_at: Instant::now(), grace_until: None,
-        session_id: sid, k_in, k_out, out_counter: Counter::default(), fresh: Freshness::default(),
-        last_rx: None, last_rx_us: None, last_tx_us: None, reply: None, state: InputState::NEUTRAL, flags: 0, submitted_once: false,
+        paths: vec![path], connected: true, connected_at: Instant::now(), grace_until: None,
+        session_id: sid, k_in, k_out, out_counter: Counter::default(), window: ReplayWindow::default(),
+        last_input: 0, superseded: 0, first_seen: VecDeque::new(), wins: VecDeque::new(), path_events: VecDeque::new(),
+        last_rx: None, last_rx_us: None, last_tx_us: None, state: InputState::NEUTRAL, flags: 0, submitted_once: false,
         neutral_resets: 0, invalid: 0, jitter: Jitter::default(), gaps: Window::new(512), host_proc: Window::new(512),
-        pad, pad_error: pad_error.clone(), ctl_tx: ctl_tx.clone(), phone: PhoneStats::default(),
+        pad, pad_error: pad_error.clone(), phone: PhoneStats::default(),
     });
     drop(st);
     { let mut s = sh.store.lock(); s.touch(key); let _ = s.save(); }
     sh.emit(HostEvent::SlotConnected { slot: idx as u8, name: name.into() });
+    Some((idx, session_reply(sh, idx, sid, &k_in, &k_out), pad_error))
+}
+
+fn session_reply(sh: &Shared, idx: usize, sid: u32, k_in: &[u8; 32], k_out: &[u8; 32]) -> Control {
     let c = &sh.cfg;
-    Some((idx, Control::Session {
+    Control::Session {
         slot: idx as u8, session_id: sid, udp_port: sh.udp_port,
         k_in: SecretB64(B64.encode(k_in)), k_out: SecretB64(B64.encode(k_out)),
         heartbeat_ms: c.heartbeat_ms, idle_heartbeat_ms: c.idle_heartbeat_ms, timeout_ms: c.timeout_ms,
-    }, pad_error))
+    }
+}
+
+/// Attach another authenticated link to the caller's live session (SPEC §8.5). The joining link has
+/// completed its own Noise handshake; it may join only a session owned by the same static key, so
+/// pairing and identity pinning apply to every link. The slot, virtual pad, held input and counters
+/// are untouched: nothing is reset and nothing is released.
+fn join_session(sh: &Shared, key: &[u8; 32], sid: u32, path: Path) -> Result<(usize, Control), &'static str> {
+    let mut st = sh.state.lock();
+    let Some(&idx) = st.sessions.get(&sid) else { return Err("no such session") };
+    let Some(s) = st.slots[idx].as_mut() else { return Err("no such session") };
+    if &s.key != key { return Err("session belongs to another controller"); }
+    if !s.connected { return Err("session ended"); }
+    if s.paths.len() >= MAX_PATHS { return Err("too many links"); }
+    let label = path.link.label().to_string();
+    tracing::info!(slot = idx, link = %label, peer = %path.peer, "link joined session");
+    s.link = path.link;
+    s.paths.push(path);
+    s.note(format!("{label} up"));
+    let reply = session_reply(sh, idx, sid, &s.k_in, &s.k_out);
+    drop(st);
+    sh.emit(HostEvent::PathUp { slot: idx as u8, link: label });
+    Ok((idx, reply))
 }
 
 fn create_pad(sh: &Shared, idx: usize, name: &str) -> (Option<Box<dyn VirtualPad>>, Option<String>) {
@@ -717,10 +882,26 @@ fn create_pad(sh: &Shared, idx: usize, name: &str) -> (Option<Box<dyn VirtualPad
     }
 }
 
-/// Control connection gone: neutralize now, keep the slot (and its virtual pad) for the grace period.
-fn end_session(sh: &Shared, idx: usize, conn_id: u64) {
+/// One link's control connection is gone. While another link of the session is up, nothing else
+/// changes (no neutralize, no disconnect): the input timeout still releases everything if the
+/// remaining links go silent. The last link ending ends the session: neutralize now and keep the slot
+/// (and its virtual pad) for the grace period.
+fn end_path(sh: &Shared, idx: usize, conn_id: u64, why: &str) {
     let mut st = sh.state.lock();
-    let Some(s) = st.slots[idx].as_mut().filter(|s| s.conn_id == conn_id) else { return };
+    let Some(s) = st.slots[idx].as_mut() else { return };
+    let Some(pi) = s.paths.iter().position(|p| p.conn_id == conn_id) else { return };
+    let gone = s.paths.remove(pi);
+    let label = gone.link.label().to_string();
+    if !s.paths.is_empty() {
+        s.wins.retain(|w| *w != conn_id);
+        s.note(format!("{label} down: {why}"));
+        tracing::info!(slot = idx, link = %label, remaining = s.paths.len(), "link left session: {why}");
+        drop(st);
+        sh.emit(HostEvent::PathDown { slot: idx as u8, link: label, reason: why.into() });
+        return;
+    }
+    s.link = gone.link;
+    s.note(format!("{label} down: {why}"));
     s.apply(InputState::NEUTRAL);
     s.connected = false;
     s.grace_until = Some(Instant::now() + Duration::from_secs(sh.cfg.grace_s as u64));
@@ -752,13 +933,42 @@ pub(crate) fn handle_datagram(sh: &Shared, d: &[u8], from: Reply, now: Instant) 
     let Ok(hdr) = Header::peek(d) else { st.malformed += 1; return };
     let Some(&idx) = st.sessions.get(&hdr.session_id) else { st.unknown_session += 1; return };
     let Some(s) = st.slots[idx].as_mut() else { return };
+    // Authenticate before anything else: nothing below runs for a forged or corrupted datagram.
     let Ok((hdr, pt)) = frame::open(&s.k_in, d) else { s.invalid += 1; return };
-    if !s.fresh.accept(hdr.counter) { return; }
-    s.reply = Some(from.clone());
+    let pi = s.path_of(&from);
+    match s.window.check(hdr.counter) {
+        Seen::TooOld => return,
+        Seen::Duplicate => {
+            // The same datagram already arrived over another link. It proves this link is alive and
+            // tells how far behind it runs; it is never processed twice.
+            if let Some(p) = pi.map(|i| &mut s.paths[i]) {
+                p.last_rx = Some(now); p.late += 1; p.reply = Some(from);
+                if let Some((_, t)) = s.first_seen.iter().find(|(c, _)| *c == hdr.counter) {
+                    p.behind.push(now.duration_since(*t).as_secs_f64() * 1000.0);
+                }
+            }
+            return;
+        }
+        Seen::New => {}
+    }
+    if s.first_seen.len() >= 128 { s.first_seen.pop_front(); }
+    s.first_seen.push_back((hdr.counter, now));
+    if let Some(p) = pi.map(|i| &mut s.paths[i]) {
+        p.last_rx = Some(now); p.first += 1; p.reply = Some(from.clone());
+        if let Some(prev) = p.last_rx_us { p.gaps.push((rx_us - prev) as f64 / 1000.0); }
+        p.last_rx_us = Some(rx_us);
+        let id = p.conn_id;
+        if s.wins.len() >= 64 { s.wins.pop_front(); }
+        s.wins.push_back(id);
+    }
     match hdr.ptype {
         PacketType::Input => {
             let Ok(f) = InputFrame::decode(&pt) else { s.invalid += 1; return };
             s.last_rx = Some(now);
+            // Input frames are full state snapshots: an older one (a late copy from a slower link, or a
+            // reordered datagram) must never restore an older button, trigger or stick state.
+            if hdr.counter <= s.last_input { s.superseded += 1; return; }
+            s.last_input = hdr.counter;
             if let Some(prev) = s.last_rx_us {
                 let gap_ms = (rx_us - prev) as f64 / 1000.0;
                 s.gaps.push(gap_ms);
@@ -779,6 +989,7 @@ pub(crate) fn handle_datagram(sh: &Shared, d: &[u8], from: Reply, now: Instant) 
         PacketType::Ping => {
             let Ok(p) = Ping::decode(&pt) else { s.invalid += 1; return };
             s.last_rx = Some(now);
+            // Answer on the link the ping came over: the phone measures each link's round trip.
             let pong = Pong { t_us: p.t_us, id: p.id, host_rx_us: rx_us, host_tx_us: mono_us() };
             let out = frame::seal(&s.k_out, Header { ptype: PacketType::Pong, session_id: s.session_id, counter: s.out_counter.bump() }, &pong.encode());
             from.send(sh, out);
@@ -825,10 +1036,10 @@ fn tick(sh: &Shared, now: Instant) {
 }
 
 fn send_feedback(sh: &Shared, s: &mut Slot, fb: Feedback) {
-    if let Some(to) = s.reply.clone().filter(|_| s.connected) {
-        let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.bump() }, &fb.encode());
-        to.send(sh, out);
-    }
+    if !s.connected { return; }
+    // One sealed datagram, sent over every link: the phone keeps the first copy and drops the rest.
+    let out = frame::seal(&s.k_out, Header { ptype: PacketType::Feedback, session_id: s.session_id, counter: s.out_counter.bump() }, &fb.encode());
+    for p in &s.paths { if let Some(to) = &p.reply { to.send(sh, out.clone()); } }
 }
 
 #[cfg(test)]

@@ -31,6 +31,7 @@ where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
     let (mut ctl_in_w, ctl_in_r) = tokio::io::duplex(1 << 17);
     let (ctl_out_w, mut ctl_out_r) = tokio::io::duplex(1 << 17);
     let (dg_tx, mut dg_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let conn_id = sh.id();
     let sh2 = sh.clone();
     let reader = tokio::spawn(async move {
         let mut rr = RecordReader::default();
@@ -42,7 +43,7 @@ where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
             while let Some(rec) = rr.next_record().map_err(io_err)? {
                 match rec {
                     Record::Control(b) => ctl_in_w.write_all(&control::frame(&b)).await?,
-                    Record::Datagram(d) => handle_datagram(&sh2, &d, Reply::Link(dg_tx.clone()), Instant::now()),
+                    Record::Datagram(d) => handle_datagram(&sh2, &d, Reply::Link(conn_id, dg_tx.clone()), Instant::now()),
                 }
             }
         }
@@ -58,7 +59,7 @@ where S: AsyncRead + AsyncWrite + Send + Unpin + 'static {
             }
         }
     });
-    let r = serve_control(sh, ctl_in_r, ctl_out_w, peer, link).await;
+    let r = serve_control(sh, ctl_in_r, ctl_out_w, peer, link, conn_id, None).await;
     reader.abort();
     // let the writer flush the final control frame (bye/error) before closing
     let _ = tokio::time::timeout(std::time::Duration::from_millis(200), writer).await;
@@ -82,6 +83,7 @@ pub(crate) async fn serve_gatt(sh: &Arc<Shared>, p: GattPipes, peer: String) -> 
     let (mut ctl_in_w, ctl_in_r) = tokio::io::duplex(1 << 17);
     let (ctl_out_w, mut ctl_out_r) = tokio::io::duplex(1 << 17);
     let (dg_tx, mut dg_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let conn_id = sh.id();
     let sh2 = sh.clone();
     let up = tokio::spawn(async move {
         let mut rc = Reassembler::new(65535);
@@ -96,7 +98,7 @@ pub(crate) async fn serve_gatt(sh: &Arc<Shared>, p: GattPipes, peer: String) -> 
                     Some(v) => if let Some(m) = rc.push(&v) { if m.is_empty() { continue; } ctl_in_w.write_all(&control::frame(&m)).await? },
                     None => return Ok::<_, std::io::Error>(()),
                 },
-                Some(v) = input_up.recv() => if let Some(d) = ri.push(&v) { handle_datagram(&sh2, &d, Reply::Link(dg_tx.clone()), Instant::now()) },
+                Some(v) = input_up.recv() => if let Some(d) = ri.push(&v) { handle_datagram(&sh2, &d, Reply::Link(conn_id, dg_tx.clone()), Instant::now()) },
                 _ = tokio::time::sleep(SILENCE) => {
                     tracing::info!("BLE session silent for {SILENCE:?}; closing it");
                     return Ok(());
@@ -116,7 +118,7 @@ pub(crate) async fn serve_gatt(sh: &Arc<Shared>, p: GattPipes, peer: String) -> 
             }
         }
     });
-    let r = serve_control(sh, ctl_in_r, ctl_out_w, peer, LinkKind::Ble).await;
+    let r = serve_control(sh, ctl_in_r, ctl_out_w, peer, LinkKind::Ble, conn_id, None).await;
     up.abort();
     let _ = tokio::time::timeout(std::time::Duration::from_millis(200), down).await;
     r

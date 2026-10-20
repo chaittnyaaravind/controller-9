@@ -43,6 +43,8 @@ enum Cmd {
         #[arg(long)] keep_pairing_open: bool,
         /// Print a JSON line of per-slot diagnostics every N seconds (0 = off).
         #[arg(long, default_value_t = 0)] stats_every: u64,
+        /// Test only: every N seconds send each connected phone a heavy-motor, then a light-motor rumble.
+        #[arg(long, default_value_t = 0)] rumble_test_every: u64,
     },
     /// Print the virtual-controller backend status for this OS.
     Status,
@@ -64,7 +66,30 @@ enum Cmd {
         #[arg(long, default_value = "ip")] link: String,
         /// Stream-binding port on the host (with --link stream).
         #[arg(long, default_value_t = nine_proto::link::STREAM_TCP_PORT)] stream_port: u16,
+        /// Input to send: "wave" (A toggles, left stick X sine, right trigger wave) or "sweep"
+        /// (every button, stick direction and trigger in turn, SWEEP_STEP_S each — for mapping checks).
+        #[arg(long, default_value = "wave")] pattern: String,
     },
+}
+
+const SWEEP_STEP_S: f64 = 0.4;
+
+/// The "sweep" pattern: one control at a time, so a tester (evtest, SDL, a browser) can confirm each mapping.
+/// Each step is held for the first 75 % of SWEEP_STEP_S, then everything is neutral, so every press has an edge.
+fn sweep_state(t: f64) -> (InputState, String) {
+    const AXES: [&str; 10] = ["lx-", "lx+", "ly-", "ly+", "rx-", "rx+", "ry-", "ry+", "lt", "rt"];
+    let n = Button::ALL.len() + AXES.len();
+    let step = (t / SWEEP_STEP_S) as usize % n;
+    let label = if step < Button::ALL.len() { Button::ALL[step].name().to_string() } else { AXES[step - Button::ALL.len()].to_string() };
+    if (t / SWEEP_STEP_S).fract() >= 0.75 { return (InputState::NEUTRAL, label); }
+    let mut s = InputState::default();
+    match label.as_str() {
+        "lx-" => s.lx = -32767, "lx+" => s.lx = 32767, "ly-" => s.ly = -32767, "ly+" => s.ly = 32767,
+        "rx-" => s.rx = -32767, "rx+" => s.rx = 32767, "ry-" => s.ry = -32767, "ry+" => s.ry = 32767,
+        "lt" => s.lt = 65535, "rt" => s.rt = 65535,
+        _ => s.buttons = Button::ALL[step].mask(),
+    }
+    (s, label)
 }
 
 fn native_backend() -> Arc<dyn Backend> {
@@ -87,16 +112,16 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
-        Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open } =>
-            run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, keep_pairing_open).await,
-        Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port } =>
-            run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port).await,
+        Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open } =>
+            run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open).await,
+        Cmd::Sim { host, uri, code, rate, duration, loss, name, json, link, stream_port, pattern } =>
+            run_sim(host, uri, code, rate, duration, loss, name, json, &link, stream_port, &pattern).await,
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::PathBuf>, bind: Option<String>, tcp: Option<u16>, udp: Option<u16>, pair: bool, auto: bool, no_adv: bool,
-                  no_ble: bool, stream_port: Option<u16>, stats_every: u64, keep_pairing_open: bool) -> Result<()> {
+                  no_ble: bool, stream_port: Option<u16>, stats_every: u64, rumble_test_every: u64, keep_pairing_open: bool) -> Result<()> {
     let mut store = if ephemeral { Store::in_memory(Default::default()) } else {
         Store::open(&match config_dir { Some(d) => d, None => Store::default_dir().context("no config directory")? })?
     };
@@ -124,6 +149,21 @@ async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::Pat
             }
         });
     }
+    if rumble_test_every > 0 {
+        let h = host.clone();
+        tokio::spawn(async move {
+            let mut heavy = true;
+            loop {
+                tokio::time::sleep(Duration::from_secs(rumble_test_every)).await;
+                let (low, high) = if heavy { (52000, 0) } else { (0, 52000) };
+                for s in h.snapshot().slots.iter().filter(|s| s.connected) {
+                    h.rumble(s.slot, low, high, 400);
+                    println!("rumble: {}", serde_json::json!({ "t": nine_host_core::time::rfc3339_now(), "slot": s.slot, "low": low, "high": high, "ms": 400 }));
+                }
+                heavy = !heavy;
+            }
+        });
+    }
     if stats_every > 0 {
         let h = host.clone();
         tokio::spawn(async move {
@@ -132,13 +172,19 @@ async fn run_host(mock: bool, ephemeral: bool, config_dir: Option<std::path::Pat
                 let snap = h.snapshot();
                 println!("ble: {}", serde_json::to_string(&snap.ble).unwrap_or_default());
                 for s in &snap.slots {
+                    let paths: Vec<serde_json::Value> = s.paths.iter().map(|p| serde_json::json!({
+                        "link": p.link_label, "health": p.health, "silent_ms": p.silent_ms, "first": p.first, "late": p.late_copies,
+                        "first_share": (p.first_share * 100.0).round() / 100.0, "behind_p50_ms": p.behind_p50_ms, "behind_p95_ms": p.behind_p95_ms,
+                        "gap_p95_ms": p.gap_p95_ms, "rtt_p50_ms": p.rtt_p50_ms, "rtt_p95_ms": p.rtt_p95_ms, "preferred": p.preferred })).collect();
                     println!("stats: {}", serde_json::json!({
                         "t": nine_host_core::time::rfc3339_now(), "slot": s.slot, "name": s.name, "link": s.link_label, "connected": s.connected, "silent_ms": s.silent_ms,
                         "frames": s.frames, "rate_hz": s.rate_hz, "gap_p50_ms": s.interarrival_p50_ms, "gap_p95_ms": s.interarrival_p95_ms,
                         "jitter_ms": s.jitter_ms, "lost": s.lost, "stale": s.stale, "invalid": s.invalid, "neutral_resets": s.neutral_resets, "health": s.health, "device_id": &s.device_id,
                         "phone_rtt_p50_ms": s.phone.rtt_p50_ms, "phone_rtt_p95_ms": s.phone.rtt_p95_ms, "phone_sensor_hz": s.phone.sensor_hz,
                         "phone_send_hz": s.phone.send_hz, "battery": s.phone.battery_pct, "host_proc_p95_us": s.host_processing_p95_us,
-                        "motion": s.motion, "state": s.state }));
+                        "motion": s.motion, "state": s.state,
+                        "redundant": s.redundant, "duplicates": s.duplicates, "superseded": s.superseded,
+                        "paths": paths, "path_events": s.path_events }));
                 }
             }
         });
@@ -178,7 +224,8 @@ fn sim_identity() -> KeyPair {
 
 #[allow(clippy::too_many_arguments)]
 async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f64, duration: f64, loss: f64, name: String, json: bool,
-                 link: &str, stream_port: u16) -> Result<()> {
+                 link: &str, stream_port: u16, pattern: &str) -> Result<()> {
+    if !matches!(pattern, "wave" | "sweep") { bail!("unknown --pattern {pattern} (use wave or sweep)"); }
     let uri = uri.map(|u| PairUri::parse(&u).context("invalid ninectl:// pairing URI")).transpose()?;
     let target = match (&host, &uri) {
         (Some(h), _) => h.clone(),
@@ -216,13 +263,20 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
     let (mut frames, mut dropped) = (0u64, 0u64);
     let mut last_ping = Instant::now() - Duration::from_secs(1);
     let mut rng = 0x9E37_79B9_7F4A_7C15u64;
+    let mut last_label = String::new();
     while start.elapsed().as_secs_f64() < duration {
         let t = start.elapsed().as_secs_f64();
-        let state = InputState {
-            buttons: if (t as u64).is_multiple_of(2) { Button::A.mask() } else { 0 },
-            lx: axis_from_unit((t * std::f64::consts::PI).sin()),
-            rt: (40000.0 + 20000.0 * (t * 2.0).sin()) as u16,
-            ..Default::default()
+        let state = if pattern == "sweep" {
+            let (s, label) = sweep_state(t);
+            if label != last_label { eprintln!("sweep {t:6.2}s {label}"); last_label = label; }
+            s
+        } else {
+            InputState {
+                buttons: if (t as u64).is_multiple_of(2) { Button::A.mask() } else { 0 },
+                lx: axis_from_unit((t * std::f64::consts::PI).sin()),
+                rt: (40000.0 + 20000.0 * (t * 2.0).sin()) as u16,
+                ..Default::default()
+            }
         };
         rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
         if (rng % 10_000) as f64 / 10_000.0 < loss { dropped += 1; tx.seal(nine_proto::frame::PacketType::Input, &[]); } else { tx.send_input(state, 0).await?; }
