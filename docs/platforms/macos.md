@@ -12,6 +12,12 @@ Unified log for one attempt (2026-10-19): `[com.apple.iohid:userdevice] IOServic
 (`kIOReturnBadArgument`, returned when the IOHIDResource user client refuses to open), then
 `Destroy: <IOHIDUserDeviceRef … id:0x0>`.
 
+### Answered 2026-10-20: root does not help
+Run as administrator (macOS admin prompt), the device creation still returns NULL and
+GameController.framework sees nothing (`tests/results/mac-root-probe.txt`). Without Apple's
+entitlement there is no virtual gamepad on macOS 27 at any privilege level; keyboard & mouse mode is
+the only $0 path.
+
 ### Open question and its probe (development only)
 Two things are unknown until someone runs it: whether macOS 27 still lets an administrator (root)
 create the device without the entitlement, and whether **GameController.framework** (what most Mac

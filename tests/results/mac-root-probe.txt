@@ -1,0 +1,44 @@
+# mac root probe 2026-10-20T23:29:57Z · macOS 27.0.1 (26A434)
+## status as user
+{
+  "name": "macos-keyboard",
+  "kind": "native",
+  "available": true,
+  "maxPads": 1,
+  "detail": "Keyboard & mouse mode · stick = WASD, A = Space, right stick = mouse, RT/LT = click",
+  "remedy": null
+}
+## status as root
+{
+  "name": "macos-keyboard",
+  "kind": "blocked",
+  "available": false,
+  "maxPads": 1,
+  "detail": "Keyboard & mouse mode needs Accessibility permission",
+  "remedy": "System Settings → Privacy & Security → Accessibility → turn on Controller-9"
+}
+## HID devices while the session is open
+## host
+backend: macos-keyboard [Blocked] Keyboard & mouse mode needs Accessibility permission
+  fix: System Settings → Privacy & Security → Accessibility → turn on Controller-9
+2026-10-20T23:30:09.310571Z  INFO nine_host_core::host: host started host_id=3a29778782f8e33b tcp_port=47911 udp_port=47910 backend=macos-keyboard
+listening tcp/47911 udp/47910 stream/off
+  reachable on 10.250.244.195 (Wi-Fi / LAN, en0)
+ninectl://pair?v=1&a=10.250.244.195&p=47911&k=ei7s3AZz6LDnr43sO36ABmCzq9l-C-GZkjBP2gaNjkY&t=0phZL3iPoC8-p-ZQXsA-sg&n=Chaitanyas-MacBook-Air
+2026-10-20T23:30:11.852931Z  INFO nine_host_core::host: controller handshake complete peer=127.0.0.1:65352 name=Controller-9 sim platform=sim
+Pairing request from "Controller-9 sim" — code 245 240
+event: {"type":"paired","name":"Controller-9 sim"}
+event: {"type":"pairing_resolved","id":2,"ok":true}
+2026-10-20T23:30:11.853415Z  WARN nine_host_core::host: virtual controller not created: virtual controller backend unavailable: Accessibility permission is off for Controller-9 slot=0
+event: {"type":"slot_connected","slot":0,"name":"Controller-9 sim"}
+event: {"type":"slot_disconnected","slot":0,"name":"Controller-9 sim","graceS":30}
+## simulator
+sweep   9.60s rt
+sweep  10.00s a
+{"feedback_events":0,"frames":1224,"link":"ip","note":"RTT is protocol ping/pong round trip, not end-to-end game input latency","rate_hz":118.79688503596194,"rtt_max_ms":0.434,"rtt_p50_ms":0.12,"rtt_p95_ms":0.321,"rtt_p99_ms":0.434,"rtt_samples":98,"seconds":10.303300458,"setup_ms":1.8540830000000001,"simulated_drops":0}
+## GameController.framework
+{"listening":16.0,"already":0}
+
+## Verdict
+As root, IoHidBackend::status() (which creates and releases a real IOHIDUserDevice) returned NULL, so native_backend() fell back to keyboard mode; hidutil listed no Controller-9 device and GameController.framework saw none.
+macOS 27.0.1 refuses virtual HID devices without com.apple.developer.hid.virtual.device even for an administrator. A root helper is NOT a path; a real controller on Mac requires Apple's entitlement.
