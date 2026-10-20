@@ -37,6 +37,54 @@ pub fn native_backend() -> std::sync::Arc<dyn nine_host_core::backend::Backend> 
     std::sync::Arc::new(vigem)
 }
 
+/// One-time ViGEmBus install: the official v1.22.0 release, verified by SHA-256 before it runs,
+/// elevated through Windows' own UAC prompt (the user's consent). Shared by the app and the CLI.
+pub mod driver {
+    pub const URL: &str = "https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe";
+    pub const SHA256: &str = "89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a";
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum Outcome { Installed, InstalledRestartNeeded }
+
+    /// PowerShell run with -NoProfile. Downloads into a fresh private folder, checks the hash, runs
+    /// the installer silently, deletes the file, and exits with the installer's code.
+    pub fn install_script() -> String {
+        format!(concat!(
+            "$ErrorActionPreference='Stop';",
+            "$d=Join-Path $env:TEMP ('c9-'+[guid]::NewGuid());New-Item -ItemType Directory $d|Out-Null;",
+            "$f=Join-Path $d 'ViGEmBus_1.22.0_x64_x86_arm64.exe';",
+            "Invoke-WebRequest -UseBasicParsing '{url}' -OutFile $f;",
+            "if((Get-FileHash $f -Algorithm SHA256).Hash -ne '{sha}'){{Remove-Item -Recurse $d;Write-Error 'checksum mismatch'}};",
+            "$p=Start-Process $f -ArgumentList '/exenoui /qn /norestart' -Verb RunAs -Wait -PassThru;",
+            "Remove-Item -Recurse $d;exit $p.ExitCode"), url = URL, sha = SHA256)
+    }
+
+    /// Maps the installer's exit code. 1223 = the user declined the UAC prompt.
+    pub fn outcome(code: Option<i32>, stderr: &str) -> Result<Outcome, String> {
+        match code {
+            Some(0) => Ok(Outcome::Installed),
+            Some(3010) => Ok(Outcome::InstalledRestartNeeded),
+            Some(1223) => Err("Install cancelled at the Windows permission prompt".into()),
+            _ if stderr.contains("canceled by the user") || stderr.contains("cancelled by the user") =>
+                Err("Install cancelled at the Windows permission prompt".into()),
+            _ if stderr.contains("checksum mismatch") => Err("Download did not match the expected file; nothing was installed".into()),
+            c => Err(format!("Driver install failed (code {}): {}", c.map_or("none".into(), |c| c.to_string()),
+                stderr.lines().find(|l| !l.trim().is_empty()).unwrap_or("no details").trim())),
+        }
+    }
+
+    #[cfg(windows)]
+    pub fn install() -> Result<Outcome, String> {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let out = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &install_script()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output().map_err(|e| format!("could not start PowerShell: {e}"))?;
+        outcome(out.status.code(), &String::from_utf8_lossy(&out.stderr))
+    }
+}
+
 /// XInput gamepad fields from the shared input model. Portable so it is tested on every OS.
 pub mod xinput {
     use nine_proto::input::{Button, InputState};
@@ -96,6 +144,20 @@ mod tests {
         assert_eq!((p.lx, p.ly, p.rx, p.ry), (-32767, 32767, 123, -5));
         assert_eq!((p.lt, p.rt), (255, 0));
         assert_eq!(xinput::pad(&InputState::NEUTRAL), xinput::Pad::default());
+    }
+
+    #[test]
+    fn driver_install_is_pinned_and_verified_before_it_runs() {
+        use super::driver::*;
+        let s = install_script();
+        assert!(URL.starts_with("https://github.com/nefarius/ViGEmBus/releases/download/"));
+        let (hash_at, run_at) = (s.find(SHA256).unwrap(), s.find("Start-Process").unwrap());
+        assert!(hash_at < run_at, "hash must be checked before the installer runs");
+        assert!(s.contains("-Verb RunAs") && s.contains("/exenoui /qn /norestart"));
+        assert_eq!(outcome(Some(0), ""), Ok(Outcome::Installed));
+        assert_eq!(outcome(Some(3010), ""), Ok(Outcome::InstalledRestartNeeded));
+        assert!(outcome(Some(1), "Start-Process : This command cannot be run due to the error: The operation was canceled by the user.").unwrap_err().contains("cancelled"));
+        assert!(outcome(Some(1), "checksum mismatch").unwrap_err().contains("nothing was installed"));
     }
 
     #[test]

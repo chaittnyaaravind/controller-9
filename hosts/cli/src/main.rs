@@ -48,6 +48,8 @@ enum Cmd {
         /// Test only: print a JSON "input:" line whenever a slot's received state changes (sampled every 4 ms).
         #[arg(long)] trace_input: bool,
     },
+    /// Windows: install the ViGEmBus driver games need (official release, checksum-verified, UAC prompt).
+    InstallDriver,
     /// Print the virtual-controller backend status for this OS.
     Status,
     /// Simulated controller: pair, open a session, stream input, report RTT.
@@ -94,6 +96,15 @@ fn sweep_state(t: f64) -> (InputState, String) {
     (s, label)
 }
 
+fn install_driver() -> Result<()> {
+    #[cfg(windows)] {
+        let o = nine_pad_windows::driver::install().map_err(|e| anyhow::anyhow!(e))?;
+        println!("{}", serde_json::json!({ "installed": true, "restart_needed": o == nine_pad_windows::driver::Outcome::InstalledRestartNeeded, "status": native_backend().status() }));
+        Ok(())
+    }
+    #[cfg(not(windows))] { anyhow::bail!("install-driver is for Windows; Linux needs no driver, macOS has none to install") }
+}
+
 fn native_backend() -> Arc<dyn Backend> {
     #[cfg(target_os = "linux")] { Arc::new(nine_pad_linux::UinputBackend::default()) }
     #[cfg(target_os = "macos")] { Arc::new(nine_pad_macos::IoHidBackend) }
@@ -113,6 +124,7 @@ fn print_qr(uri: &str) {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
     match Cli::parse().cmd {
+        Cmd::InstallDriver => install_driver(),
         Cmd::Status => { println!("{}", serde_json::to_string_pretty(&native_backend().status())?); Ok(()) }
         Cmd::Host { mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open, trace_input } =>
             run_host(mock, ephemeral, config_dir, bind, tcp_port, udp_port, pair, auto_approve, no_advertise, no_ble, stream_port, stats_every, rumble_test_every, keep_pairing_open, trace_input).await,

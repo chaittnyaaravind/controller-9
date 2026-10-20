@@ -18,6 +18,7 @@ let view = "overview";
 let snap = null;
 let pairing = null;
 let pending = null;
+let installing = false; // ViGEmBus install in progress (Windows)
 
 function show(v) {
   view = v;
@@ -175,7 +176,10 @@ function render() {
     banner.hidden = false;
     banner.innerHTML = snap.preview
       ? `<b>Preview mode.</b><span class="fix">Input is received and shown here, but no controller is created for games.</span>`
-      : `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${esc(b.detail)}${b.remedy ? ` — ${esc(b.remedy)}` : ""}</span>`;
+      : b.name === "windows-vigem"
+        ? `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${installing ? "Installing the free ViGEmBus driver — approve the Windows prompt…" : "One free driver (ViGEmBus) is needed once. Windows will ask for permission."}</span>
+           <button class="btn primary small" data-act="install-driver" ${installing ? "disabled" : ""}>${installing ? "Installing…" : "Install driver"}</button>`
+        : `<b>Games on this computer can’t see Controller-9 yet.</b><span class="fix">${esc(b.detail)}${b.remedy ? ` — ${esc(b.remedy)}` : ""}</span>`;
   } else banner.hidden = true;
   $("#helpBackend").innerHTML = `<p><b>${esc(b.name)}</b> — ${esc(b.detail)}</p>${b.remedy ? `<p>${esc(b.remedy)}</p>` : ""}
     <p>Up to ${snap.maxSlots} players. Each phone becomes its own controller.</p>`;
@@ -204,6 +208,14 @@ document.addEventListener("click", async (e) => {
   if (act === "pair") show("pair");
   if (act === "rumble") { await api.invoke("test_rumble", { slot: Number(el.dataset.slot) }); toast("Rumble sent"); }
   if (act === "kick") await api.invoke("disconnect", { slot: Number(el.dataset.slot) });
+  if (act === "install-driver" && !installing) {
+    installing = true; render();
+    try {
+      const r = await api.invoke("install_driver");
+      toast(r && r.restartNeeded ? "Driver installed — restart Windows to finish" : "Driver installed — games now see an Xbox controller");
+    } catch (err) { toast(String(err)); }
+    installing = false; snap = await api.invoke("snapshot"); render();
+  }
   if (act === "unpair" && confirm("Forget this phone? It will need to pair again.")) { await api.invoke("unpair", { key: el.dataset.key }); toast("Device forgotten"); }
 });
 

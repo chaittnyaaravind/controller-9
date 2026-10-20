@@ -13,6 +13,17 @@ fn native_backend() -> Arc<dyn Backend> {
     #[cfg(windows)] { nine_pad_windows::native_backend() }
 }
 
+/// Windows: one-time ViGEmBus install (official release, checksum-verified, Windows' UAC prompt).
+/// The ViGEm backend re-checks the driver on every status/create, so no restart of the app is needed.
+#[tauri::command]
+async fn install_driver() -> Result<serde_json::Value, String> {
+    #[cfg(windows)] {
+        let o = tauri::async_runtime::spawn_blocking(nine_pad_windows::driver::install).await.map_err(|e| e.to_string())??;
+        Ok(serde_json::json!({ "restartNeeded": o == nine_pad_windows::driver::Outcome::InstalledRestartNeeded }))
+    }
+    #[cfg(not(windows))] { Err("Only Windows needs a driver".into()) }
+}
+
 #[tauri::command]
 fn snapshot(app: State<'_, App>) -> serde_json::Value {
     let s: HostSnapshot = app.host.snapshot();
@@ -65,7 +76,7 @@ pub fn run() {
                 tauri::async_runtime::block_on(host.shutdown());
             }
         })
-        .invoke_handler(tauri::generate_handler![snapshot, open_pairing, close_pairing, answer, unpair, disconnect, test_rumble, get_config, save_config])
+        .invoke_handler(tauri::generate_handler![snapshot, open_pairing, close_pairing, answer, unpair, disconnect, test_rumble, get_config, save_config, install_driver])
         .run(tauri::generate_context!())
         .expect("failed to run Controller-9");
 }
