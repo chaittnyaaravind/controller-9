@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamepad Check</title>
+<meta name="description" content="What this browser's Gamepad API sees: mapping, live buttons and axes, update rate, edges, rumble.">
+<style>
+:root {
+  --bg: #0B0C0D; --s1: #111315; --s2: #171A1C; --s3: #1E2225;
+  --text: #EEF0F1; --muted: rgb(238 240 241 / .66); --dim: rgb(238 240 241 / .46);
+  --line: rgb(238 240 241 / .08); --line-2: rgb(238 240 241 / .14); --wash: rgb(238 240 241 / .06); --wash-2: rgb(238 240 241 / .1);
+  --accent: #C6F432; --accent-ink: #11140A; --warn: #F5B14C; --bad: #F2675A;
+  --r-pill: 999px; --r-card: 14px; --r-sm: 8px;
+  --ease-hover: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --dur-hover: 120ms; --dur-fast: 60ms;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Inter", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #F6F7F6; --s1: #FFFFFF; --s2: #EEF0EE; --s3: #E4E7E4;
+  --text: #131516; --muted: rgb(19 21 22 / .66); --dim: rgb(19 21 22 / .52);
+  --line: rgb(19 21 22 / .08); --line-2: rgb(19 21 22 / .16); --wash: rgb(19 21 22 / .05); --wash-2: rgb(19 21 22 / .09);
+  --accent: #4D6B00; --accent-ink: #F6FBE6; --warn: #9A5B00; --bad: #B3261E; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --bg: #F6F7F6; --s1: #FFFFFF; --s2: #EEF0EE; --s3: #E4E7E4;
+  --text: #131516; --muted: rgb(19 21 22 / .66); --dim: rgb(19 21 22 / .52);
+  --line: rgb(19 21 22 / .08); --line-2: rgb(19 21 22 / .16); --wash: rgb(19 21 22 / .05); --wash-2: rgb(19 21 22 / .09);
+  --accent: #4D6B00; --accent-ink: #F6FBE6; --warn: #9A5B00; --bad: #B3261E; color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); letter-spacing: -0.005em; -webkit-font-smoothing: antialiased; }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 72px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+h1 { font-size: 30px; line-height: 1.05; font-weight: 500; letter-spacing: -0.025em; margin: 6px 0 0; }
+h2 { font-size: 17px; line-height: 1.2; font-weight: 500; letter-spacing: -0.012em; margin: 0; }
+p { margin: 0; }
+.micro { font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.accent { color: var(--accent); }
+.muted { color: var(--muted); } .dim { color: var(--dim); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.lede { color: var(--muted); max-width: 60ch; margin-top: 8px; text-wrap: pretty; }
+.btn { height: 32px; padding: 0 14px; border-radius: var(--r-pill); border: 0; background: var(--wash); box-shadow: inset 0 0 0 1px var(--line-2); color: inherit; font: inherit; font-weight: 500; font-size: 13px; cursor: pointer; transition: background var(--dur-hover) var(--ease-hover), transform var(--dur-hover) var(--ease-hover); }
+.btn:hover { background: var(--wash-2); }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.empty { border: 1px dashed var(--line-2); border-radius: var(--r-card); padding: 40px 24px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--text); font-weight: 500; font-size: 16px; margin-bottom: 6px; }
+.pads { display: grid; gap: 20px; }
+.card { background: var(--s1); border-radius: var(--r-card); box-shadow: inset 0 0 0 1px var(--line); padding: 22px; }
+.card-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 18px; }
+.id { word-break: break-all; margin-top: 4px; font-size: 14px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 18px; }
+.stat { background: var(--s1); padding: 12px 14px; }
+.stat b { display: block; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 400; font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; margin-top: 4px; }
+.stat b small { font-size: 12px; color: var(--muted); margin-left: 3px; }
+.ok { color: var(--accent); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 22px; }
+.buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.b { position: relative; height: 44px; border-radius: var(--r-sm); background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; }
+.b .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--accent); transform-origin: left; transform: scaleX(var(--v, 0)); }
+.b span { position: relative; font-size: 11px; line-height: 1.1; }
+.b .n { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.b.on { background: var(--accent); box-shadow: none; }
+.b.on .fill { opacity: 0; }
+.b.on span, .b.on .n { color: var(--accent-ink); }
+.axes { display: grid; gap: 10px; }
+.axis { display: grid; grid-template-columns: 82px 1fr 64px; gap: 10px; align-items: center; }
+.track { position: relative; height: 6px; border-radius: var(--r-pill); background: var(--s3); }
+.track::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--line-2); }
+.track i { position: absolute; top: 0; bottom: 0; border-radius: var(--r-pill); background: var(--accent); }
+.sticks { display: flex; gap: 14px; margin-top: 16px; }
+.stick { width: 96px; aspect-ratio: 1; border-radius: 50%; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); position: relative; }
+.stick::before, .stick::after { content: ""; position: absolute; background: var(--line); }
+.stick::before { left: 50%; top: 8px; bottom: 8px; width: 1px; } .stick::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+.stick i { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); left: 50%; top: 50%; }
+.stick + .micro { margin-top: 6px; }
+.foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); align-items: center; }
+.log { margin-top: 28px; }
+.log-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.log ol { list-style: none; margin: 12px 0 0; padding: 0; max-height: 260px; overflow: auto; border-radius: var(--r-sm); box-shadow: inset 0 0 0 1px var(--line); }
+.log ol:empty::after { content: "No presses yet"; display: block; padding: 12px; color: var(--dim); }
+.log li { display: grid; grid-template-columns: 96px 46px 1fr 90px; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--line); }
+.log li:first-child { border-top: 0; }
+.note { margin-top: 28px; color: var(--dim); font-size: 12.5px; max-width: 72ch; text-wrap: pretty; }
+@media (max-width: 760px) {
+  .grid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .log li { grid-template-columns: 74px 36px 1fr; } .log li .lat { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="micro accent">Controller-9 · Diagnostics</div>
+      <h1>Gamepad check</h1>
+      <p class="lede">What this browser's Gamepad API sees. If a pad shows here with the standard mapping, browser games will see it the same way.</p>
+    </div>
+    <div class="micro" id="env"></div>
+  </header>
+
+  <section id="none" class="empty">
+    <strong>No controller visible yet</strong>
+    Browsers hide gamepads until a button is pressed. Press any button on the phone.
+  </section>
+  <section id="pads" class="pads" aria-live="polite"></section>
+
+  <section class="log">
+    <div class="log-head"><h2>Presses</h2><span class="micro dim">newest first</span></div>
+    <ol id="log"></ol>
+  </section>
+
+  <p class="note">Updates/s counts how often the pad's timestamp changes in the last second, sampled once per display frame, so it can't read above the screen's refresh rate (60 Hz on most screens). For the controller's own rate, use the host diagnostics. Browsers stop updating while nothing moves, so read it while a control is moving. Rumble uses <span class="mono">vibrationActuator</span> (Chromium browsers). If the phone vibrates, the whole path from game to computer to phone works.</p>
+</main>
+
+<script>
+"use strict";
+const STD = ["A / Cross", "B / Circle", "X / Square", "Y / Triangle", "LB / L1", "RB / R1", "LT / L2", "RT / R2", "View / Share", "Menu / Options", "L3", "R3", "D-pad up", "D-pad down", "D-pad left", "D-pad right", "Guide / PS"];
+const AX = ["Left X", "Left Y", "Right X", "Right Y"];
+const $ = (s, r = document) => r.querySelector(s);
+const pads = new Map(); // index -> { el, prev, ts, last, edges, maxGap, pressedAt, seenAt }
+const logEl = $("#log");
+const t0 = performance.now();
+
+const ua = navigator.userAgent;
+$("#env").textContent = (/Firefox\/[\d.]+/.exec(ua) || /Edg\/[\d.]+/.exec(ua) || /Chrome\/[\d.]+/.exec(ua) || /Version\/[\d.]+ Safari/.exec(ua) || ["Browser"])[0];
+
+function name(gp, i) { return gp.mapping === "standard" && STD[i] ? STD[i] : "Button " + i; }
+
+function card(gp) {
+  const el = document.createElement("article");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="card-head">
+      <div><div class="micro">Pad ${gp.index}</div><h2 class="id mono"></h2></div>
+      <div class="micro map"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="micro">Updates</span><b class="rate">—<small>/s</small></b></div>
+      <div class="stat"><span class="micro">Longest gap</span><b class="gap">—<small>ms</small></b></div>
+      <div class="stat"><span class="micro">Held now</span><b class="held">0</b></div>
+      <div class="stat"><span class="micro">Presses</span><b class="edges">0</b></div>
+    </div>
+    <div class="grid">
+      <div><div class="micro" style="margin-bottom:10px">Buttons</div><div class="buttons"></div></div>
+      <div>
+        <div class="micro" style="margin-bottom:10px">Axes</div><div class="axes"></div>
+        <div class="sticks"><div><div class="stick l"><i></i></div><div class="micro">Left</div></div><div><div class="stick r"><i></i></div><div class="micro">Right</div></div></div>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="micro dim rum"></span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-r="strong">Rumble · heavy</button>
+        <button class="btn" data-r="weak">Rumble · light</button>
+        <button class="btn" data-r="reset">Reset</button>
+      </div>
+    </div>`;
+  $(".id", el).textContent = gp.id;
+  const std = gp.mapping === "standard";
+  const m = $(".map", el);
+  m.textContent = std ? "Standard mapping" : "No standard mapping · games may mislabel buttons";
+  m.classList.add(std ? "ok" : "warn");
+  $(".buttons", el).innerHTML = gp.buttons.map((_, i) => `<div class="b" data-i="${i}"><div class="fill"></div><span></span><span class="n">${i}</span></div>`).join("");
+  el.querySelectorAll(".b").forEach((b, i) => { b.children[1].textContent = std && STD[i] ? STD[i] : "Button"; });
+  $(".axes", el).innerHTML = gp.axes.map((_, i) => `<div class="axis" data-i="${i}"><span class="micro"></span><div class="track"><i></i></div><span class="mono v">0.000</span></div>`).join("");
+  el.querySelectorAll(".axis").forEach((a, i) => { a.children[0].textContent = std && AX[i] ? AX[i] : "Axis " + i; });
+  const rum = $(".rum", el);
+  if (!gp.vibrationActuator) {
+    rum.textContent = "This browser does not expose rumble";
+    el.querySelectorAll("[data-r=strong],[data-r=weak]").forEach(b => { b.disabled = true; });
+  } else rum.textContent = "Rumble available";
+  el.addEventListener("click", async e => {
+    const r = e.target.closest("[data-r]")?.dataset.r; if (!r) return;
+    const s = pads.get(gp.index);
+    if (r === "reset") { s.ts = []; s.maxGap = 0; s.edges = 0; logEl.innerHTML = ""; return; }
+    const pad = navigator.getGamepads()[gp.index];
+    try {
+      const res = await pad.vibrationActuator.playEffect("dual-rumble", { duration: 600, strongMagnitude: r === "strong" ? 1 : 0, weakMagnitude: r === "weak" ? 1 : 0 });
+      rum.textContent = `Rumble sent (${r === "strong" ? "heavy" : "light"}) · ${res} · the phone should vibrate`;
+    } catch (err) { rum.textContent = "Rumble failed: " + err.message; }
+  });
+  return el;
+}
+
+function add(gp) {
+  if (pads.has(gp.index)) return;
+  const el = card(gp);
+  $("#pads").appendChild(el);
+  pads.set(gp.index, { el, prev: gp.buttons.map(b => b.pressed), ts: [], last: gp.timestamp, edges: 0, maxGap: 0, pressedAt: [], seenAt: 0 });
+  $("#none").hidden = true;
+}
+function drop(index) {
+  const s = pads.get(index); if (!s) return;
+  s.el.remove(); pads.delete(index);
+  if (!pads.size) $("#none").hidden = false;
+}
+window.addEventListener("gamepadconnected", e => add(e.gamepad));
+window.addEventListener("gamepaddisconnected", e => drop(e.gamepad.index));
+
+function logEdge(gp, i, down, held) {
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="mono dim"></span><span class="mono ${down ? "accent" : "muted"}">${down ? "down" : "up"}</span><span></span><span class="mono dim lat"></span>`;
+  li.children[0].textContent = ((performance.now() - t0) / 1000).toFixed(3) + " s";
+  li.children[2].textContent = `Pad ${gp.index} · ${name(gp, i)}`;
+  li.children[3].textContent = held != null ? `held ${held.toFixed(0)} ms` : "";
+  logEl.prepend(li);
+  while (logEl.children.length > 200) logEl.lastChild.remove();
+}
+
+function frame(now) {
+  for (const gp of navigator.getGamepads()) {
+    if (!gp) continue;
+    if (!pads.has(gp.index)) add(gp);
+    const s = pads.get(gp.index), el = s.el;
+    if (gp.timestamp !== s.last) {
+      const g = gp.timestamp - s.last;
+      if (s.ts.length && g < 2000) s.maxGap = Math.max(s.maxGap, g);
+      s.ts.push(gp.timestamp); s.last = gp.timestamp; s.seenAt = now;
+    }
+    while (s.ts.length && s.ts[0] < s.last - 1000) s.ts.shift();
+    const live = now - s.seenAt < 1000 && s.ts.length > 1;
+    const rate = $(".rate", el);
+    rate.firstChild.nodeValue = live ? String(s.ts.length) : "—";
+    rate.className = "rate " + (!live ? "" : s.ts.length >= 60 ? "ok" : s.ts.length >= 30 ? "warn" : "bad");
+    $(".gap", el).firstChild.nodeValue = s.maxGap ? s.maxGap.toFixed(0) : "—";
+    let held = 0;
+    gp.buttons.forEach((b, i) => {
+      const node = el.querySelector(`.b[data-i="${i}"]`); if (!node) return;
+      node.style.setProperty("--v", b.value.toFixed(3));
+      node.classList.toggle("on", b.pressed);
+      if (b.pressed) held++;
+      if (b.pressed !== s.prev[i]) {
+        let dur = null;
+        if (b.pressed) { s.edges++; s.pressedAt[i] = gp.timestamp; } else if (s.pressedAt[i] != null) dur = gp.timestamp - s.pressedAt[i];
+        logEdge(gp, i, b.pressed, dur);
+        s.prev[i] = b.pressed;
+      }
+    });
+    $(".held", el).textContent = held;
+    $(".edges", el).textContent = s.edges;
+    gp.axes.forEach((v, i) => {
+      const row = el.querySelector(`.axis[data-i="${i}"]`); if (!row) return;
+      const bar = $("i", row);
+      bar.style.left = (v < 0 ? 50 + v * 50 : 50) + "%";
+      bar.style.width = Math.abs(v) * 50 + "%";
+      $(".v", row).textContent = (v < 0 ? "" : " ") + v.toFixed(3);
+    });
+    const put = (sel, x, y) => { const d = $(sel + " i", el); if (d) d.style.transform = `translate(${(x || 0) * 41}px, ${(y || 0) * 41}px)`; };
+    put(".stick.l", gp.axes[0], gp.axes[1]); put(".stick.r", gp.axes[2], gp.axes[3]);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

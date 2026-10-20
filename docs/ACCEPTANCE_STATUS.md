@@ -11,7 +11,7 @@
 | iOS archive / TestFlight | **blocked** — full Xcode + Apple team | — |
 | macOS host in games | **blocked** — Apple entitlement | A7 |
 | Windows driver built, signed, OS-visible | **not done** — needs Windows 11 + WDK; signing decision | A5 |
-| Linux uinput OS-visible | **not done** — needs a Linux machine | A6 |
+| Linux uinput OS-visible | **partial** — OS-visible and SDL-recognised on Ubuntu 24.04 aarch64 (VM) with a simulated controller over the real protocol ([results](../tests/results/2026-10-19-linux-uinput-vm.md)); still needs a phone over radio and a real game | A6 |
 | Game compatibility entries | **none claimed** | T10 |
 | Download page links only real artifacts | **done** — manifest empty, page shows status only | `site/download/` |
 | CI release workflows | **written, never run** | `.github/workflows/` |

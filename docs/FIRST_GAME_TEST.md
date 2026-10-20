@@ -41,6 +41,7 @@ Pair the phone (Home → Pair a computer → scan the QR or Pair with code), ope
 | Triggers / Racing pedals | `evtest` | `ABS_Z` (left), `ABS_RZ` (right) 0…max; 50 % pedal ≈ half |
 | D-pad | `evtest` | `ABS_HAT0X/HAT0Y` −1/0/1 |
 | Safe release | `evtest` + turn phone Wi-Fi/Bluetooth off while holding | every button back to 0, axes centred within ~0.3 s |
+| Browser sees a gamepad | open `tools/gamepad-test/index.html` in Chrome/Edge/Firefox, press a button | pad listed with "Standard mapping", buttons and axes move, Rumble buttons vibrate the phone |
 | SDL sees a gamepad | `testcontroller` (SDL 2/3 test app) or Steam → Settings → Controller | recognised, buttons in the right places |
 | A real game | any SDL/Steam title (e.g. SuperTuxKart for Racing, a platformer for a preset) | game responds to the phone; note title and version |
 | Rumble (optional) | a game with force feedback | the phone vibrates |
