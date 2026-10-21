@@ -8,6 +8,7 @@ import dev.ninecontroller.android.data.SettingsStore
 import dev.ninecontroller.android.input.Haptics
 import dev.ninecontroller.android.net.ConnectionManager
 import dev.ninecontroller.android.net.Discovery
+import dev.ninecontroller.android.net.HidGamepad
 import dev.ninecontroller.android.net.LocalNetwork
 
 /** Manual dependency container; one instance per process. */
@@ -20,6 +21,8 @@ class NineApp : Application() {
     lateinit var discovery: Discovery; private set
     lateinit var connection: ConnectionManager; private set
     lateinit var localNetwork: LocalNetwork; private set
+    /** The phone as a Bluetooth controller with no computer app (docs/DIRECT_BLUETOOTH.md). */
+    lateinit var hid: HidGamepad; private set
 
     override fun onCreate() {
         super.onCreate()
@@ -31,5 +34,6 @@ class NineApp : Application() {
         discovery = Discovery(this)
         connection = ConnectionManager(this, identity, hosts, settings, haptics)
         localNetwork = LocalNetwork(this)
+        hid = HidGamepad(this, haptics)
     }
 }

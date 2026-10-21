@@ -129,7 +129,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 
     val spec = remember(s.activeProfile, s.padMappings, s.padTilt, s.tiltSensitivity, s.tiltDeadzone, s.tiltLockDeg, s.stickDeadzone, profiles) { surfaceFor(s, profiles) } ?: return
 
-    val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f) } }
+    val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }
     var sent by remember { mutableStateOf(InputState.NEUTRAL) }
@@ -161,9 +161,9 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
     }
 
-    // Connect to the last computer automatically.
+    // Connect to the last computer automatically (not while playing as a Bluetooth controller).
     LaunchedEffect(Unit) {
-        if (app.connection.state.value is ConnState.Idle || app.connection.state.value is ConnState.Failed) {
+        if (!app.hid.active && (app.connection.state.value is ConnState.Idle || app.connection.state.value is ConnState.Failed)) {
             val last = app.settings.flow.first().lastHost ?: app.hosts.hosts.value.firstOrNull()?.id
             last?.let { app.hosts.byId(it) }?.let { app.connection.connect(it) }
         }

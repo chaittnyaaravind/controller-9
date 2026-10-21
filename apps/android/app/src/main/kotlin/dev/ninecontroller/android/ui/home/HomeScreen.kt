@@ -40,6 +40,7 @@ import androidx.navigation.NavController
 import dev.ninecontroller.android.NineApp
 import dev.ninecontroller.android.data.AppSettings
 import dev.ninecontroller.android.net.ConnState
+import dev.ninecontroller.android.net.HidGamepad
 import dev.ninecontroller.android.net.LinkStatsUi
 import dev.ninecontroller.android.ui.Divider
 import dev.ninecontroller.android.ui.ListRow
@@ -100,6 +101,7 @@ object HomeLogic {
 @Composable
 fun HomeScreen(app: NineApp, nav: NavController) {
     val state by app.connection.state.collectAsState()
+    val hidState by app.hid.state.collectAsState()
     val stats by app.connection.stats.collectAsState()
     val hosts by app.hosts.hosts.collectAsState()
     val profiles by app.profiles.profiles.collectAsState()
@@ -160,6 +162,35 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                 if (blePerm != null && Build.VERSION.SDK_INT >= 31) SecondaryButton("Allow Bluetooth fallback", {
                     perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
                 })
+            }
+
+            // ---------------------------------------------------------------- Bluetooth controller (no computer app)
+            Section("Bluetooth controller") {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val (title, detail, tone) = when (val h = hidState) {
+                        HidGamepad.State.Off -> Triple("No app needed on the computer", "Your phone becomes a wireless controller. Pair it once from the computer’s Bluetooth settings.", Tone.IDLE)
+                        HidGamepad.State.Advertising -> Triple("Waiting for a computer", "On the computer, open Bluetooth settings and connect to this phone. Accept the pairing request on both.", Tone.WARN)
+                        is HidGamepad.State.Connected -> Triple("Controller connected to ${h.host}", if (h.subscribed) "Games see an Xbox Wireless Controller." else "Finishing setup…", if (h.subscribed) Tone.OK else Tone.WARN)
+                        is HidGamepad.State.Failed -> Triple("Bluetooth controller unavailable", h.reason, Tone.BAD)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatusDot(tone.color(), 9.dp)
+                        Text(title, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
+                    Text(detail, style = NineType.small, color = Nine.muted)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (hidState is HidGamepad.State.Off || hidState is HidGamepad.State.Failed) {
+                            PrimaryButton("Start", {
+                                if (app.hid.unavailableReason()?.contains("permission", ignoreCase = true) == true && Build.VERSION.SDK_INT >= 31)
+                                    perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
+                                else { app.connection.disconnect(); app.hid.start() }
+                            })
+                        } else {
+                            PrimaryButton("Play", { nav.navigate("play") })
+                            SecondaryButton("Stop", { app.hid.stop() })
+                        }
+                    }
+                }
             }
 
             // ---------------------------------------------------------------- layout
