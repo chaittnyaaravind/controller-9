@@ -12,7 +12,7 @@ pub use iohid::IoHidBackend;
 #[cfg(target_os = "macos")]
 mod keyboard;
 #[cfg(target_os = "macos")]
-pub use keyboard::{KeyboardBackend, MARK as KEYBOARD_EVENT_MARK};
+pub use keyboard::{log_permissions, post_self_test, KeyboardBackend, MARK as KEYBOARD_EVENT_MARK};
 
 /// The backend the macOS hosts use: a real virtual gamepad when Apple's entitlement is present,
 /// otherwise keyboard & mouse mode (Accessibility permission only).

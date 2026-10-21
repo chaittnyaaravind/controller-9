@@ -2523,6 +2523,7 @@ dependencies = [
  "core-foundation",
  "nine-host-core",
  "nine-proto",
+ "tracing",
 ]
 
 [[package]]

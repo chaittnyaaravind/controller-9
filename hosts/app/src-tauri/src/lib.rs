@@ -90,6 +90,11 @@ pub fn run() {
             // macOS keyboard & mouse mode without Accessibility: show the system prompt right away
             // (it also adds Controller-9 to the list), instead of waiting for the user to find a button.
             #[cfg(target_os = "macos")]
+            if !preview {
+                nine_pad_macos::log_permissions();
+                if std::env::var("C9_POST_SELFTEST").is_ok_and(|v| v == "1") { nine_pad_macos::post_self_test(); }
+            }
+            #[cfg(target_os = "macos")]
             if !preview { let st = host.snapshot().backend; if st.name == "macos-keyboard" && !st.available { nine_pad_macos::KeyboardBackend::request_access(); } }
             let mut ev = host.subscribe();
             let handle = app.handle().clone();

@@ -31,6 +31,34 @@ unsafe extern "C" {
 }
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" { fn CFRelease(p: *const c_void); }
+#[link(name = "ApplicationServices", kind = "framework")]
+unsafe extern "C" { fn AXIsProcessTrusted() -> bool; }
+
+/// Only the "post events" grant lets CGEventPost through. Measured on macOS 27.0.1 (2026-10-20):
+/// with Accessibility (AX) trusted but post-events off, every tagged event posted at the HID, session
+/// and annotated-session taps was dropped. AX trust alone is NOT enough, so it is only logged.
+fn can_post() -> bool { unsafe { CGPreflightPostEventAccess() } }
+
+/// Diagnostic: posts one tagged F18 (does nothing in apps) through the same path as real input,
+/// so a test tap can prove whether macOS delivers this process's events.
+pub fn post_self_test() {
+    let p = Poster::new();
+    // F18 at the HID level, F19 at the session level, F20 at the annotated-session level.
+    for (key, tap) in [(79u16, 0u32), (80, 1), (90, 2)] {
+        for down in [true, false] {
+            let e = unsafe { CGEventCreateKeyboardEvent(p.src, key, down) };
+            if e.is_null() { continue; }
+            unsafe { CGEventSetIntegerValueField(e, F_USER_DATA, MARK); CGEventPost(tap, e); CFRelease(e); }
+        }
+    }
+    tracing::info!(can_post = can_post(), "keyboard mode self-test: posted tagged F18 (HID), F19 (session), F20 (annotated)");
+}
+
+/// Logged once at startup so a permission problem is visible in the app log, never guessed.
+pub fn log_permissions() {
+    let (post, ax) = unsafe { (CGPreflightPostEventAccess(), AXIsProcessTrusted()) };
+    tracing::info!(post_events = post, accessibility = ax, "macOS input permissions");
+}
 
 const HID_TAP: u32 = 0; // kCGHIDEventTap
 const HID_STATE: i32 = 1; // kCGEventSourceStateHIDSystemState
@@ -92,7 +120,7 @@ impl Drop for Poster { fn drop(&mut self) { if !self.src.is_null() { unsafe { CF
 
 struct Shared { poster: Poster, state: Mutex<(InputState, Mapper)>, stop: AtomicBool }
 
-pub struct KeyboardPad { sh: Arc<Shared>, mover: Option<JoinHandle<()>> }
+pub struct KeyboardPad { sh: Arc<Shared>, mover: Option<JoinHandle<()>>, logged_first: bool }
 
 #[derive(Default, Clone, Copy)]
 pub struct KeyboardBackend;
@@ -104,7 +132,7 @@ impl KeyboardBackend {
 
 impl Backend for KeyboardBackend {
     fn status(&self) -> BackendStatus {
-        let ok = unsafe { CGPreflightPostEventAccess() };
+        let ok = can_post();
         BackendStatus {
             name: "macos-keyboard".into(), kind: if ok { BackendKind::Native } else { BackendKind::Blocked }, available: ok, max_pads: 1,
             detail: if ok { "Keyboard & mouse mode · stick = WASD, A = Space, right stick = mouse, RT/LT = click".into() }
@@ -114,7 +142,7 @@ impl Backend for KeyboardBackend {
     }
 
     fn create(&self, _slot: u8, _name: &str) -> Result<Box<dyn VirtualPad>, BackendError> {
-        if !unsafe { CGPreflightPostEventAccess() } {
+        if !can_post() {
             return Err(BackendError::Unavailable("Accessibility permission is off for Controller-9".into()));
         }
         let sh = Arc::new(Shared { poster: Poster::new(), state: Mutex::new((InputState::NEUTRAL, Mapper::default())), stop: AtomicBool::new(false) });
@@ -132,13 +160,18 @@ impl Backend for KeyboardBackend {
                 if dx != 0.0 || dy != 0.0 { acc.0 -= dx; acc.1 -= dy; t.poster.moved(dx as i64, dy as i64, l, r); }
             }
         }).map_err(|e| BackendError::Io(e.to_string()))?;
-        Ok(Box::new(KeyboardPad { sh, mover: Some(mover) }))
+        tracing::info!("keyboard mode: controller ready (keys and mouse)");
+        Ok(Box::new(KeyboardPad { sh, mover: Some(mover), logged_first: false }))
     }
 }
 
 impl VirtualPad for KeyboardPad {
     fn submit(&mut self, s: &InputState) -> Result<(), BackendError> {
         let changes = { let mut g = self.sh.state.lock().unwrap(); g.0 = *s; g.1.update(s) };
+        if !self.logged_first && !changes.is_empty() {
+            self.logged_first = true;
+            tracing::info!(?changes, "keyboard mode: first input from the phone turned into key/mouse events");
+        }
         self.sh.poster.apply(&changes);
         Ok(())
     }
