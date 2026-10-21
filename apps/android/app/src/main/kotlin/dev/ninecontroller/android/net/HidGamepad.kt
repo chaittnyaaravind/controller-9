@@ -69,31 +69,71 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
     private lateinit var inputReport: BluetoothGattCharacteristic
     private lateinit var outputReport: BluetoothGattCharacteristic
     private lateinit var batteryLevel: BluetoothGattCharacteristic
+    private lateinit var inputCccd: BluetoothGattDescriptor
+    /** Input-notification state per bonded computer. The Bluetooth spec keeps a bonded client's
+     *  subscription across connections and computers rely on it (macOS does not subscribe again on
+     *  reconnect). A bonded host of this HID service counts as subscribed unless it unsubscribed. */
+    private val subscribers = context.getSharedPreferences("hid_subscribers", Context.MODE_PRIVATE)
     /** Values of our characteristics and descriptors, keyed by object identity (two Reports share a UUID). */
     private val values = ConcurrentHashMap<Any, ByteArray>()
 
-    val active get() = running
+    val active get() = running || wanted
+    /** The user turned the mode on; it comes back by itself after Bluetooth is switched off and on. */
+    @Volatile private var wanted = false
+
+    init {
+        androidx.core.content.ContextCompat.registerReceiver(context, object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: android.content.Intent) {
+                when (i.getIntExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, -1)) {
+                    android.bluetooth.BluetoothAdapter.STATE_TURNING_OFF -> if (running) { Log.i(TAG, "Bluetooth turning off"); teardown(); _state.value = State.Failed("Bluetooth is off") }
+                    android.bluetooth.BluetoothAdapter.STATE_ON -> if (wanted && !running) { Log.i(TAG, "Bluetooth back on: restarting controller"); start() }
+                }
+            }
+        }, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    }
 
     fun unavailableReason(): String? = BlePeripheral(context).unavailableReason()
 
     @Synchronized fun start() {
+        wanted = true
         if (running) return
         unavailableReason()?.let { _state.value = State.Failed(it); return }
         val s = manager.openGattServer(context, callback) ?: run { _state.value = State.Failed("Bluetooth refused to open a GATT server"); return }
         server = s
         // Android adds one service at a time: wait for each onServiceAdded before the next.
-        for (svc in listOf(deviceInfo(), battery(), hid())) {
-            if (!s.addService(svc) || !serviceAdded.tryAcquire(3, TimeUnit.SECONDS)) {
-                Log.w(TAG, "service ${svc.uuid} was not added")
-                stop(); _state.value = State.Failed("This phone refused the Bluetooth controller service"); return
-            }
+        fun add(svc: BluetoothGattService): Boolean {
+            val accepted = s.addService(svc)
+            if (accepted && serviceAdded.tryAcquire(3, TimeUnit.SECONDS)) return true
+            Log.w(TAG, "service ${svc.uuid} (${svc.characteristics.size} characteristics) was not added: ${if (accepted) "no callback" else "refused"}")
+            teardown(); _state.value = State.Failed("This phone refused the Bluetooth controller service"); return false
         }
+        // Pin the layout: a bonded computer caches attribute handles and macOS ignores Service Changed,
+        // but Android hands out the next free handle, which moves with whatever registered first. An
+        // empty marker service reveals that handle; filler then makes the controller start at HANDLE_BASE.
+        val marker = BluetoothGattService(PAD_SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        if (!add(marker)) return
+        val gap = HANDLE_BASE - (marker.instanceId + 1)
+        if (gap > 0) for (f in filler(gap)) if (!add(f)) return
+        if (gap < 0) Log.w(TAG, "handle ${marker.instanceId + 1} is past the pinned base $HANDLE_BASE: computers paired earlier must pair again")
+        for (svc in listOf(deviceInfo(), battery(), hid())) if (!add(svc)) return
         running = true
         Thread(::pumpLoop, "c9-hid-notify").apply { isDaemon = true; start() }
+        // A bonded computer reconnects the moment the phone is reachable, often before these services
+        // exist; it then keeps its cached view and never creates the gamepad. Drop such early links so
+        // it reconnects to the complete controller.
+        for (d in manager.getConnectedDevices(BluetoothProfile.GATT_SERVER)) {
+            if (d.bondState == BluetoothDevice.BOND_BONDED) { Log.i(TAG, "dropping early link so the computer reconnects to the full controller"); s.cancelConnection(d) }
+        }
         advertise()
     }
 
     @Synchronized fun stop() {
+        wanted = false
+        teardown()
+        _state.value = State.Off
+    }
+
+    @Synchronized private fun teardown() {
         running = false
         wake.release()
         haptics.rumble(0, 0, 0)
@@ -101,7 +141,6 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         runCatching { host?.let { server?.cancelConnection(it) } }
         runCatching { server?.close() }
         server = null; host = null; subscribed = false
-        _state.value = State.Off
     }
 
     /** Latest controller state; sent as soon as the previous notification has gone out. */
@@ -112,14 +151,31 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH).setConnectable(true).setTimeout(0).build()
         val data = AdvertiseData.Builder().addServiceUuid(ParcelUuid(HID_SERVICE)).build()
         val scan = AdvertiseData.Builder().setIncludeDeviceName(true).build()
-        val adv = manager.adapter.bluetoothLeAdvertiser ?: run { _state.value = State.Failed("This phone can't advertise over Bluetooth LE"); return }
-        adv.startAdvertising(settings, data, scan, advertiseCallback)
+        // Right after Bluetooth turns on the LE advertiser is not ready yet: retry for a few seconds,
+        // off the caller's thread (start() can run on the main thread).
+        Thread({ advertiseWithRetry(settings, data, scan) }, "c9-hid-advertise").apply { isDaemon = true; start() }
     }
 
-    private val advertiseCallback = object : AdvertiseCallback() {
+    private fun advertiseWithRetry(settings: AdvertiseSettings, data: AdvertiseData, scan: AdvertiseData) {
+        advertiseCallback = newAdvertiseCallback()
+        for (attempt in 1..20) {
+            if (!running) return
+            val adv = manager.adapter.bluetoothLeAdvertiser
+            if (adv != null && runCatching { adv.startAdvertising(settings, data, scan, advertiseCallback) }.onFailure { Log.w(TAG, "startAdvertising: $it") }.isSuccess) return
+            Thread.sleep(500)
+        }
+        Log.w(TAG, "advertiser never became available"); _state.value = State.Failed("This phone can't advertise over Bluetooth LE")
+    }
+
+    /** A new callback per advertising session: after Bluetooth restarts, the advertiser may still hold
+     *  the previous callback, and reusing it fails with "already started" while nothing advertises. */
+    @Volatile private var advertiseCallback = newAdvertiseCallback()
+
+    private fun newAdvertiseCallback() = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) { Log.i(TAG, "advertising as HID gamepad"); if (host == null) _state.value = State.Advertising }
         override fun onStartFailure(errorCode: Int) {
-            if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) return // a reconnect raced an earlier start
+            Log.w(TAG, "advertising start failed: $errorCode")
+            if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) return // this session's advertisement is already running
             Log.w(TAG, "advertising failed: $errorCode"); _state.value = State.Failed("Bluetooth advertising failed (code $errorCode)")
         }
     }
@@ -143,13 +199,18 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
 
     private val callback = object : BluetoothGattServerCallback() {
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
-            if (status == BluetoothGatt.GATT_SUCCESS) serviceAdded.release() else Log.w(TAG, "onServiceAdded ${service.uuid} status=$status")
+            if (status == BluetoothGatt.GATT_SUCCESS) { Log.i(TAG, "service ${name(service.uuid)} handle ${service.instanceId}"); serviceAdded.release() } else Log.w(TAG, "onServiceAdded ${service.uuid} status=$status")
         }
 
         override fun onConnectionStateChange(d: BluetoothDevice, status: Int, newState: Int) {
             Log.i(TAG, "connection state=$newState status=$status bond=${d.bondState}")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                host = d; publishConnected()
+                host = d
+                if (d.bondState == BluetoothDevice.BOND_BONDED && subscribers.getBoolean(d.address, true)) {
+                    subscribed = true; values[inputCccd] = byteArrayOf(1, 0); dirty = true; wake.release()
+                    Log.i(TAG, "bonded computer reconnected: input reports resume")
+                }
+                publishConnected()
                 server?.connect(d, false) // hold the link from our side too
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED && d == host) {
                 host = null; subscribed = false
@@ -160,10 +221,12 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
 
         override fun onCharacteristicReadRequest(d: BluetoothDevice, requestId: Int, offset: Int, ch: BluetoothGattCharacteristic) {
             if (ch === batteryLevel) values[batteryLevel] = byteArrayOf(batteryPercent().toByte())
+            Log.d(TAG, "read ${name(ch.uuid)} offset=$offset")
             respond(d, requestId, offset, values[ch])
         }
 
         override fun onDescriptorReadRequest(d: BluetoothDevice, requestId: Int, offset: Int, desc: BluetoothGattDescriptor) {
+            Log.d(TAG, "read ${name(desc.uuid)} of ${name(desc.characteristic.uuid)}")
             respond(d, requestId, offset, values[desc] ?: byteArrayOf(0, 0))
         }
 
@@ -178,10 +241,12 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
 
         override fun onDescriptorWriteRequest(d: BluetoothDevice, requestId: Int, desc: BluetoothGattDescriptor, prepared: Boolean, needResponse: Boolean, offset: Int, value: ByteArray) {
             if (needResponse) server?.sendResponse(d, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+            Log.d(TAG, "write ${name(desc.uuid)} of ${name(desc.characteristic.uuid)} = ${value.joinToString(" ") { "%02x".format(it) }}")
             if (desc.uuid != CCCD) return
             values[desc] = value
             if (desc.characteristic === inputReport) {
                 subscribed = value.isNotEmpty() && value[0].toInt() and 1 != 0
+                subscribers.edit().putBoolean(d.address, subscribed).apply()
                 Log.i(TAG, "host ${if (subscribed) "subscribed to" else "unsubscribed from"} input reports")
                 publishConnected()
                 if (subscribed) { dirty = true; wake.release() }
@@ -205,6 +270,25 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         BluetoothGattCharacteristic(uuid, props, perms).also { if (value != null) values[it] = value }
 
     private fun desc(uuid: UUID, perms: Int, value: ByteArray) = BluetoothGattDescriptor(uuid, perms).also { values[it] = value }
+
+    /** Services occupying exactly [handles] attribute handles, in small services (this phone's stack
+     *  never answers for large ones). A service is 1 (declaration) + 2 per characteristic + 1 per
+     *  descriptor, so any size except 2 fits in one service; sizes are chosen to never leave 2. */
+    private fun filler(handles: Int): List<BluetoothGattService> {
+        var k = 0
+        // Each service needs its own UUID: this phone's stack never answers for a duplicate.
+        fun one(n: Int) = BluetoothGattService(fillerUuid(k++), BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
+            repeat((n - 1) / 2) { i -> addCharacteristic(BluetoothGattCharacteristic(padUuid(i), PROPERTY_READ, PERMISSION_READ)) }
+            if ((n - 1) % 2 == 1) characteristics.last().addDescriptor(BluetoothGattDescriptor(REPORT_REFERENCE, BluetoothGattDescriptor.PERMISSION_READ))
+        }
+        val out = ArrayList<BluetoothGattService>()
+        var left = handles
+        while (left > 0) {
+            val n = when { left == 2 -> 1; left <= 9 -> left; left - 9 == 2 -> 8; else -> 9 }
+            out += one(n); left -= n
+        }
+        return out
+    }
 
     private fun deviceInfo() = BluetoothGattService(DEVICE_INFO, BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
         val x = XboxHidReport
@@ -230,7 +314,8 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         addCharacteristic(char(PROTOCOL_MODE, PROPERTY_READ or PROPERTY_WRITE_NO_RESPONSE, enc or PERMISSION_WRITE_ENCRYPTED, byteArrayOf(0x01)))
         addCharacteristic(char(CONTROL_POINT, PROPERTY_WRITE_NO_RESPONSE, PERMISSION_WRITE_ENCRYPTED, null))
         inputReport = char(REPORT, PROPERTY_READ or PROPERTY_NOTIFY, enc, XboxHidReport.input(InputState.NEUTRAL)).apply {
-            addDescriptor(desc(CCCD, dEnc, byteArrayOf(0, 0)))
+            inputCccd = desc(CCCD, dEnc, byteArrayOf(0, 0))
+            addDescriptor(inputCccd)
             addDescriptor(desc(REPORT_REFERENCE, BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED, byteArrayOf(XboxHidReport.INPUT_ID.toByte(), 0x01)))
         }
         addCharacteristic(inputReport)
@@ -240,9 +325,17 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         addCharacteristic(outputReport)
     }
 
+    private fun name(u: UUID) = "%04X".format((u.mostSignificantBits ushr 32).toInt() and 0xFFFF)
+
     companion object {
         private const val TAG = "C9Hid"
         private fun u16(v: Int): UUID = UUID.fromString(String.format("0000%04x-0000-1000-8000-00805f9b34fb", v))
+        /** First handle of the controller's services (see start()); above Android's usual next free handle (~234–265). */
+        const val HANDLE_BASE = 320
+        /** Private UUID of the layout marker and filler services. */
+        val PAD_SERVICE: UUID = UUID.fromString("c9c90100-1c3a-4e9d-8f2b-6c7a0b5d4e10")
+        private fun fillerUuid(i: Int): UUID = UUID.fromString("c9c90300-1c3a-4e9d-8f2b-6c7a0b5d%04x".format(i))
+        private fun padUuid(i: Int): UUID = UUID.fromString("c9c90200-1c3a-4e9d-8f2b-6c7a0b5d%04x".format(i))
         val HID_SERVICE = u16(0x1812)
         val DEVICE_INFO = u16(0x180A)
         val BATTERY_SERVICE = u16(0x180F)

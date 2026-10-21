@@ -19,11 +19,18 @@ import dev.ninecontroller.android.ui.settings.SettingsScreen
 import dev.ninecontroller.android.ui.theme.NineTheme
 
 class MainActivity : ComponentActivity() {
+    /** Debug builds only: tools/direct-bt-check starts the Bluetooth controller mode (and its sweep). */
+    private fun debugHook(i: android.content.Intent?) {
+        if (BuildConfig.DEBUG && i?.getBooleanExtra("c9_hid", false) == true) HidSweep.start(application as NineApp, i.getBooleanExtra("c9_hid_sweep", false))
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); debugHook(intent) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as NineApp
-        if (BuildConfig.DEBUG && intent?.getBooleanExtra("c9_hid", false) == true) HidSweep.start(app, intent.getBooleanExtra("c9_hid_sweep", false))
+        debugHook(intent)
         setContent {
             NineTheme {
                 val nav = rememberNavController()

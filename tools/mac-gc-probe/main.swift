@@ -17,6 +17,11 @@ func watch(_ c: GCController) {
             print("{\"button\":\"\(b.localizedName ?? "?")\",\"pressed\":\(b.isPressed),\"value\":\(b.value)}")
         } else if let a = element as? GCControllerAxisInput, abs(a.value) > 0.9 {
             print("{\"axis\":\"\(a.localizedName ?? "?")\",\"value\":\(a.value)}")
+        } else if let d = element as? GCControllerDirectionPad {
+            // Sticks and the D-pad arrive as direction pads, not as separate axis elements.
+            let name = d.localizedName ?? "?"
+            if abs(d.xAxis.value) > 0.9 { print("{\"axis\":\"\(name) X\",\"value\":\(d.xAxis.value)}") }
+            if abs(d.yAxis.value) > 0.9 { print("{\"axis\":\"\(name) Y\",\"value\":\(d.yAxis.value)}") }
         }
         fflush(stdout)
     }
