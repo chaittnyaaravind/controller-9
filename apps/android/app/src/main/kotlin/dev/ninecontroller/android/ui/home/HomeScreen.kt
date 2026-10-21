@@ -186,12 +186,18 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                         Text(title, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
                     Text(detail, style = NineType.small, color = Nine.muted)
+                    if (hidState is HidGamepad.State.Connected) Text("Not responding after this phone’s Bluetooth restarted? Turn the computer’s Bluetooth off and on.", style = NineType.small, color = Nine.dim)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (hidState is HidGamepad.State.Off || hidState is HidGamepad.State.Failed) {
                             PrimaryButton("Start", {
                                 if (app.hid.unavailableReason()?.contains("permission", ignoreCase = true) == true && Build.VERSION.SDK_INT >= 31)
                                     perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
-                                else { app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } } }
+                                else {
+                                    // The ongoing "controller is on" notification needs this on Android 13+; the controller works without it.
+                                    if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                                        perms.launch(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS))
+                                    app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
+                                }
                             })
                         } else {
                             PrimaryButton("Play", { nav.navigate("play") })

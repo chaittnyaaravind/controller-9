@@ -43,3 +43,26 @@ computer, unit tests for the report encoder, site + docs updated with evidence o
 - macOS may expect Xbox-specific behaviour beyond the descriptor → G4 tells us; fallback is a
   generic HID gamepad (SDL/Steam see it, GameController.framework may not).
 - iPhone cannot be a Bluetooth HID device; it stays on the host-app route.
+
+## Status — device-tested 2026-10-20 (realme 12 5G, Android 16 → MacBook Air, macOS 27.0.1)
+| Gate | Result |
+|---|---|
+| G1–G3 | PASS — pairs from System Settings → Bluetooth; macOS creates HID 045E:0B13 over Bluetooth LE |
+| G4 | PASS — GameController.framework: "Xbox One" extended gamepad with haptics; all 12 buttons, D-pad 4 ways, both sticks both axes both ways (`tests/results/2026-10-20-direct-bluetooth-mac.txt`) |
+| Stability | 60 s steady state: 0 disconnects; app swiped from Recents and reopened: controller stays, all inputs arrive |
+| Computer's Bluetooth off/on (sleep, range) | recovers by itself in ~6 s |
+| **Phone's** Bluetooth off/on or phone reboot | does **not** recover by itself; turning the computer's Bluetooth off and on fixes it (tip shown in the app) |
+| G5–G9 | not run yet (SDL, a real game, rumble from a game, latency, Windows/Linux) |
+
+### What the hardware taught us (each fix is in `HidGamepad.kt`)
+1. A bonded host's notification subscription must persist across reconnects (macOS does not subscribe again).
+2. macOS caches attribute handles; Android assigns the next free handle, which moves (234–351 measured).
+   The controller is pinned at handle 640 with filler services, verified after setup and retried if a
+   system service registered mid-way. Filler services need unique UUIDs (this stack never answers for duplicates).
+3. Android's Service Changed characteristic has no client configuration descriptor, so macOS cannot
+   subscribe and never refreshes its cache after the phone's layout changes. Hence the controller lives in
+   a foreground service and is never torn down with the UI; only a phone Bluetooth restart rebuilds it.
+4. After Bluetooth restarts this stack reports new links only via MTU/read/write callbacks; an app must
+   claim the link (`connect`) or Android drops it within seconds (the controller flapped 14×/min).
+5. Advertising needs a fresh callback per session and a retry while the LE advertiser comes up.
+6. Pair from System Settings: a pairing made through CoreBluetooth or `blueutil` does not attach the HID driver.

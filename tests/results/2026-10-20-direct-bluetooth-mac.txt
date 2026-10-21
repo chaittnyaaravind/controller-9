@@ -1,0 +1,14 @@
+Direct Bluetooth controller — macOS check
+G1 phone advertised HID service: PASS
+G2 computer bonded and subscribed: PASS
+G3 macOS HID device 045E:0B13: PASS
+    0x45e 0xb13 0x2aae50e1 1 5 0x10000523b Bluetooth Low Energy IOHIDUserDevice realme 12 5G (null) 0
+    0x45e 0xb13 0x2aae50e1 1 5 0x100005255 Bluetooth Low Energy IOHIDUserDevice realme 12 5G (null) 0
+    0x45e 0xb13 0x2aae50e1 1 5 0x100005235 Bluetooth Low Energy IOHIDUserDevice realme 12 5G (null) 0
+    0x45e 0xb13 0x2aae50e1 1 5 0x10000524f Bluetooth Low Energy IOHIDUserDevice realme 12 5G (null) 0
+G4 GameController.framework extended gamepad + inputs: PASS
+    controller: {"vendor": "realme 12 5G", "category": "Xbox One", "profile": "extendedGamepad", "haptics": true}
+    controller: {"vendor": "realme 12 5G", "category": "Xbox One", "profile": "extendedGamepad", "haptics": true}
+    phone sent 50 sweep steps
+    buttons seen pressed (12): A Button, B Button, Left Bumper, Left Stick Click, Left Trigger, Menu Button, Right Bumper, Right Stick Click, Right Trigger, View Button, X Button, Y Button
+    axes seen at ±0.9 (12): D-pad X +, D-pad X -, D-pad Y +, D-pad Y -, Left Stick X +, Left Stick X -, Left Stick Y +, Left Stick Y -, Right Stick X +, Right Stick X -, Right Stick Y +, Right Stick Y -

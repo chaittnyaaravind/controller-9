@@ -18,6 +18,7 @@ APK="$(ls "$ROOT"/apps/android/app/build/outputs/apk/debug/*.apk 2>/dev/null | h
 swiftc -O -o "$T/gc-probe" "$ROOT/tools/mac-gc-probe/main.swift"
 
 echo "== G1: install, start Bluetooth controller mode"
+if [ "$(adb shell settings get global bluetooth_on | tr -d '\r')" != 1 ]; then adb shell svc bluetooth enable >/dev/null; sleep 8; fi
 adb install -r "$APK" >/dev/null
 for p in BLUETOOTH_ADVERTISE BLUETOOTH_CONNECT; do adb shell pm grant $PKG android.permission.$p 2>/dev/null || true; done
 adb logcat -c
@@ -28,9 +29,10 @@ i=0; until grep -q -E "advertising as HID|failed|refused" "$T/phone.log"; do i=$
 grep -E "advertising|failed|refused" "$T/phone.log" | tail -2
 grep -q "advertising as HID" "$T/phone.log" || { echo "G1 FAIL: phone did not advertise (Bluetooth permission? tap Allow on the phone, then rerun)" >&2; cat "$T/phone.log"; exit 1; }
 
-echo "== G2: pair. In the Bluetooth window that opens, click Connect next to your phone and accept on both."
+echo "== G2: pair. Keep the phone on the Controller-9 screen (not its Bluetooth settings, or the Mac pairs it as a phone)."
+echo "   In the Mac Bluetooth window that opens, click Connect next to your phone and accept on both."
 hidutil list 2>/dev/null | grep -i -q "0x45e *0xb13" && echo "(already paired)" || open "x-apple.systempreferences:com.apple.Bluetooth"
-i=0; until grep -q "subscribed to input" "$T/phone.log"; do i=$((i+1)); [ $i -gt 1800 ] && { echo "G2 FAIL: no computer subscribed within 3 min" >&2; cat "$T/phone.log"; exit 1; }; sleep 0.1; done
+i=0; until grep -q "subscribed to input" "$T/phone.log"; do i=$((i+1)); [ $i -gt 3000 ] && { echo "G2 FAIL: no computer subscribed within 5 min" >&2; cat "$T/phone.log"; exit 1; }; sleep 0.1; done
 echo "paired and subscribed"
 
 echo "== G3/G4: HID device + GameController.framework (sweep runs ~30 s)"
