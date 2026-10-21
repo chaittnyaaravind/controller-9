@@ -124,6 +124,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     val settings by app.settings.flow.collectAsState(null)
     val profiles by app.profiles.profiles.collectAsState()
     val conn by app.connection.state.collectAsState()
+    val hid by app.hid.state.collectAsState()
     val stats by app.connection.stats.collectAsState()
     val s = settings ?: return // wait for stored settings: never flash the wrong layout
 
@@ -330,7 +331,11 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     }
                 }
             }
-            val (label, tone) = when (val c = conn) {
+            val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
+                is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "Bluetooth controller · ${h.host}" else "Pairing…") to (if (h.subscribed) Tone.OK else Tone.WARN)
+                is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth controller off" to Tone.BAD
+                else -> "Waiting for computer" to Tone.WARN
+            } else when (val c = conn) {
                 is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
                 is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
                 is ConnState.Connecting -> "Connecting" to Tone.WARN

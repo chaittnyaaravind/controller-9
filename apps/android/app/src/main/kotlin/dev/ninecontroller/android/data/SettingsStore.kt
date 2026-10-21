@@ -42,6 +42,8 @@ data class AppSettings(
     val steering: SteeringCalibrationV2? = null,
     /** A calibration from the old absolute-angle method exists; it is not reused (it measured the wrong thing). */
     val legacySteering: Boolean = false,
+    /** Bluetooth controller mode was on: restart it at launch so a paired computer reconnects like a real pad. */
+    val hidMode: Boolean = false,
 ) {
     val padPreset get() = PadPresets.fromSelection(activeProfile)
     fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
@@ -73,6 +75,7 @@ class SettingsStore(private val context: Context) {
         val calNoise = doublePreferencesKey("cal_noise_deg")
         val calAt = longPreferencesKey("cal_measured_at")
         val steering = stringPreferencesKey("steering_cal_v2")
+        val hidMode = booleanPreferencesKey("hid_mode")
         fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
     }
 
@@ -97,6 +100,7 @@ class SettingsStore(private val context: Context) {
             tiltLockDeg = p[K.tiltLock] ?: 45.0,
             steering = steering,
             legacySteering = steering == null && (p[K.calAt] != null || (p[K.calibration] ?: 0.0) != 0.0),
+            hidMode = p[K.hidMode] ?: false,
         )
     }
 
@@ -111,6 +115,7 @@ class SettingsStore(private val context: Context) {
         p[K.stats] = n.showStats
         p[K.onboarded] = n.onboarded
         p[K.link] = n.linkOverride
+        p[K.hidMode] = n.hidMode
         for (pr in PadPresets.all) n.padMappings[pr.id]?.takeIf { it.isNotEmpty() }?.let { p[K.map(pr.id)] = it } ?: p.remove(K.map(pr.id))
         // Same ranges as the protocol profile validator (MotionSettings / StickSettings).
         p[K.stickDz] = n.stickDeadzone.coerceIn(0.0, 0.5)

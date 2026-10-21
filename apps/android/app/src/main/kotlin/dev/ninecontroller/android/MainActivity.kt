@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as NineApp
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("c9_hid", false) == true) HidSweep.start(app, intent.getBooleanExtra("c9_hid_sweep", false))
         setContent {
             NineTheme {
                 val nav = rememberNavController()

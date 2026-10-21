@@ -27,6 +27,19 @@ untouched), runs the simulated sweep, lists HID devices and listens with `tools/
 Report: `tests/results/mac-root-probe.txt`. Root is a test rig, **never a shipping path** — users
 must not run a game controller as root.
 
+### Answered 2026-10-20: macOS has a built-in Xbox match for Bluetooth LE controllers
+`/System/Library/Extensions/AppleGameControllerPersonality.kext` (macOS 27.0.1) routes any HID
+interface with **VendorID 1118 (0x045E) / ProductID 2835 (0x0B13)** — "Xbox Series X Wireless
+Controller" — to `AppleGCHIDUserEventDriver`, category `xbox`, with no transport restriction. That is
+the identity the Android **direct Bluetooth controller** mode presents over HID-over-GATT
+(`docs/DIRECT_BLUETOOTH.md`), so macOS's own driver, not our app, creates the gamepad.
+Device proof (gates G2–G6) is still pending.
+
+### Answered 2026-10-20: AppleSyntheticGameController is closed to apps
+macOS ships `AppleSyntheticGameController.kext` (service `AppleGCResource`), which creates software
+controllers. An unentitled process gets `IOServiceOpen` → `0xe00002c1` (privilege violation) for user
+client types 0–2, so it is reserved for Apple's own software. Not a route.
+
 ## Route to resolve
 1. Enrol in the Apple Developer Program (organisation account recommended).
 2. Request the **`com.apple.developer.hid.virtual.device`** entitlement (ready-to-paste text: `macos-entitlement-request.md`) (CoreHID / IOHIDUserDevice

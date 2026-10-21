@@ -61,6 +61,9 @@ import dev.ninecontroller.android.ui.theme.Nine
 import dev.ninecontroller.android.ui.theme.NineType
 import dev.ninecontroller.protocol.LinkKind
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 /** What the connection panel says and offers. Pure; see HomeLogicTest. */
 object HomeLogic {
@@ -109,6 +112,11 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     val reduced = LocalReducedMotion.current
     var now by remember { mutableLongStateOf(System.nanoTime()) }
     LaunchedEffect(Unit) { while (true) { now = System.nanoTime(); delay(250) } }
+    val scope = rememberCoroutineScope()
+    // Bluetooth controller mode survives app restarts: the paired computer reconnects on its own.
+    LaunchedEffect(Unit) {
+        if (app.settings.flow.first().hidMode && !app.hid.active && app.hid.unavailableReason() == null) { app.connection.disconnect(); app.hid.start() }
+    }
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
 
     val connected = state as? ConnState.Connected
@@ -183,11 +191,11 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                             PrimaryButton("Start", {
                                 if (app.hid.unavailableReason()?.contains("permission", ignoreCase = true) == true && Build.VERSION.SDK_INT >= 31)
                                     perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
-                                else { app.connection.disconnect(); app.hid.start() }
+                                else { app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } } }
                             })
                         } else {
                             PrimaryButton("Play", { nav.navigate("play") })
-                            SecondaryButton("Stop", { app.hid.stop() })
+                            SecondaryButton("Stop", { app.hid.stop(); scope.launch { app.settings.update { it.copy(hidMode = false) } } })
                         }
                     }
                 }
