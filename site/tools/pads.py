@@ -66,7 +66,7 @@ PADS = {
         ("bumper_r", "face", "RB", 152, 41, 17, 17, True), ("bumper_l", "face", "LB", 173, 46, 17, 17, True),
         ("face_s", "face", "A", 112, 68, 17, 17, True), ("face_e", "face", "B", 133, 63, 17, 17, True),
         ("trigger_r", "face", "RT", 154, 63, 17, 17, True), ("trigger_l", "face", "LT", 175, 68, 17, 17, True),
-        ("view", "center", "", 84, 14, 11, 11, True), ("guide", "center", "", 100, 14, 12, 12, True), ("menu", "center", "", 116, 14, 11, 11, True),
+        ("view", "center", "", 84, 20, 11, 11, True), ("guide", "center", "", 100, 20, 12, 12, True), ("menu", "center", "", 116, 20, 11, 11, True),
         ("stick_l", "stick", "", 88, 86, 20, 20, True), ("stick_r", "stick", "", 186, 88, 20, 20, True),
         ("stick_l_press", "press", "LS", 62, 92, 10, 10, True), ("stick_r_press", "press", "RS", 160, 92, 10, 10, True)]),
 }

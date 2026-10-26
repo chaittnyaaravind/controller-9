@@ -6,14 +6,29 @@ import Security
 public enum IdentityStore {
     static let service = "dev.ninecontroller.identity"
 
+    /// Kept for the life of the process, so pairing and every later session use the same key even if the
+    /// Keychain write fails (unsigned Simulator builds have no Keychain access): otherwise each call made a
+    /// new identity, the computer answered "not paired" and the pairing was deleted.
+    nonisolated(unsafe) private static var cached: KeyPair?
+    private static let lock = NSLock()
+
     public static func keyPair() -> KeyPair {
-        if let s = read(), let kp = try? KeyPair(secret: s) { return kp }
+        lock.lock(); defer { lock.unlock() }
+        if let kp = cached { return kp }
+        if let s = read(), let kp = try? KeyPair(secret: s) { cached = kp; return kp }
         let kp = KeyPair.generate()
         write(kp.secretBytes)
+        cached = kp
         return kp
     }
 
     public static func reset() {
+        lock.lock(); defer { lock.unlock() }
+        cached = nil
+        delete()
+    }
+
+    private static func delete() {
         SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrService: service] as CFDictionary)
     }
 
@@ -25,7 +40,7 @@ public enum IdentityStore {
     }
 
     static func write(_ secret: [UInt8]) {
-        reset()
+        delete()
         let q: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecValueData: Data(secret),
                                   kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, kSecAttrSynchronizable: false]
         SecItemAdd(q as CFDictionary, nil)

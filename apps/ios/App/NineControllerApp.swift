@@ -54,6 +54,8 @@ final class AppModel {
         // CI screenshots: `-layout pad:xbox` selects a layout for this launch (tools/ios-ci/screens.sh).
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-layout"), i + 1 < args.count { settings.activeProfile = args[i + 1] }
+        // Simulator tests: `-pair-uri <ninectl://pair?...>` pairs as if that QR code was scanned (the Simulator has no camera).
+        if let i = args.firstIndex(of: "-pair-uri"), i + 1 < args.count, let uri = PairURI(parsing: args[i + 1]) { connection.pair(qr: uri) }
         #endif
         let h = haptics
         connection.onRumble = { low, high, ms in Task { @MainActor in h.rumble(low: low, high: high, ms: ms) } }

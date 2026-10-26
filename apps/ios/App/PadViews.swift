@@ -77,7 +77,8 @@ struct PadElementView: View {
                     case .trigger:
                         let v = visuals?.value[e.id] ?? 0
                         GlassCap(shape: RoundedRectangle(cornerRadius: size.height * 0.42), fill: v)
-                        label(pressed: v > 0.45, size: size.height * 0.42)
+                        // Square triggers (arcade stick) letter like the face buttons beside them, not like a wide trigger.
+                        label(pressed: v > 0.45, size: size.height * (size.width < size.height * 2 ? 0.3 : 0.42))
                     case .stick:
                         stick(p: visuals?.stick[e.id] ?? .zero, live: pressed || (visuals?.stick[e.id] ?? .zero) != .zero, r: r)
                     case .dpad:

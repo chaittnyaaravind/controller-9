@@ -97,9 +97,11 @@ struct ControllerView: View {
     }
 
     private func statusStrip(_ p: Profile) -> some View {
+        // Short enough to sit between the triggers; VoiceOver still hears which computer it is.
+        let spoken: String? = { if case let .connected(h, s, _, link) = model.connection.state { return "Player \(s + 1), \(h), \(link.label)" }; return nil }()
         let (text, color): (String, Color) = {
             switch model.connection.state {
-            case let .connected(h, s, w, link): return ("P\(s + 1) · \(h) · \(link.label)", w == nil ? Nine.accent : Nine.warn)
+            case let .connected(_, s, w, link): return ("P\(s + 1) · \(link.label)", w == nil ? Nine.accent : Nine.warn)
             case .reconnecting: return ("Reconnecting…", Nine.warn)
             case .connecting: return ("Connecting…", Nine.warn)
             default: return ("Offline", Nine.bad)
@@ -107,7 +109,7 @@ struct ControllerView: View {
         }()
         return HStack(spacing: 12) {
             Circle().fill(color).frame(width: 7, height: 7)
-            Micro(text, color: Nine.text)
+            Micro(text, color: Nine.text).accessibilityLabel(spoken ?? text)
             if model.settings.showStats, case .connected = model.connection.state { Micro("\(fmt(model.connection.stats.rttP50)) ms", color: Nine.dim) }
             if let banner { Micro(banner, color: Nine.accent).accessibilityAddTraits(.updatesFrequently) }
             if p.motion.enabled { Button { recenter() } label: { Micro("Center", color: Nine.text) }.accessibilityHint("Hold your normal grip still for a second") }

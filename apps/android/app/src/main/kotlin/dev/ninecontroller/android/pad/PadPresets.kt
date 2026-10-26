@@ -172,9 +172,9 @@ object PadPresets {
             PadElement("face_e", Part.FACE, "B", 133.0, 63.0, 17.0, 17.0, EAST),
             PadElement("trigger_r", Part.TRIGGER, "RT", 154.0, 63.0, 17.0, 15.0, TRIGGER_R),
             PadElement("trigger_l", Part.TRIGGER, "LT", 175.0, 68.0, 17.0, 15.0, TRIGGER_L),
-            PadElement("view", Part.CENTER, "View", 84.0, 14.0, 11.0, 11.0, BACK, Glyph.VIEW),
-            PadElement("guide", Part.CENTER, "Guide", 100.0, 14.0, 12.0, 12.0, GUIDE, Glyph.HOME),
-            PadElement("menu", Part.CENTER, "Menu", 116.0, 14.0, 11.0, 11.0, START, Glyph.MENU),
+            PadElement("view", Part.CENTER, "View", 84.0, 20.0, 11.0, 11.0, BACK, Glyph.VIEW),
+            PadElement("guide", Part.CENTER, "Guide", 100.0, 20.0, 12.0, 12.0, GUIDE, Glyph.HOME),
+            PadElement("menu", Part.CENTER, "Menu", 116.0, 20.0, 11.0, 11.0, START, Glyph.MENU),
             // Small sticks for menus and camera (many fight sticks switch the lever between DP / LS / RS).
             PadElement("stick_l", Part.STICK, "Left stick", 88.0, 86.0, 20.0, 20.0, STICK_L),
             PadElement("stick_r", Part.STICK, "Right stick", 186.0, 88.0, 20.0, 20.0, STICK_R),

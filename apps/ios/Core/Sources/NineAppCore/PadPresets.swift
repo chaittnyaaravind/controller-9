@@ -214,9 +214,9 @@ public enum PadPresets {
             PadElement("face_e", .face, "B", 133, 63, 17, 17, .east),
             PadElement("trigger_r", .trigger, "RT", 154, 63, 17, 15, .triggerR),
             PadElement("trigger_l", .trigger, "LT", 175, 68, 17, 15, .triggerL),
-            PadElement("view", .center, "View", 84, 14, 11, 11, .back, .view),
-            PadElement("guide", .center, "Guide", 100, 14, 12, 12, .guide, .home),
-            PadElement("menu", .center, "Menu", 116, 14, 11, 11, .start, .menu),
+            PadElement("view", .center, "View", 84, 20, 11, 11, .back, .view),
+            PadElement("guide", .center, "Guide", 100, 20, 12, 12, .guide, .home),
+            PadElement("menu", .center, "Menu", 116, 20, 11, 11, .start, .menu),
             // Small sticks for menus and camera (many fight sticks switch the lever between DP / LS / RS).
             PadElement("stick_l", .stick, "Left stick", 88, 86, 20, 20, .stickL),
             PadElement("stick_r", .stick, "Right stick", 186, 88, 20, 20, .stickR),
