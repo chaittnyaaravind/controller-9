@@ -70,5 +70,17 @@
             android:name=".net.HidService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+        <!-- Quick Settings tile: turn the Bluetooth controller on/off from the notification shade. -->
+        <service
+            android:name=".net.ControllerTile"
+            android:exported="true"
+            android:icon="@drawable/c9_mark_small"
+            android:label="Controller"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
     </application>
 </manifest>

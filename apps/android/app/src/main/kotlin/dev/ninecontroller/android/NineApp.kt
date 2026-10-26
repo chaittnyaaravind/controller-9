@@ -46,6 +46,11 @@ class NineApp : Application() {
         scope.launch { if (!settings.flow.first().hidMode) hid.restoreNameIfIdle() }
         // Remote keys change the controller's report map, so they take effect when it next starts.
         scope.launch { settings.flow.collect { hid.remoteKeys = it.remoteKeys } }
+        // Launcher shortcuts follow the game list and the game being played.
+        scope.launch {
+            kotlinx.coroutines.flow.combine(games.games, settings.flow) { g, s -> g to s.activeGame }
+                .collect { (g, active) -> dev.ninecontroller.android.data.GameShortcuts.publish(this@NineApp, g, active) }
+        }
     }
 
     /** Make [g] the game being played: its colour, layout and steering, in one step. */

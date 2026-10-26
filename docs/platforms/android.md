@@ -20,6 +20,8 @@
 Location is requested only on Android 10–12 and only for Wi-Fi Direct (an OS requirement); it is never read. No contacts, storage or background-location permissions; the only background work is the Bluetooth controller's foreground service, visible as a notification. No analytics SDKs.
 
 ## Behaviour notes
+- Quick Settings tile "Controller" (`net/ControllerTile.kt`) turns the Bluetooth controller on and off; it needs no permission (`BIND_QUICK_SETTINGS_TILE` only guards the service so the system alone can bind it). Without Bluetooth permission it opens the app instead.
+- Launcher shortcuts: long-press the icon for "Play <game>" (up to four, current game first, `data/GameShortcuts.kt`); no permission.
 - Motion: `TYPE_GAME_ROTATION_VECTOR` (fallback gravity → accelerometer) on a dedicated
   high-priority thread at 200 Hz (100 Hz option); registered only on the controller screen.
 - Leaving the app (`onStop`) sends a paused frame → the host neutralizes everything.

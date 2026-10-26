@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -39,6 +41,15 @@ class MainActivity : ComponentActivity() {
                 val accent = app.settings.flow.collectAsState(null).value?.accent
                 androidx.compose.runtime.CompositionLocalProvider(dev.ninecontroller.android.ui.theme.LocalAccent provides dev.ninecontroller.android.ui.theme.Accent.of(accent)) {
                 val nav = rememberNavController()
+                // A launcher shortcut ("Play Asphalt Legends"): make that game current and open its controller.
+                val shortcutGame = intent?.getStringExtra(dev.ninecontroller.android.data.GameShortcuts.EXTRA_GAME)
+                var shortcutDone by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                androidx.compose.runtime.LaunchedEffect(shortcutGame) {
+                    if (shortcutDone) return@LaunchedEffect // not again after the activity is restored
+                    val g = shortcutGame?.let { app.games.get(it) } ?: return@LaunchedEffect
+                    shortcutDone = true
+                    app.play(g); nav.navigate("play")
+                }
                 NavHost(nav, startDestination = "home") {
                     composable("home") { HomeScreen(app, nav) }
                     composable("add") { AddHostScreen(app, nav) }
