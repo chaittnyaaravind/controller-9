@@ -1,6 +1,8 @@
 package dev.ninecontroller.android
 
 import android.app.Application
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import dev.ninecontroller.android.data.GameStore
 import dev.ninecontroller.android.data.HostStore
 import dev.ninecontroller.android.data.IdentityStore
@@ -38,9 +40,13 @@ class NineApp : Application() {
         connection = ConnectionManager(this, identity, hosts, settings, haptics)
         localNetwork = LocalNetwork(this)
         hid = HidGamepad(this, haptics)
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        scope.launch { if (!settings.flow.first().hidMode) hid.restoreNameIfIdle() }
+        // Remote keys change the controller's report map, so they take effect when it next starts.
+        scope.launch { settings.flow.collect { hid.remoteKeys = it.remoteKeys } }
     }
 
     /** Make [g] the game being played: its colour, layout and steering, in one step. */
     suspend fun play(g: dev.ninecontroller.android.data.Game) =
-        settings.update { it.copy(activeGame = g.id, accent = g.accent, activeProfile = g.layout, padTilt = g.tilt) }
+        settings.update { it.copy(activeGame = g.id, accent = g.accent, activeProfile = g.layout, padTilt = g.tilt, gyroAim = g.aim) }
 }

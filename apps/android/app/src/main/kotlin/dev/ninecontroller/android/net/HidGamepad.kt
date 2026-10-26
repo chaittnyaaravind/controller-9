@@ -71,6 +71,12 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
     private lateinit var outputReport: BluetoothGattCharacteristic
     private lateinit var batteryLevel: BluetoothGattCharacteristic
     private lateinit var inputCccd: BluetoothGattDescriptor
+    /** Remote keys (input/RemoteHidReport.kt): keyboard, mouse and media reports, present only when on. */
+    @Volatile var remoteKeys = false
+    private var keyboardReport: BluetoothGattCharacteristic? = null
+    private var mouseReport: BluetoothGattCharacteristic? = null
+    private var consumerReport: BluetoothGattCharacteristic? = null
+    private val remoteQueue = java.util.concurrent.ConcurrentLinkedQueue<Pair<BluetoothGattCharacteristic, ByteArray>>()
     /** Input-notification state per bonded computer. The Bluetooth spec keeps a bonded client's
      *  subscription across connections and computers rely on it (macOS does not subscribe again on
      *  reconnect). A bonded host of this HID service counts as subscribed unless it unsubscribed. */
@@ -170,6 +176,9 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         else Log.w(TAG, "could not set the Bluetooth name; games that match on the name will not see an Xbox pad")
     }
 
+    /** At launch with the mode off: undo a pad name left behind when the app was killed mid-mode. */
+    fun restoreNameIfIdle() { if (!active) restoreName() }
+
     private fun restoreName() {
         val original = names.getString("original", null) ?: return
         if (runCatching { manager.adapter.setName(original) }.getOrDefault(false)) names.edit().remove("original").apply()
@@ -226,15 +235,40 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         while (running) {
             wake.tryAcquire(100, TimeUnit.MILLISECONDS)
             val d = host ?: continue
-            if (!subscribed || !dirty || System.nanoTime() < quietUntilNs) continue
+            if (!subscribed || System.nanoTime() < quietUntilNs) continue
+            // Remote key events first, in order: a key-down and its key-up must both arrive.
+            while (true) {
+                val (ch, v) = remoteQueue.poll() ?: break
+                if (!notify(d, ch, v)) { Thread.sleep(5); notify(d, ch, v) }
+            }
+            if (!dirty) continue
             dirty = false
-            val report = XboxHidReport.input(latest)
-            values[inputReport] = report
-            if (!sent.tryAcquire(100, TimeUnit.MILLISECONDS)) { /* lost callback: keep going rather than stall */ }
-            val ok = if (Build.VERSION.SDK_INT >= 33) server?.notifyCharacteristicChanged(d, inputReport, false, report) == BluetoothGatt.GATT_SUCCESS
-            else @Suppress("DEPRECATION") { inputReport.value = report; server?.notifyCharacteristicChanged(d, inputReport, false) == true }
-            if (ok) reportsSent++ else { sent.release(); dirty = true }
+            if (!notify(d, inputReport, XboxHidReport.input(latest))) dirty = true
         }
+    }
+
+    /** One notification, after the previous one has gone out (Android allows one in flight). */
+    private fun notify(d: BluetoothDevice, ch: BluetoothGattCharacteristic, report: ByteArray): Boolean {
+        values[ch] = report
+        if (!sent.tryAcquire(100, TimeUnit.MILLISECONDS)) { /* lost callback: keep going rather than stall */ }
+        val ok = if (Build.VERSION.SDK_INT >= 33) server?.notifyCharacteristicChanged(d, ch, false, report) == BluetoothGatt.GATT_SUCCESS
+        else @Suppress("DEPRECATION") { ch.value = report; server?.notifyCharacteristicChanged(d, ch, false) == true }
+        if (ok) reportsSent++ else sent.release()
+        return ok
+    }
+
+    /** Remote keys: queue reports for the computer (ignored when the mode is off or nobody listens). */
+    fun sendKeyboard(modifiers: Int, vararg keys: Int) = queue(keyboardReport, dev.ninecontroller.android.input.RemoteHidReport.keyboard(modifiers, *keys))
+    fun sendMouse(buttons: Int, dx: Int, dy: Int, wheel: Int = 0) = queue(mouseReport, dev.ninecontroller.android.input.RemoteHidReport.mouse(buttons, dx, dy, wheel))
+    fun sendConsumer(usage: Int) = queue(consumerReport, dev.ninecontroller.android.input.RemoteHidReport.consumer(usage))
+    /** A complete key press: down then up. */
+    fun tapKey(modifiers: Int, key: Int) { sendKeyboard(modifiers, key); sendKeyboard(0) }
+    fun tapConsumer(usage: Int) { sendConsumer(usage); sendConsumer(0) }
+    val remoteReady get() = keyboardReport != null && running && host != null
+
+    private fun queue(ch: BluetoothGattCharacteristic?, v: ByteArray) {
+        if (ch == null || !running || host == null) return
+        remoteQueue += ch to v; wake.release()
     }
 
     private fun publishConnected() { host?.let { d -> _state.value = State.Connected(runCatching { d.name }.getOrNull() ?: "computer", subscribed) } }
@@ -379,7 +413,8 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         val enc = PERMISSION_READ_ENCRYPTED
         val dEnc = BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED or BluetoothGattDescriptor.PERMISSION_WRITE_ENCRYPTED
         addCharacteristic(char(HID_INFO, PROPERTY_READ, enc, byteArrayOf(0x11, 0x01, 0x00, 0x02))) // HID 1.11, normally connectable
-        addCharacteristic(char(REPORT_MAP, PROPERTY_READ, enc, XboxHidReport.REPORT_MAP))
+        val r = dev.ninecontroller.android.input.RemoteHidReport
+        addCharacteristic(char(REPORT_MAP, PROPERTY_READ, enc, if (remoteKeys) XboxHidReport.REPORT_MAP + r.REPORT_MAP_EXTRA else XboxHidReport.REPORT_MAP))
         addCharacteristic(char(PROTOCOL_MODE, PROPERTY_READ or PROPERTY_WRITE_NO_RESPONSE, enc or PERMISSION_WRITE_ENCRYPTED, byteArrayOf(0x01)))
         addCharacteristic(char(CONTROL_POINT, PROPERTY_WRITE_NO_RESPONSE, PERMISSION_WRITE_ENCRYPTED, null))
         inputReport = char(REPORT, PROPERTY_READ or PROPERTY_NOTIFY, enc, XboxHidReport.input(InputState.NEUTRAL)).apply {
@@ -392,6 +427,14 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
             addDescriptor(desc(REPORT_REFERENCE, BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED, byteArrayOf(XboxHidReport.OUTPUT_ID.toByte(), 0x02)))
         }
         addCharacteristic(outputReport)
+        // Remote keys: three more input reports after the gamepad's, so its handles never move.
+        fun extra(id: Int, size: Int) = char(REPORT, PROPERTY_READ or PROPERTY_NOTIFY, enc, ByteArray(size)).apply {
+            addDescriptor(desc(CCCD, dEnc, byteArrayOf(1, 0))) // a bonded computer keeps its subscription (see subscribers)
+            addDescriptor(desc(REPORT_REFERENCE, BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED, byteArrayOf(id.toByte(), 0x01)))
+        }.also { addCharacteristic(it) }
+        keyboardReport = if (remoteKeys) extra(r.KEYBOARD_ID, 8) else null
+        mouseReport = if (remoteKeys) extra(r.MOUSE_ID, 4) else null
+        consumerReport = if (remoteKeys) extra(r.CONSUMER_ID, 2) else null
     }
 
     private fun name(u: UUID) = "%04X".format((u.mostSignificantBits ushr 32).toInt() and 0xFFFF)

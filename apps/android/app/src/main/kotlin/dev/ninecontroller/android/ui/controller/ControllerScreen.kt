@@ -147,6 +147,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     LaunchedEffect(s.lockOnPlay) { if (s.lockOnPlay) ControllerLock.lock(activity) }
     DisposableEffect(Unit) { onDispose { ControllerLock.unlock(activity) } }
 
+    val turboIds = remember(s.padModes, spec.key) { s.padPreset?.let { pr -> dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[pr.id]).filterValues { it == dev.ninecontroller.android.pad.ButtonModes.Mode.TURBO }.keys } ?: emptySet() }
     val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }
@@ -158,6 +159,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     var hint by remember { mutableStateOf<String?>(null) }
     var switcher by remember { mutableStateOf(false) }
     val runner = remember { dev.ninecontroller.android.input.SteeringRunner(MotionSensor(context)) }
+    val gyro = remember { dev.ninecontroller.android.input.GyroAim(context) }
     val feel = remember { dev.ninecontroller.android.input.FeelEffects(app.haptics::cue) }
 
     app.haptics.enabled = s.hapticsEnabled && spec.hapticsEnabled
@@ -197,8 +199,15 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         onDispose { runner.stop(); engine.releaseAll(); feel.reset() }
     }
     LaunchedEffect(Unit) { while (true) { app.connection.sensorHz = runner.hz; delay(1000) } }
+    // Gyro aim: the phone's turn speed is added to the right stick while this screen is visible.
+    DisposableEffect(s.gyroAim, s.aimSensitivity, s.aimInvertY) {
+        @Suppress("DEPRECATION") val rotation = activity.windowManager.defaultDisplay.rotation
+        if (s.gyroAim) gyro.start(rotation, s.aimSensitivity, s.aimInvertY) { x, y -> engine.setAim(x, y) }
+        onDispose { gyro.stop(); engine.setAim(0.0, 0.0) }
+    }
+    val turbo = remember { dev.ninecontroller.android.pad.TurboPulser { id, mask -> engine.setButtons(id, mask) } }
     // Any layout change releases every control first (nothing stays held across a switch).
-    DisposableEffect(spec.key) { visuals.clear(); toggles.clear(); engine.releaseAll(); onDispose { } }
+    DisposableEffect(spec.key) { visuals.clear(); toggles.clear(); turbo.stopAll(); engine.releaseAll(); onDispose { turbo.stopAll() } }
     // Inspector shows what is actually sent, not what the screen thinks is pressed.
     LaunchedEffect(showInputs) { while (showInputs) { sent = engine.state; delay(50) } }
     LaunchedEffect(hint) { if (hint != null) { delay(2400); hint = null } }
@@ -262,7 +271,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         fun rect(id: String) = boxes.getValue(id).let { floatArrayOf(it.left, it.top, it.right, it.bottom) }
 
         // One multi-touch handler for the whole surface: each finger owns the control it landed on.
-        Box(Modifier.fillMaxSize().pointerInput(spec.key, wPx, hPx) {
+        Box(Modifier.fillMaxSize().pointerInput(spec.key, wPx, hPx, turboIds) {
             val recenter = { recenter() }
             val owner = HashMap<PointerId, ControlDef>()
             val origin = HashMap<PointerId, Offset>()
@@ -282,16 +291,16 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                                 continue
                             }
                             owner[ch.id] = hit; origin[ch.id] = p
-                            onTouch(hit, p, p, rect(hit.id), engine, visuals, toggles, app, spec.stickDeadzone, down = true, recenter = recenter, fullTriggers = spec.pad != null, feel = feel)
+                            onTouch(hit, p, p, rect(hit.id), engine, visuals, toggles, app, spec.stickDeadzone, down = true, recenter = recenter, fullTriggers = spec.pad != null, feel = feel, turbo = turbo.takeIf { hit.id in turboIds })
                             ch.consume()
                         } else if (ch.pressed) {
                             val c = owner[ch.id] ?: continue
-                            onTouch(c, p, origin[ch.id]!!, rect(c.id), engine, visuals, toggles, app, spec.stickDeadzone, down = false, recenter = recenter, fullTriggers = spec.pad != null, feel = feel)
+                            onTouch(c, p, origin[ch.id]!!, rect(c.id), engine, visuals, toggles, app, spec.stickDeadzone, down = false, recenter = recenter, fullTriggers = spec.pad != null, feel = feel, turbo = turbo.takeIf { c.id in turboIds })
                             ch.consume()
                         } else {
                             val c = owner.remove(ch.id) ?: continue
                             origin.remove(ch.id)
-                            release(c, engine, visuals, toggles, feel)
+                            release(c, engine, visuals, toggles, feel, turbo.takeIf { c.id in turboIds })
                         }
                     }
                 }
@@ -372,6 +381,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             }
             Pill(label, tone, Modifier.weight(1f, fill = false), accent = accent.color, fill = accent.surface.copy(alpha = 0.86f))
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
+            if (gyro.available) BarButton("Gyro", active = s.gyroAim) { scope.launch { app.settings.update { it.copy(gyroAim = !it.gyroAim) } } }
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
             else {
                 BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
@@ -444,7 +454,9 @@ internal fun shortLink(k: dev.ninecontroller.protocol.LinkKind) = when (k) {
 private fun surfaceFor(s: AppSettings, profiles: List<Profile>): SurfaceSpec? {
     s.padPreset?.let { preset ->
         val mapping = PadMapping.decode(preset, s.padMappings[preset.id]).first
-        return SurfaceSpec(s.activeProfile, preset.name, mapping.controls(), mapping, s.padMotion(), s.stickDeadzone, Orientation.LANDSCAPE, null, true, 0.7)
+        val modes = dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[preset.id])
+        val controls = mapping.controls().map { c -> if (modes[c.id] == dev.ninecontroller.android.pad.ButtonModes.Mode.TOGGLE) c.copy(toggle = true) else c }
+        return SurfaceSpec(s.activeProfile, preset.name, controls, mapping, s.padMotion(), s.stickDeadzone, Orientation.LANDSCAPE, null, true, 0.7)
     }
     val p = profiles.find { it.id == s.activeProfile } ?: profiles.firstOrNull() ?: return null
     return SurfaceSpec(p.id, p.name, p.controls, null, p.motion, p.sticks.deadzone, p.orientation, p.id, p.haptics.enabled, p.haptics.strength)
@@ -485,6 +497,7 @@ private fun onTouch(
     c: ControlDef, p: Offset, origin: Offset, r: FloatArray, engine: ControllerEngine,
     visuals: MutableMap<String, Visual>, toggles: MutableMap<String, Boolean>, app: NineApp, stickDz: Double, down: Boolean,
     recenter: () -> Unit, fullTriggers: Boolean, feel: dev.ninecontroller.android.input.FeelEffects,
+    turbo: dev.ninecontroller.android.pad.TurboPulser? = null,
 ) {
     val w = r[2] - r[0]; val h = r[3] - r[1]
     when (c.kind) {
@@ -493,7 +506,8 @@ private fun onTouch(
             if (c.toggle) {
                 val on = !(toggles[c.id] ?: false); toggles[c.id] = on
                 engine.setButtons(c.id, if (on) mask else 0); visuals[c.id] = Visual(pressed = on)
-            } else { engine.setButtons(c.id, mask); visuals[c.id] = Visual(pressed = true) }
+            } else if (turbo != null) { turbo.start(c.id, mask); visuals[c.id] = Visual(pressed = true) }
+            else { engine.setButtons(c.id, mask); visuals[c.id] = Visual(pressed = true) }
             if (c.haptic) app.haptics.click()
         }
         ControlKind.STICK -> {
@@ -527,9 +541,9 @@ private fun onTouch(
     }
 }
 
-private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>, feel: dev.ninecontroller.android.input.FeelEffects) {
+private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>, feel: dev.ninecontroller.android.input.FeelEffects, turbo: dev.ninecontroller.android.pad.TurboPulser? = null) {
     when (c.kind) {
-        ControlKind.BUTTON -> if (!c.toggle) { engine.setButtons(c.id, 0); visuals.remove(c.id) }
+        ControlKind.BUTTON -> if (turbo != null) { turbo.stop(c.id); visuals.remove(c.id) } else if (!c.toggle) { engine.setButtons(c.id, 0); visuals.remove(c.id) }
         ControlKind.STICK -> { engine.setStick(c.bind, 0.0, 0.0); visuals.remove(c.id) }
         ControlKind.DPAD -> { engine.setButtons(c.id, 0); visuals.remove(c.id) }
         ControlKind.TRIGGER, ControlKind.PEDAL -> { engine.setTrigger(c.id, c.bind, 0.0); feel.trigger(c.id, 0.0); visuals.remove(c.id) }

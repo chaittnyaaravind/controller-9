@@ -55,6 +55,15 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
             SliderRow("Stick dead zone", "${(s.stickDeadzone * 100).toInt()}%", s.stickDeadzone.toFloat(), 0f..0.3f) { v -> set { it.copy(stickDeadzone = v.toDouble()) } }
             Divider()
             ToggleRow("Tilt steering", "Turn the phone like a wheel to move the left stick", s.padTilt) { v -> set { it.copy(padTilt = v) } }
+            Divider(); ToggleRow("Gyro aim", "Turn the phone to aim: its turn speed is added to the right stick", s.gyroAim) { v -> set { it.copy(gyroAim = v) } }
+            if (s.gyroAim) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Low" to 0.7, "Medium" to 1.2, "High" to 2.0, "Max" to 3.0).forEach { (label, v) ->
+                        dev.ninecontroller.android.ui.Choice(label, kotlin.math.abs(s.aimSensitivity - v) < 0.01, { set { it.copy(aimSensitivity = v) } })
+                    }
+                }
+                ToggleRow("Invert aim up/down", null, s.aimInvertY) { v -> set { it.copy(aimInvertY = v) } }
+            }
             if (s.padTilt) {
                 Divider()
                 SliderRow("Tilt sensitivity", "%.2f×".format(s.tiltSensitivity), s.tiltSensitivity.toFloat(), 0.25f..3f) { v -> set { it.copy(tiltSensitivity = v.toDouble()) } }

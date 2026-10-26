@@ -32,6 +32,8 @@ data class AppSettings(
     val linkOverride: String = "auto",
     /** Per-preset remaps, encoded by PadMapping.encode(); empty = preset defaults. */
     val padMappings: Map<String, String> = emptyMap(),
+    /** Per-preset button modes (turbo / toggle), encoded by pad.ButtonModes.encode(). */
+    val padModes: Map<String, String> = emptyMap(),
     val stickDeadzone: Double = 0.08,
     /** Tilt steering on the left stick X for controller presets (profiles keep their own motion settings). */
     val padTilt: Boolean = false,
@@ -50,6 +52,12 @@ data class AppSettings(
     val activeGame: String = "any",
     /** Pin the controller screen while playing (no notification shade, home or back until unlocked). */
     val lockOnPlay: Boolean = false,
+    /** Gyro aim on the right stick (input/GyroAim.kt): turning the phone aims. */
+    val gyroAim: Boolean = false,
+    val aimSensitivity: Double = 1.2,
+    val aimInvertY: Boolean = false,
+    /** Bluetooth controller also carries a keyboard, mouse and media keys (input/RemoteHidReport.kt). */
+    val remoteKeys: Boolean = false,
 ) {
     val padPreset get() = PadPresets.fromSelection(activeProfile)
     fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
@@ -85,7 +93,12 @@ class SettingsStore(private val context: Context) {
         val accent = stringPreferencesKey("accent")
         val activeGame = stringPreferencesKey("active_game")
         val lockOnPlay = booleanPreferencesKey("lock_on_play")
+        val gyroAim = booleanPreferencesKey("gyro_aim")
+        val aimSens = doublePreferencesKey("aim_sensitivity")
+        val aimInvert = booleanPreferencesKey("aim_invert_y")
+        val remoteKeys = booleanPreferencesKey("remote_keys")
         fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
+        fun modes(preset: String) = stringPreferencesKey("pad_modes_$preset")
     }
 
     private fun read(p: Preferences): AppSettings {
@@ -102,6 +115,7 @@ class SettingsStore(private val context: Context) {
             onboarded = p[K.onboarded] ?: false,
             linkOverride = p[K.link] ?: "auto",
             padMappings = PadPresets.all.mapNotNull { pr -> p[K.map(pr.id)]?.takeIf { it.isNotEmpty() }?.let { pr.id to it } }.toMap(),
+            padModes = PadPresets.all.mapNotNull { pr -> p[K.modes(pr.id)]?.takeIf { it.isNotEmpty() }?.let { pr.id to it } }.toMap(),
             stickDeadzone = p[K.stickDz] ?: 0.08,
             padTilt = p[K.padTilt] ?: false,
             tiltSensitivity = p[K.tiltSens] ?: 1.0,
@@ -113,6 +127,10 @@ class SettingsStore(private val context: Context) {
             accent = p[K.accent] ?: "VOLT",
             activeGame = p[K.activeGame] ?: "any",
             lockOnPlay = p[K.lockOnPlay] ?: false,
+            gyroAim = p[K.gyroAim] ?: false,
+            aimSensitivity = p[K.aimSens] ?: 1.2,
+            aimInvertY = p[K.aimInvert] ?: false,
+            remoteKeys = p[K.remoteKeys] ?: false,
         )
     }
 
@@ -131,7 +149,12 @@ class SettingsStore(private val context: Context) {
         p[K.accent] = n.accent
         p[K.activeGame] = n.activeGame
         p[K.lockOnPlay] = n.lockOnPlay
+        p[K.remoteKeys] = n.remoteKeys
+        p[K.gyroAim] = n.gyroAim
+        p[K.aimSens] = n.aimSensitivity.coerceIn(0.3, 4.0)
+        p[K.aimInvert] = n.aimInvertY
         for (pr in PadPresets.all) n.padMappings[pr.id]?.takeIf { it.isNotEmpty() }?.let { p[K.map(pr.id)] = it } ?: p.remove(K.map(pr.id))
+        for (pr in PadPresets.all) n.padModes[pr.id]?.takeIf { it.isNotEmpty() }?.let { p[K.modes(pr.id)] = it } ?: p.remove(K.modes(pr.id))
         // Same ranges as the protocol profile validator (MotionSettings / StickSettings).
         p[K.stickDz] = n.stickDeadzone.coerceIn(0.0, 0.5)
         p[K.padTilt] = n.padTilt

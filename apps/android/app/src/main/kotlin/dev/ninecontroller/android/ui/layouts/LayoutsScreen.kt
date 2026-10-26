@@ -130,6 +130,10 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
     var focus by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     fun save(m: PadMapping) = scope.launch { app.settings.update { it.copy(padMappings = it.padMappings + (p.id to m.encode())) } }
+    val modes = dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[p.id])
+    fun setMode(id: String, m: dev.ninecontroller.android.pad.ButtonModes.Mode) = scope.launch {
+        app.settings.update { it.copy(padModes = it.padModes + (p.id to dev.ninecontroller.android.pad.ButtonModes.encode(modes + (id to m)))) }
+    }
 
     Page(p.name, if (active) "Active layout" else "Layout", nav) {
         PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2f).background(Nine.bg), highlight = focus, accent = LocalAccent.current)
@@ -157,7 +161,7 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
                     val changed = a != e.default
                     ListRow(
                         e.label,
-                        detail = a?.let { "Sends ${it.title} · ${it.wire}" + if (changed) " · remapped" else "" } ?: (e.unavailable ?: "Sends nothing"),
+                        detail = a?.let { "Sends ${it.title} · ${it.wire}" + (if (changed) " · remapped" else "") + (modes[e.id]?.let { m -> " · ${m.title}" } ?: "") } ?: (e.unavailable ?: "Sends nothing"),
                         detailColor = when { a == null -> Nine.dim; changed -> LocalAccent.current.color; else -> Nine.muted },
                         onClick = if (e.remappable) ({ focus = e.id; editing = e }) else ({ focus = e.id }),
                         trailing = if (e.remappable) ({ Text("Change", style = NineType.small, color = Nine.text) }) else ({ }),
@@ -180,6 +184,14 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
             title = { Text(e.label) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Micro("When held", Modifier.padding(bottom = 6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                        dev.ninecontroller.android.pad.ButtonModes.Mode.entries.forEach { m ->
+                            dev.ninecontroller.android.ui.Choice(m.title, (modes[e.id] ?: dev.ninecontroller.android.pad.ButtonModes.Mode.NORMAL) == m, { setMode(e.id, m) })
+                        }
+                    }
+                    Text((modes[e.id] ?: dev.ninecontroller.android.pad.ButtonModes.Mode.NORMAL).detail, style = NineType.small, color = Nine.dim, modifier = Modifier.padding(bottom = 14.dp))
+                    Micro("Sends", Modifier.padding(bottom = 6.dp))
                     Text(if (e.part == Part.PADDLE) "A paddle mirrors a button that is already on this layout." else "Picking a button another control already sends swaps the two, so nothing is lost or doubled.",
                         style = NineType.small, color = Nine.muted, modifier = Modifier.padding(bottom = 8.dp))
                     choices.forEach { a ->

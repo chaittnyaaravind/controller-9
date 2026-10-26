@@ -29,6 +29,8 @@ class ControllerEngine(
     private var left = 0.0 to 0.0
     private var right = 0.0 to 0.0
     private var motion = 0.0
+    /** Gyro aim, added to the right stick (input/GyroAim.kt). */
+    private var aim = 0.0 to 0.0
     private var motionAxis = "lx"
     private var motionOn = false
     private var calibrating = false
@@ -55,17 +57,18 @@ class ControllerEngine(
     @Synchronized fun setStick(side: String, x: Double, y: Double) { if (side == "right") right = x to y else left = x to y; publish() }
     @Synchronized fun setTrigger(controlId: String, which: String, v: Double) { if (v <= 0.0) triggers.remove(controlId) else triggers[controlId] = which to v; publish() }
     @Synchronized fun setMotion(v: Double) { motion = v; publish() }
+    @Synchronized fun setAim(x: Double, y: Double) { if (aim.first != x || aim.second != y) { aim = x to y; publish() } }
     @Synchronized fun setCalibrating(c: Boolean) { calibrating = c; publish() }
 
     /** Release everything (lifecycle pause, layout change, disconnect). */
     @Synchronized fun releaseAll() {
         generation++; pressedAt.clear(); releasePending.clear() // a lifecycle release is immediate, never deferred
-        buttons.clear(); triggers.clear(); left = 0.0 to 0.0; right = 0.0 to 0.0; motion = 0.0
+        buttons.clear(); triggers.clear(); left = 0.0 to 0.0; right = 0.0 to 0.0; motion = 0.0; aim = 0.0 to 0.0
         publish()
     }
 
     private fun publish() {
-        var lx = left.first; val ly = left.second; var rx = right.first; val ry = right.second
+        var lx = left.first; val ly = left.second; var rx = right.first + aim.first; val ry = right.second + aim.second
         if (motionOn) { if (motionAxis == "rx") rx = (rx + motion) else lx = (lx + motion) }
         val s = InputState(
             buttons = buttons.values.fold(0) { a, b -> a or b },

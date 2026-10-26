@@ -272,6 +272,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
             }
 
             Section(null) {
+                ListRow("Remote", detail = "Trackpad, keyboard and media keys for the computer — no app needed", onClick = { nav.navigate("remote") })
+                Divider()
                 ListRow("Controller layouts", detail = "Xbox, DualSense, Switch Pro, 8BitDo and your own", onClick = { nav.navigate("layouts") })
                 Divider()
                 ListRow("Calibrate steering", detail = settings.steering?.let { c -> if (c.hasRange) "${c.leftDeg!!.toInt()}° left · ${c.rightDeg!!.toInt()}° right" else "Neutral set · range not measured" } ?: "Neutral grip and range", onClick = { nav.navigate("calibrate") })

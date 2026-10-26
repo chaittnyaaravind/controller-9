@@ -12,13 +12,13 @@ import java.io.File
  * controller layout and steering. [layout] is an AppSettings.activeProfile value (`pad:xbox`,
  * a custom profile id, …); [accent] is a ui.theme.Accent name.
  */
-data class Game(val id: String, val name: String, val accent: String, val layout: String, val tilt: Boolean = false) {
-    fun toJson() = JSONObject().put("id", id).put("name", name).put("accent", accent).put("layout", layout).put("tilt", tilt)
+data class Game(val id: String, val name: String, val accent: String, val layout: String, val tilt: Boolean = false, val aim: Boolean = false) {
+    fun toJson() = JSONObject().put("id", id).put("name", name).put("accent", accent).put("layout", layout).put("tilt", tilt).put("aim", aim)
 
     companion object {
         fun fromJson(o: JSONObject) = Game(
             o.getString("id"), o.getString("name").take(MAX_NAME), o.optString("accent", "VOLT"),
-            o.optString("layout", "pad:xbox"), o.optBoolean("tilt", false),
+            o.optString("layout", "pad:xbox"), o.optBoolean("tilt", false), o.optBoolean("aim", false),
         )
         const val MAX_NAME = 32
     }

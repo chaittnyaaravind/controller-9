@@ -69,6 +69,7 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
     var accent by remember { mutableStateOf(Accent.of(existing?.accent ?: Accent.MAGENTA.name)) }
     var layout by remember { mutableStateOf(existing?.layout ?: "pad:xbox") }
     var tilt by remember { mutableStateOf(existing?.tilt ?: false) }
+    var aim by remember { mutableStateOf(existing?.aim ?: false) }
     val preset = PadPresets.fromSelection(layout)
 
     CompositionLocalProvider(LocalAccent provides accent) {
@@ -112,11 +113,20 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
                     Switch(tilt, { tilt = it }, enabled = preset != null,
                         colors = SwitchDefaults.colors(checkedTrackColor = accent.color, checkedThumbColor = accent.ink, uncheckedTrackColor = Nine.s3, uncheckedThumbColor = Nine.muted, uncheckedBorderColor = Nine.line2))
                 }
+                dev.ninecontroller.android.ui.Divider()
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Gyro aim", style = NineType.body)
+                        Text("Turn the phone to aim, like a DualSense or Switch Pro. Adds to the right stick.", style = NineType.small, color = Nine.muted)
+                    }
+                    Switch(aim, { aim = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = accent.color, checkedThumbColor = accent.ink, uncheckedTrackColor = Nine.s3, uncheckedThumbColor = Nine.muted, uncheckedBorderColor = Nine.line2))
+                }
             }
 
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton(if (existing == null) "Save and play" else "Save", {
-                    val g = Game(existing?.id ?: app.games.uniqueId(name), name.trim().ifEmpty { "My game" }, accent.name, layout, tilt && preset != null)
+                    val g = Game(existing?.id ?: app.games.uniqueId(name), name.trim().ifEmpty { "My game" }, accent.name, layout, tilt && preset != null, aim)
                     app.games.save(g)
                     scope.launch { if (existing == null || settings.activeGame == g.id) app.play(g); nav.popBackStack() }
                 })
