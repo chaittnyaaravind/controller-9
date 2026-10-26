@@ -6,9 +6,10 @@
       "id": "android",
       "name": "Android",
       "status": "available",
-      "meta": "Android 8 or newer · APK",
-      "file": "downloads/Controller-9-0.1.0.apk",
-      "text": "The phone app. Open the file on your phone and allow installing from your browser when Android asks."
+      "meta": "Android 8 or newer · APK · version 0.2.0",
+      "file": "downloads/Controller-9-0.2.0.apk",
+      "text": "The phone app. New in 0.2: your phone pairs as an Xbox Wireless Controller over Bluetooth, so a Mac needs nothing installed; a black-glass controller lit in each game's colour; Controller Lock (no notification panel mid-game) and turbo buttons. Open the file on your phone and allow installing from your browser when Android asks. Updates 0.1.0 in place.",
+      "tested": "This exact file (signed release, 0.2.0) was installed on a realme 12 5G (Android 16), paired as a Bluetooth controller with a MacBook Air (macOS 27.0.1), and A, B, X, Y, the D-pad and the left stick arrived in macOS GameController. Asphalt Legends on the Mac shows Xbox button prompts and is navigated by the phone."
     },
     {
       "id": "mac",
@@ -51,10 +52,6 @@
         {
           "label": "arm64 .deb",
           "file": "downloads/Controller-9-0.1.1-linux-arm64.deb"
-        },
-        {
-          "label": "AppImage",
-          "file": "downloads/Controller-9-0.1.1-linux-x86_64.AppImage"
         }
       ]
     }

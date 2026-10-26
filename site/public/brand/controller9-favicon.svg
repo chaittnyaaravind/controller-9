@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Controller-9"><title>Controller-9</title><rect width="48" height="48" rx="11" fill="#111315"/><g transform="translate(4 4) scale(.8333)"><path d="M11.5 12 H36.5 A7.5 7.5 0 0 1 44 19.5 V28.5 A7.5 7.5 0 0 1 36.5 36 H11.5 A7.5 7.5 0 0 1 4 28.5 V19.5 A7.5 7.5 0 0 1 11.5 12 Z" fill="none" stroke="#EEF0F1" stroke-width="4.4"/><path d="M15 18.5 V29.5 M9.5 24 H20.5" fill="none" stroke="#EEF0F1" stroke-width="4.4" stroke-linecap="round"/><path d="M27.5 24 A5 5 0 1 0 37.5 24 A5 5 0 1 0 27.5 24 Z" fill="#C6F432"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Controller-9">
+  <defs>
+    <radialGradient id="g1" cx="24" cy="96" r="70" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#D9B979" stop-opacity=".45"/><stop offset="1" stop-color="#D9B979" stop-opacity="0"/></radialGradient>
+    <linearGradient id="body" x1="0" y1="38" x2="0" y2="80" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".6" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".14"/></linearGradient>
+    <linearGradient id="rim" x1="20" y1="38" x2="88" y2="80" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".5"/></linearGradient>
+    <radialGradient id="jewel" cx="67.5" cy="52" r="10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFF6E0"/><stop offset=".35" stop-color="#D9B979"/><stop offset="1" stop-color="#6E5222"/></radialGradient>
+  </defs>
+  <rect width="108" height="108" rx="26" fill="#060607"/><rect width="108" height="108" rx="26" fill="url(#g1)"/>
+  <g transform="translate(54 58) scale(1.12) translate(-54 -58)">
+    <path d="M38,38 H70 C80,38 86,46 87,56 L89,70 C90,77 85,82 79,80 C75,79 72,74 69,70 H39 C36,74 33,79 29,80 C23,82 18,77 19,70 L21,56 C22,46 28,38 38,38 Z" fill="url(#body)" stroke="url(#rim)" stroke-width="1.6"/>
+    <path d="M35.5,49 h5 v5 h5 v5 h-5 v5 h-5 v-5 h-5 v-5 h5 z" fill="#E4E7EC" opacity=".9"/>
+    <circle cx="70" cy="55.5" r="7.5" fill="url(#jewel)"/><circle cx="67.4" cy="52.6" r="1.4" fill="#fff" opacity=".9"/>
+  </g>
+</svg>

@@ -23,7 +23,7 @@
   --bg: #0B0C0D; --s1: #111315; --s2: #171A1C; --s3: #1E2225;
   --text: #EEF0F1; --muted: rgb(238 240 241 / .66); --dim: rgb(238 240 241 / .46);
   --line: rgb(238 240 241 / .08); --line-2: rgb(238 240 241 / .14);
-  --accent: #C6F432; --accent-ink: #11140A; --warn: #F5B14C;
+  --accent: #D9B979; --accent-ink: #1A1407; --warn: #F5B14C;
   --r-pill: 999px; --r-card: 16px; --r-sm: 8px;
   --ease-out: cubic-bezier(0.32, 0.72, 0, 1); --ease-hover: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   --dur-hover: 120ms; --dur-reveal: 700ms;
@@ -159,11 +159,11 @@ section.block { padding: clamp(88px, 11vw, 168px) 0; background: var(--bg); }
 .dl p { color: var(--muted); font-size: 15px; }
 .dl .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: auto; }
 .chip { font: 500 11px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase; padding: 7px 10px; border-radius: 99px; white-space: nowrap; }
-.chip.ok { color: var(--accent); background: rgb(198 244 50 / .1); }
+.chip.ok { color: var(--accent); background: rgb(217 185 121 / .1); }
 .chip.pre { color: var(--warn); background: rgb(245 177 76 / .1); }
 .chip.soon { color: var(--muted); background: rgb(238 240 241 / .06); }
 .sha { font: 400 11.5px/1.5 var(--mono); color: var(--dim); word-break: break-all; }
-.dl .card.yours { box-shadow: inset 0 0 0 1px rgb(198 244 50 / .35); }
+.dl .card.yours { box-shadow: inset 0 0 0 1px rgb(217 185 121 / .35); }
 .note { color: var(--dim); font-size: 13.5px; margin-top: 24px; max-width: 72ch; }
 .privacy .card { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; padding: 36px; }
 .privacy h3 { font-size: 18px; letter-spacing: -0.015em; margin: 12px 0 8px; }
@@ -336,6 +336,11 @@ footer img { height: 24px; width: auto; }
         <div class="card reveal"><div class="micro accent">Touch</div><h3>One press, one control.</h3><p>Verified on an iPhone 15: twenty controls pressed one by one, each sent only itself. A thumb resting between buttons presses nothing.</p></div>
         <div class="card reveal"><div class="micro accent">Rumble</div><h3>Games can shake your hands.</h3><p>Two-motor rumble from the game, rendered on the phone's own haptics — heavy hits pulse, light ones hum.</p></div>
         <div class="card reveal"><div class="micro accent">Links</div><h3>Two links, one session.</h3><p>Wi-Fi and Bluetooth carry the same input side by side. Lose one and the other keeps you playing.</p></div>
+      </div>
+      <div class="feel" style="margin-top:16px">
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>No app on the computer.</h3><p>Your phone pairs as an Xbox Wireless Controller from the Mac's own Bluetooth settings. Tested: Asphalt Legends on a Mac shows Xbox prompts and is played from the phone.</p></div>
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Locked in the game.</h3><p>Controller Lock pins the pad: no notification panel, home or back swipe mid-race. Hold to unlock. Notifications stay quiet until you leave.</p></div>
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Black glass, your colour.</h3><p>Smoked-glass controls that light in each game's tone — platinum, champagne, crimson, sapphire, emerald, copper. Turbo on any button.</p></div>
       </div>
     </div>
   </section>

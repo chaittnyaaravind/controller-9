@@ -58,7 +58,7 @@ function start() {
   scene.environmentIntensity = 0.75;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80); camera.position.set(0, 0, 9);
   const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(3, 4, 6); scene.add(key);
-  const limeLight = new THREE.PointLight(0xc6f432, 2, 7, 2); scene.add(limeLight);
+  const accentLight = new THREE.PointLight(0xd9b979, 2, 7, 2); scene.add(accentLight);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -66,13 +66,13 @@ function start() {
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
-  const LIME = new THREE.Color("#C6F432");
+  const ACCENT = new THREE.Color("#D9B979");
   const glass = lite
     ? new THREE.MeshPhysicalMaterial({ color: "#C9CDD1", metalness: 0.85, roughness: 0.24, clearcoat: 1, transparent: true })
     : new THREE.MeshPhysicalMaterial({ color: "#ffffff", metalness: 0, roughness: 0.06, transmission: 1, thickness: 2.2, ior: 1.5,
         dispersion: 4, iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [180, 620], clearcoat: 1,
         attenuationColor: new THREE.Color("#DDEFC0"), attenuationDistance: 6, transparent: true });
-  const lime = new THREE.MeshPhysicalMaterial({ color: LIME, emissive: LIME, emissiveIntensity: 0.32, roughness: 0.35, clearcoat: 1, toneMapped: false, transparent: true });
+  const lime = new THREE.MeshPhysicalMaterial({ color: ACCENT, emissive: ACCENT, emissiveIntensity: 0.32, roughness: 0.35, clearcoat: 1, toneMapped: false, transparent: true });
   const graphite = new THREE.MeshPhysicalMaterial({ color: "#15181B", metalness: 0.6, roughness: 0.36, clearcoat: 1, clearcoatRoughness: 0.1, transparent: true });
 
   function radial(inner, outer, size = 256) {
@@ -131,7 +131,7 @@ function start() {
   const padBodyGeo = new THREE.ExtrudeGeometry(padShape, { depth: 2.2, bevelEnabled: true, bevelThickness: 0.7, bevelSize: 0.6, bevelSegments: 8, curveSegments: 48 });
   padBodyGeo.translate(0, 0, -1.1);
   const padMat = new THREE.MeshPhysicalMaterial({ color: "#16191C", metalness: 0.1, roughness: 0.62, clearcoat: 0.35, clearcoatRoughness: 0.45, transparent: true });
-  const padLime = new THREE.MeshPhysicalMaterial({ color: LIME, emissive: LIME, emissiveIntensity: 0.5, roughness: 0.35, toneMapped: false, transparent: true });
+  const padLime = new THREE.MeshPhysicalMaterial({ color: ACCENT, emissive: ACCENT, emissiveIntensity: 0.5, roughness: 0.35, toneMapped: false, transparent: true });
   const rubber = new THREE.MeshPhysicalMaterial({ color: "#2B3035", metalness: 0.1, roughness: 0.75, transparent: true });
   const keyMat = new THREE.MeshPhysicalMaterial({ color: "#3A4046", metalness: 0.2, roughness: 0.4, clearcoat: 1, transparent: true });
   pad.add(new THREE.Mesh(padBodyGeo, padMat));
@@ -188,14 +188,14 @@ function start() {
     sctx.fillStyle = "#0B0C0D"; sctx.fillRect(0, 0, 2048, 976);
     const img = pads[LAYOUTS[i]]; if (img) sctx.drawImage(img, 120, 70, 1808, 904);
     sctx.fillStyle = "rgba(17,19,21,.92)"; sctx.beginPath(); sctx.roundRect(784, 26, 480, 52, 26); sctx.fill();
-    sctx.fillStyle = "#C6F432"; sctx.beginPath(); sctx.arc(820, 52, 8, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = "#D9B979"; sctx.beginPath(); sctx.arc(820, 52, 8, 0, Math.PI * 2); sctx.fill();
     sctx.fillStyle = "rgba(238,240,241,.85)"; sctx.font = "500 22px Geist, system-ui"; sctx.fillText("P1 · YOUR COMPUTER · WI-FI", 842, 60);
     screenTex.needsUpdate = true;
   }
   Promise.all(LAYOUTS.map(loadPad)).then(() => { paintScreen(0); shown = 0; });
 
   // ---------------------------------------------------------------- impact effects: shockwave, sparks
-  const shock = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 128), new THREE.MeshBasicMaterial({ color: LIME, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  const shock = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 128), new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   const shock2 = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 128), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   scene.add(shock, shock2);
   const flash = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.MeshBasicMaterial({ map: radial("rgba(220,255,140,1)", "rgba(198,244,50,0)"), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
@@ -308,8 +308,8 @@ function start() {
     glow.material.opacity = sop * (0.75 + Math.sin(t * 2.2) * 0.25);
     btn.position.z = 0.4 + Math.sin(t * 1.4) * 0.25;
     mark.updateMatrixWorld();
-    v3.set(8.5, 0, 6).applyMatrix4(mark.matrixWorld); limeLight.position.copy(v3);
-    if (m > 0.99) limeLight.position.set(X0Light(), -3, 3);
+    v3.set(8.5, 0, 6).applyMatrix4(mark.matrixWorld); accentLight.position.copy(v3);
+    if (m > 0.99) accentLight.position.set(X0Light(), -3, 3);
     if (giant) giant.style.opacity = (0.035 * (1 - m)).toFixed(3);
 
     // ---- the controller: flies in spinning, shrinks into the phone on impact
@@ -334,7 +334,7 @@ function start() {
     coverMat.opacity = 0.07 * cur.po;
     shadow.position.set(cur.px, (mob ? 0.75 : 0) - 1.2 * cur.ps, -0.4); shadow.scale.set(cur.ps, cur.ps, 1);
     shadow.material.opacity = cur.po * 0.75 * (1 - clamp01(la * 2)) * (p < 0.32 ? 1 : desc);
-    limeLight.intensity = 1.6 * sop + 0.8 * cur.po + 6 * ignite * (1 - clamp01((p - 0.31) / 0.02));
+    accentLight.intensity = 1.6 * sop + 0.8 * cur.po + 6 * ignite * (1 - clamp01((p - 0.31) / 0.02));
     phone.updateMatrixWorld();
 
     // ---- impact: flash, shockwave rings, sparks, camera shake (all from scroll progress)
