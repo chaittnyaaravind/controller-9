@@ -16,8 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Tools
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev python3-evdev > /dev/null
-          sudo modprobe uhid && ls -l /dev/uhid
+          set -e
+          sudo apt-get update -qq
+          # Azure runner kernels ship uhid only in the "extra" modules package.
+          sudo apt-get install -y -qq libsdl2-dev python3-evdev "linux-modules-extra-$(uname -r)" > /dev/null
+          sudo modprobe uhid
+          ls -l /dev/uhid
           gcc -O2 -o sdlcheck tools/linux-check/sdlcheck.c $(pkg-config --cflags --libs sdl2)
           mkdir -p evidence
       - name: Gamepad through SDL's HIDAPI Xbox driver (hidraw)
