@@ -182,7 +182,15 @@ impl DatagramPath {
     async fn recv(&mut self) -> Option<Vec<u8>> {
         let mut buf = [0u8; 512];
         match self {
-            DatagramPath::Udp(s) => s.recv(&mut buf).await.ok().map(|n| buf[..n].to_vec()),
+            // A failed read is not the end of the stream: Windows reports an earlier datagram's ICMP
+            // "port unreachable" as WSAECONNRESET on the next recv. Skip it and keep reading (callers
+            // bound the wait with a deadline), instead of ending the pump early.
+            DatagramPath::Udp(s) => loop {
+                match s.recv(&mut buf).await {
+                    Ok(n) => return Some(buf[..n].to_vec()),
+                    Err(_) => tokio::task::yield_now().await,
+                }
+            },
             DatagramPath::Link { rx, .. } => rx.recv().await,
         }
     }

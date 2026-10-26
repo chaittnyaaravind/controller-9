@@ -42,6 +42,11 @@ jobs:
           & $B status | Tee-Object evidence/status.json
           $h = Start-Process $B -ArgumentList "host --ephemeral --pair --auto-approve --no-advertise --no-ble" -RedirectStandardOutput evidence/host.log -RedirectStandardError evidence/host.err -PassThru
           Start-Sleep -Seconds 3
+          # Warm-up: the first plug of the virtual pad makes Windows install its device driver, which stalled
+          # every process for ~5 s on fresh Server runners (2026-10-26: sim sender gap 4.6-5.0 s, sweep steps
+          # skipped). The measured sweep must not overlap that one-time install, so plug the pad first.
+          & $B sim --host 127.0.0.1:47901 --code --pattern wave --duration 4 --json > evidence/warmup.json 2> evidence/warmup.err
+          Start-Sleep -Seconds 3
           python -m pip install --quiet pysdl2==0.9.17 pysdl2-dll==2.32.10
           $x = Start-Process python -ArgumentList "tools/windows-check/xinputcheck.py 16 5" -RedirectStandardOutput evidence/xinput.jsonl -RedirectStandardError evidence/xinput.err -PassThru
           # Windows Server lacks the RawInput/Windows.Gaming.Input game-controller stack SDL prefers;
