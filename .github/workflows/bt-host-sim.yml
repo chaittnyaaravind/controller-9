@@ -1,0 +1,43 @@
+# Host-side simulation of the phone's Bluetooth controller: a Linux uhid device with the app's exact
+# name, IDs, report map and reports (tests/vectors/hid-xbox-ble.json), checked through SDL (HIDAPI and
+# evdev paths — what Steam and PC games use) and evdev for the Remote keys. No radio involved.
+name: bt-host-sim
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ios-build]
+    paths: [tests/vectors/hid-xbox-ble.json, tools/bt-host-sim/**, tools/linux-check/sdlcheck.c, .github/workflows/bt-host-sim.yml]
+permissions: { contents: read }
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev python3-evdev > /dev/null
+          sudo modprobe uhid && ls -l /dev/uhid
+          gcc -O2 -o sdlcheck tools/linux-check/sdlcheck.c $(pkg-config --cflags --libs sdl2)
+          mkdir -p evidence
+      - name: Gamepad through SDL's HIDAPI Xbox driver (hidraw)
+        run: |
+          sudo ./sdlcheck 22 > evidence/sdl-hidapi.jsonl 2>&1 &
+          sleep 1; sudo python3 tools/bt-host-sim/sim.py pad tests/vectors/hid-xbox-ble.json > evidence/pad-hidapi.jsonl
+          wait; sudo dmesg | grep -iE "hid|microsoft|xbox|input" | tail -15 > evidence/dmesg-pad.txt || true
+          python3 tools/bt-host-sim/verify.py evidence/sdl-hidapi.jsonl
+      - name: Gamepad through SDL's evdev path (no HIDAPI)
+        if: always()
+        run: |
+          sudo SDL_JOYSTICK_HIDAPI=0 ./sdlcheck 22 > evidence/sdl-evdev.jsonl 2>&1 &
+          sleep 1; sudo python3 tools/bt-host-sim/sim.py pad tests/vectors/hid-xbox-ble.json > evidence/pad-evdev.jsonl
+          wait; python3 tools/bt-host-sim/verify.py evidence/sdl-evdev.jsonl
+      - name: Remote keys (keyboard, mouse, media) on a non-Apple host
+        if: always()
+        run: |
+          sudo python3 tools/bt-host-sim/sim.py remote tests/vectors/hid-xbox-ble.json > evidence/remote.jsonl
+          cat evidence/remote.jsonl
+          python3 tools/bt-host-sim/verify.py evidence/sdl-hidapi.jsonl evidence/remote.jsonl
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: bt-host-sim-evidence, path: evidence/ }
