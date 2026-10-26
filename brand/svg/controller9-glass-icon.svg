@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 108 108">
+  <defs>
+    <radialGradient id="g1" cx="24" cy="96" r="70" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#D9B979" stop-opacity=".40"/><stop offset=".5" stop-color="#D9B979" stop-opacity=".10"/><stop offset="1" stop-color="#D9B979" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g2" cx="90" cy="8" r="64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E4E7EC" stop-opacity=".20"/><stop offset="1" stop-color="#E4E7EC" stop-opacity="0"/></radialGradient>
+    <linearGradient id="body" x1="0" y1="38" x2="0" y2="80" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset=".6" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".14"/></linearGradient>
+    <linearGradient id="rim" x1="20" y1="38" x2="88" y2="80" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".5"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="41" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="jewel" cx="67.5" cy="52" r="10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFF6E0"/><stop offset=".35" stop-color="#D9B979"/><stop offset="1" stop-color="#6E5222"/></radialGradient>
+  </defs>
+  <rect width="108" height="108" fill="#060607"/><rect width="108" height="108" fill="url(#g1)"/><rect width="108" height="108" fill="url(#g2)"/>
+  <g transform="translate(54 58) scale(1.12) translate(-54 -58)">
+    <path d="M38,38 H70 C80,38 86,46 87,56 L89,70 C90,77 85,82 79,80 C75,79 72,74 69,70 H39 C36,74 33,79 29,80 C23,82 18,77 19,70 L21,56 C22,46 28,38 38,38 Z" fill="url(#body)" stroke="url(#rim)" stroke-width="1.4"/>
+    <path d="M36,41 H72 C78,41 82,44 83,48 C70,45 38,45 25,48 C26,44 30,41 36,41 Z" fill="url(#shine)"/>
+    <path d="M35.5,49 h5 v5 h5 v5 h-5 v5 h-5 v-5 h-5 v-5 h5 z" fill="#E4E7EC" opacity=".9"/>
+    <circle cx="70" cy="55.5" r="7.5" fill="url(#jewel)"/><circle cx="67.4" cy="52.6" r="1.4" fill="#fff" opacity=".9"/>
+  </g>
+</svg>

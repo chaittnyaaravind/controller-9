@@ -32,6 +32,7 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: { UIColorName: "" }
         UIRequiresFullScreen: true
+        UIAppFonts: [Geist.ttf, GeistMono.ttf]
         UIStatusBarHidden: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSCameraUsageDescription: "Scan the pairing code shown on your computer."

@@ -12,7 +12,8 @@ struct NineControllerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView().environment(model).preferredColorScheme(.dark).tint(Nine.accent)
+            // Choosing a game re-lights every screen: the root is rebuilt with the new tone.
+            RootView().environment(model).preferredColorScheme(.dark).tint(Nine.accent).id(model.game.accent)
         }
         .onChange(of: phase) { _, p in model.connection.setPaused(p != .active) } // background: release everything
     }
@@ -39,6 +40,9 @@ final class AppModel {
     let discovery = Discovery()
     var settings: AppSettings { didSet { store.saveSettings(settings); applyHaptics() } }
     var profiles: [Profile] = []
+    var games: [Game] = GameStore.load() { didSet { GameStore.save(games) } }
+    /// The game being played: its tone lights the app (Accent.current), its layout is the active one.
+    var game: Game = Game.starters[0]
 
     init() {
         settings = store.settings
@@ -55,6 +59,14 @@ final class AppModel {
         connection.onRumble = { low, high, ms in Task { @MainActor in h.rumble(low: low, high: high, ms: ms) } }
         connection.onHostChosen = { [weak self] id in Task { @MainActor in if self?.settings.lastHost != id { self?.settings.lastHost = id } } }
         applyHaptics()
+        game = games.first { $0.id == GameStore.activeId } ?? games[0]
+        Accent.current = game.accent
+    }
+
+    /// Make [g] the game being played: its tone and layout, in one step.
+    func play(_ g: Game) {
+        game = g; Accent.current = g.accent; GameStore.activeId = g.id
+        settings.activeProfile = g.layout
     }
 
     var hosts: [PairedHost] { store.hosts }

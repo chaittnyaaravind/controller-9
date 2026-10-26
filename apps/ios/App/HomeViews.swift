@@ -55,14 +55,25 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Image("Wordmark").resizable().scaledToFit().frame(height: 26).accessibilityLabel("Controller-9").padding(.bottom, 6)
-                Text("Your controller").font(.system(size: 30, weight: .medium)).tracking(-0.6).accessibilityAddTraits(.isHeader)
+                Image("Wordmark").renderingMode(.template).resizable().scaledToFit().frame(height: 24).foregroundStyle(Nine.text)
+                    .accessibilityLabel("Controller-9").padding(.bottom, 6)
+                hero
+                Micro("Games").padding(.top, 10)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(model.games) { g in
+                            Button { model.play(g) } label: { GameCard(game: g, active: g.id == model.game.id) }
+                                .accessibilityLabel("Play \(g.name)").accessibilityAddTraits(g.id == model.game.id ? .isSelected : [])
+                        }
+                    }
+                }
+                Micro("Connection").padding(.top, 10)
                 statusCard
                 Micro("Computers")
                 if model.hosts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Pair with the computer you want to play on. Open Controller-9 there and choose “Pair a phone”.").foregroundStyle(Nine.muted)
-                        NavigationLink("Add a computer") { AddHostView() }.buttonStyle(PrimaryButton())
+                        NavigationLink("Add a computer") { AddHostView() }.buttonStyle(SecondaryButton())
                     }.card()
                 } else {
                     ForEach(model.hosts) { h in
@@ -103,6 +114,23 @@ struct HomeView: View {
         }.background(Nine.bg).toolbar(.hidden, for: .navigationBar)
     }
 
+    /// The one hero: the game being played, its controller in its light, one big Play.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Micro("Now playing", color: Nine.accent)
+            Text(model.game.name).font(Nine.sans(40, .medium)).tracking(-1.4).lineLimit(2).accessibilityAddTraits(.isHeader)
+            Text(model.activePad?.name ?? model.activeProfile?.name ?? "No layout").font(Nine.sans(13)).foregroundStyle(Nine.muted)
+            if let pad = model.activePad { PadPreview(preset: pad).padding(.vertical, 10) }
+            HStack(spacing: 10) {
+                NavigationLink("Play") { ControllerView() }.buttonStyle(PrimaryButton()).disabled(model.activeProfile == nil)
+                NavigationLink("Layout") { ProfilesView() }.buttonStyle(SecondaryButton())
+            }.padding(.top, 6)
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .background(LinearGradient(colors: [Nine.accent.opacity(0.07), Nine.s1], startPoint: .top, endPoint: .bottom), in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(LinearGradient(colors: [Nine.accent.opacity(0.45), Nine.line], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+    }
+
     @ViewBuilder private var statusCard: some View {
         let (label, color): (String, Color) = {
             switch model.connection.state {
@@ -125,17 +153,9 @@ struct HomeView: View {
                     stat(fmt(model.connection.stats.rttP50), "RTT ms"); stat(fmt(model.connection.stats.rttP95), "p95 ms"); stat(fmt(model.connection.stats.sendHz, 0), "Send Hz")
                 }
             }
-            HStack(spacing: 10) {
-                // One primary action per screen: with nothing paired, "Add a computer" is the lime button.
-                if model.hosts.isEmpty {
-                    NavigationLink("Play") { ControllerView() }.buttonStyle(SecondaryButton()).disabled(model.activeProfile == nil)
-                } else {
-                    NavigationLink("Play") { ControllerView() }.buttonStyle(PrimaryButton()).disabled(model.activeProfile == nil)
-                }
-                switch model.connection.state {
-                case .connected, .reconnecting: Button("Disconnect") { model.connection.disconnect() }.foregroundStyle(Nine.text)
-                default: EmptyView()
-                }
+            switch model.connection.state {
+            case .connected, .reconnecting: Button("Disconnect") { model.connection.disconnect() }.buttonStyle(SecondaryButton())
+            default: EmptyView()
             }
         }.card()
     }
@@ -218,4 +238,20 @@ struct AddHostView: View {
     private var isConfirming: Bool { if case .confirmCode = model.connection.state { return true }; return false }
     private var codeTitle: String { if case let .confirmCode(h, _) = model.connection.state { return "Does \(h) show this code?" }; return "" }
     private var codeValue: String { if case let .confirmCode(_, c) = model.connection.state { return c }; return "" }
+}
+
+/// One game in the rail: its tone as a lit dot, its name; the chosen one carries its tone's rim.
+struct GameCard: View {
+    let game: Game
+    let active: Bool
+    var body: some View {
+        VStack(alignment: .leading) {
+            Circle().fill(game.accent.color).frame(width: 13, height: 13).shadow(color: game.accent.color.opacity(0.7), radius: 8)
+            Spacer()
+            Text(game.name).font(Nine.sans(13, .medium)).foregroundStyle(Nine.text).lineLimit(2).multilineTextAlignment(.leading)
+        }
+        .padding(14).frame(width: 140, height: 96, alignment: .leading)
+        .background(active ? AnyShapeStyle(LinearGradient(colors: [game.accent.color.opacity(0.10), Nine.s1], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Nine.s1), in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(active ? game.accent.color.opacity(0.7) : Nine.line, lineWidth: 1))
+    }
 }

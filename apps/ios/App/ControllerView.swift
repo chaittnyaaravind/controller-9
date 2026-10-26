@@ -30,7 +30,14 @@ struct ControllerView: View {
                 let pad = model.activePad
                 let live = pad?.profile(for: geo.size) ?? profile
                 ZStack(alignment: .top) {
-                    Nine.bg.ignoresSafeArea()
+                    // The scene: near-black, the game's tone glowing softly behind the grips.
+                    ZStack {
+                        Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x06 / 255)
+                        ForEach([0.18, 0.82], id: \.self) { fx in
+                            RadialGradient(colors: [Nine.accent.opacity(0.13), Nine.accent.opacity(0.04), .clear], center: UnitPoint(x: fx, y: 0.7), startRadius: 0, endRadius: geo.size.height * 0.8)
+                        }
+                        LinearGradient(colors: [.white.opacity(0.035), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
+                    }.ignoresSafeArea()
                     if let pad {
                         // Elements that send nothing (touchpad, Share, paddles…) are drawn, dimmed.
                         ForEach(pad.elements.filter { $0.action == nil }) { e in
@@ -62,6 +69,9 @@ struct ControllerView: View {
             .background(Nine.bg.ignoresSafeArea())
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)
+            // iOS's closest thing to Android's Controller Lock: an edge swipe (Control Centre, home,
+            // notifications) needs a second, deliberate swipe. Full lock-down is Guided Access (Settings).
+            .defersSystemGestures(on: .all)
             .toolbar(.hidden, for: .navigationBar)
             .onAppear { start(profile) }
             .onDisappear { stop() }
@@ -104,8 +114,10 @@ struct ControllerView: View {
             if model.activePad == nil { NavigationLink { LayoutEditorView(profileId: p.id) } label: { Micro("Edit", color: Nine.text) } }
             Button { dismiss() } label: { Micro("Exit", color: Nine.text) }
         }
-        .padding(.horizontal, 14).padding(.vertical, 6)
-        .background(Nine.s1.opacity(0.85), in: Capsule()).padding(.top, 8)
+        .padding(.horizontal, 14).padding(.vertical, 7)
+        .background(LinearGradient(colors: [.white.opacity(0.12), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), in: Capsule())
+        .overlay(Capsule().strokeBorder(LinearGradient(colors: [.white.opacity(0.32), .white.opacity(0.06)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+        .padding(.top, 8)
     }
 
     private func start(_ p: Profile) {

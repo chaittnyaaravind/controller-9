@@ -8,11 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		01AA99E992CFE6E2EBBC7702 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E75942FBC27D4F18800E9 /* Haptics.swift */; };
+		09DB6CDDBAE5750A6358F5C4 /* GeistMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F030E9B23C45C855D2405253 /* GeistMono.ttf */; };
 		2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */; };
 		39383F0809097A2E6E6A9305 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0389A46C22099564F524D888 /* ProfileViews.swift */; };
 		3A216675B137F31B366F6A82 /* NineAppCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D9802B7130CBEB8352E1744 /* NineAppCore */; };
+		424FFE6E06D375FD719B30E9 /* Geist.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 05A4C5E48E0240D83522F577 /* Geist.ttf */; };
 		567623F680F1765D5A36BA16 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 537D7D91D902DB0FF6E7E0AB /* profiles */; };
 		5A65BF5599EE8381BA2EE142 /* QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B63E51667B270BCD98F8D0C /* QRScanner.swift */; };
+		60DC942ADF490C3443BA02A6 /* Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07135696CD2C6DF44983A16B /* Games.swift */; };
 		7E2DFEB34C2061123CBFE337 /* NineControllerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1878DF5A8BC1F7AA4AA6F1 /* NineControllerApp.swift */; };
 		9556B575F73B9C5B0F6AAC43 /* MotionInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F51ECA9922754BD22CDB19E /* MotionInput.swift */; };
 		98F498BF19C61C88F3F29501 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED49D789CC5DD227CBDA7EB /* Theme.swift */; };
@@ -35,6 +38,8 @@
 
 /* Begin PBXFileReference section */
 		0389A46C22099564F524D888 /* ProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViews.swift; sourceTree = "<group>"; };
+		05A4C5E48E0240D83522F577 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
+		07135696CD2C6DF44983A16B /* Games.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Games.swift; sourceTree = "<group>"; };
 		1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerAccuracyUITests.swift; sourceTree = "<group>"; };
 		1DC57FA9F1614812A3C44B72 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24B714CD7F522A2ADD59DB4D /* Controller9UITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = Controller9UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -51,6 +56,7 @@
 		991070B4B95E0E8150F50512 /* Discovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery.swift; sourceTree = "<group>"; };
 		D02E1D269572A6C9EF83AFA3 /* PadViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PadViews.swift; sourceTree = "<group>"; };
 		EC1878DF5A8BC1F7AA4AA6F1 /* NineControllerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NineControllerApp.swift; sourceTree = "<group>"; };
+		F030E9B23C45C855D2405253 /* GeistMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = GeistMono.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +79,15 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		1BF5E4DB649C9BE2CE63E17F /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				05A4C5E48E0240D83522F577 /* Geist.ttf */,
+				F030E9B23C45C855D2405253 /* GeistMono.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		1FD84A8B34DB2192C00B2B82 /* 9-controller */ = {
 			isa = PBXGroup;
 			children = (
@@ -88,6 +103,7 @@
 				3056C7997E78EB9AB25E03C8 /* Assets.xcassets */,
 				5EF5E5FFDBCF6F4D4168FF7B /* ControllerView.swift */,
 				991070B4B95E0E8150F50512 /* Discovery.swift */,
+				07135696CD2C6DF44983A16B /* Games.swift */,
 				393E75942FBC27D4F18800E9 /* Haptics.swift */,
 				691FB4A35569621FF7A0CC63 /* HomeViews.swift */,
 				1DC57FA9F1614812A3C44B72 /* Info.plist */,
@@ -97,6 +113,7 @@
 				0389A46C22099564F524D888 /* ProfileViews.swift */,
 				3B63E51667B270BCD98F8D0C /* QRScanner.swift */,
 				7ED49D789CC5DD227CBDA7EB /* Theme.swift */,
+				1BF5E4DB649C9BE2CE63E17F /* Fonts */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -227,6 +244,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0D8CEAEF506854BBE4E3714 /* Assets.xcassets in Resources */,
+				424FFE6E06D375FD719B30E9 /* Geist.ttf in Resources */,
+				09DB6CDDBAE5750A6358F5C4 /* GeistMono.ttf in Resources */,
 				567623F680F1765D5A36BA16 /* profiles in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -240,6 +259,7 @@
 			files = (
 				C72B6DAA8AB0DB2B58299AA6 /* ControllerView.swift in Sources */,
 				998341CD83A7A26E56911FA1 /* Discovery.swift in Sources */,
+				60DC942ADF490C3443BA02A6 /* Games.swift in Sources */,
 				01AA99E992CFE6E2EBBC7702 /* Haptics.swift in Sources */,
 				FD6C4FAA2B2CC719E5781196 /* HomeViews.swift in Sources */,
 				9556B575F73B9C5B0F6AAC43 /* MotionInput.swift in Sources */,

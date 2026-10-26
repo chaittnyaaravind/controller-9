@@ -32,6 +32,11 @@
 	<string>Scan the pairing code shown on your computer.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Find and connect to Controller-9 on computers on your Wi-Fi network.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Geist.ttf</string>
+		<string>GeistMono.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
