@@ -18,7 +18,7 @@ import dev.ninecontroller.android.pad.Action.TRIGGER_R
 import dev.ninecontroller.android.pad.Action.WEST
 
 /**
- * The five layout presets as data. Canvas: 200 x 100 units, landscape front view, origin top-left.
+ * The layout presets as data. Canvas: 200 x 100 units, landscape front view, origin top-left.
  * Triggers sit on the top edge, bumpers just below; the two halves mirror around x = 100.
  *
  *   Asymmetric (Xbox, Switch Pro): left stick high, D-pad low, right stick low, face buttons high.
@@ -133,7 +133,59 @@ object PadPresets {
         notes = listOf("Nintendo-style labels, positional mapping (B bottom sends Xbox A's bit).", "Rear paddles P1/P2 start unassigned; they can mirror any button.", "Star has no protocol input."),
     )
 
-    val all: List<PadPreset> = listOf(XBOX, DUALSENSE, DUALSHOCK4, SWITCH_PRO, EIGHTBITDO_PRO2)
+    val GAMECUBE = PadPreset(
+        id = "gamecube", name = "GameCube-style", tagline = "Big A · C-stick · Z", family = Family.NINTENDO, symmetric = false,
+        elements = listOf(
+            PadElement("trigger_l", Part.TRIGGER, "L", 30.0, 9.0, 44.0, 14.0, TRIGGER_L),
+            PadElement("trigger_r", Part.TRIGGER, "R", 170.0, 9.0, 44.0, 14.0, TRIGGER_R),
+            PadElement("bumper_r", Part.BUMPER, "Z", 170.0, 24.5, 34.0, 11.0, BUMPER_R),
+            PadElement("bumper_l", Part.BUMPER, "L click", 30.0, 24.5, 34.0, 11.0, BUMPER_L, short = "LB"),
+            // The big green A is the primary button: it sends the bottom position (Xbox A's bit).
+            PadElement("face_s", Part.FACE, "A", 160.0, 58.0, 22.0, 22.0, SOUTH),
+            PadElement("face_w", Part.FACE, "B", 141.0, 62.0, 12.0, 12.0, WEST),
+            PadElement("face_e", Part.FACE, "X", 180.0, 50.0, 13.0, 13.0, EAST),
+            PadElement("face_n", Part.FACE, "Y", 157.0, 38.0, 13.0, 13.0, NORTH),
+            PadElement("stick_l", Part.STICK, "Control stick", 36.0, 52.0, 34.0, 34.0, STICK_L),
+            PadElement("dpad", Part.DPAD, "D-pad", 70.0, 82.0, 26.0, 26.0, DPAD),
+            PadElement("stick_r", Part.STICK, "C-stick", 130.0, 82.0, 26.0, 26.0, STICK_R, short = "C"),
+            PadElement("stick_l_press", Part.STICK_PRESS, "LS (stick press)", 14.0, 84.0, 12.0, 12.0, STICK_L_PRESS, short = "LS"),
+            PadElement("stick_r_press", Part.STICK_PRESS, "RS (stick press)", 186.0, 84.0, 12.0, 12.0, STICK_R_PRESS, short = "RS"),
+            PadElement("start", Part.CENTER, "Start", 100.0, 50.0, 11.0, 11.0, START, Glyph.MENU),
+            PadElement("home", Part.CENTER, "Home", 100.0, 66.0, 10.0, 10.0, GUIDE, Glyph.HOME),
+            PadElement("select", Part.CENTER, "Select", 100.0, 34.0, 9.0, 9.0, BACK, Glyph.VIEW),
+        ),
+        notes = listOf("The big A sends Xbox A's bit, B the left position, X the right, Y the top — as SDL maps a GameCube pad.",
+            "Z sends RB; the original has no LB, so 'L click' gives one.", "Start, Home and Select are extras for PC games."),
+    )
+
+    val ARCADE = PadPreset(
+        id = "arcade", name = "Arcade stick", tagline = "Lever · 8 buttons · fighting games", family = Family.ARCADE, symmetric = false,
+        elements = listOf(
+            // The lever is a D-pad, as on real fight sticks in their default (DP) mode.
+            PadElement("dpad", Part.DPAD, "Lever", 46.0, 58.0, 54.0, 54.0, DPAD),
+            // Standard Xbox fight-stick layout: top row X Y RB LB, bottom row A B RT LT.
+            PadElement("face_w", Part.FACE, "X", 110.0, 46.0, 17.0, 17.0, WEST),
+            PadElement("face_n", Part.FACE, "Y", 131.0, 41.0, 17.0, 17.0, NORTH),
+            PadElement("bumper_r", Part.FACE, "RB", 152.0, 41.0, 17.0, 17.0, BUMPER_R),
+            PadElement("bumper_l", Part.FACE, "LB", 173.0, 46.0, 17.0, 17.0, BUMPER_L),
+            PadElement("face_s", Part.FACE, "A", 112.0, 68.0, 17.0, 17.0, SOUTH),
+            PadElement("face_e", Part.FACE, "B", 133.0, 63.0, 17.0, 17.0, EAST),
+            PadElement("trigger_r", Part.TRIGGER, "RT", 154.0, 63.0, 17.0, 15.0, TRIGGER_R),
+            PadElement("trigger_l", Part.TRIGGER, "LT", 175.0, 68.0, 17.0, 15.0, TRIGGER_L),
+            PadElement("view", Part.CENTER, "View", 84.0, 14.0, 11.0, 11.0, BACK, Glyph.VIEW),
+            PadElement("guide", Part.CENTER, "Guide", 100.0, 14.0, 12.0, 12.0, GUIDE, Glyph.HOME),
+            PadElement("menu", Part.CENTER, "Menu", 116.0, 14.0, 11.0, 11.0, START, Glyph.MENU),
+            // Small sticks for menus and camera (many fight sticks switch the lever between DP / LS / RS).
+            PadElement("stick_l", Part.STICK, "Left stick", 88.0, 86.0, 20.0, 20.0, STICK_L),
+            PadElement("stick_r", Part.STICK, "Right stick", 186.0, 88.0, 20.0, 20.0, STICK_R),
+            PadElement("stick_l_press", Part.STICK_PRESS, "LS (stick press)", 62.0, 92.0, 10.0, 10.0, STICK_L_PRESS, short = "LS"),
+            PadElement("stick_r_press", Part.STICK_PRESS, "RS (stick press)", 160.0, 92.0, 10.0, 10.0, STICK_R_PRESS, short = "RS"),
+        ),
+        notes = listOf("The lever sends the D-pad, like a fight stick in DP mode; two small sticks cover menus and camera.",
+            "Top row X Y RB LB, bottom row A B RT LT — the standard Xbox fight-stick order, so fighting games' defaults line up."),
+    )
+
+    val all: List<PadPreset> = listOf(XBOX, DUALSENSE, DUALSHOCK4, SWITCH_PRO, EIGHTBITDO_PRO2, GAMECUBE, ARCADE)
 
     fun byId(id: String): PadPreset? = all.find { it.id == id }
 

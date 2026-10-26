@@ -26,10 +26,10 @@ class PadMappingTest {
 
     // ---------------------------------------------------------------- the five presets
 
-    @Test fun fiveDistinctPresets() {
-        assertEquals(listOf("xbox", "dualsense", "dualshock4", "switchpro", "8bitdo-pro2"), all.map { it.id })
-        assertEquals(5, all.map { it.name }.toSet().size)
-        assertEquals(listOf(Family.XBOX, Family.PLAYSTATION, Family.PLAYSTATION, Family.NINTENDO, Family.RETRO), all.map { it.family })
+    @Test fun sevenDistinctPresets() {
+        assertEquals(listOf("xbox", "dualsense", "dualshock4", "switchpro", "8bitdo-pro2", "gamecube", "arcade"), all.map { it.id })
+        assertEquals(7, all.map { it.name }.toSet().size)
+        assertEquals(listOf(Family.XBOX, Family.PLAYSTATION, Family.PLAYSTATION, Family.NINTENDO, Family.RETRO, Family.NINTENDO, Family.ARCADE), all.map { it.family })
         // Genuinely different: no two presets share the same set of (label, position).
         val sigs = all.map { p -> p.elements.map { "${it.label}@${it.cx},${it.cy}" }.toSet() }
         for (i in sigs.indices) for (j in i + 1 until sigs.size) assertTrue("${all[i].id} vs ${all[j].id}", sigs[i] != sigs[j])
@@ -74,7 +74,8 @@ class PadMappingTest {
         assertEquals(Action.EAST, m.actionOf(e)); assertEquals(Action.WEST, m.actionOf(w)); assertEquals(Action.NORTH, m.actionOf(n))
     }
 
-    @Test fun placementMatchesEachControllerShape() = all.forEach { p ->
+    // Handheld-pad shape rules; an arcade stick is a box with a lever, so it is checked by the other rules only.
+    @Test fun placementMatchesEachControllerShape() = all.filter { it.family != Family.ARCADE }.forEach { p ->
         val sl = p.element("stick_l"); val sr = p.element("stick_r"); val dp = p.element("dpad"); val fs = p.element("face_n")
         if (p.symmetric) {
             assertTrue("${p.id}: D-pad above both sticks", dp.cy < sl.cy && dp.cy < sr.cy)
@@ -97,6 +98,7 @@ class PadMappingTest {
         val expectUnavailable = mapOf(
             "xbox" to setOf("share"), "dualsense" to setOf("touchpad", "mute"), "dualshock4" to setOf("touchpad"),
             "switchpro" to setOf("capture"), "8bitdo-pro2" to setOf("star", "paddle_l", "paddle_r"),
+            "gamecube" to emptySet(), "arcade" to emptySet(),
         )
         all.forEach { p ->
             val m = PadMapping.default(p)

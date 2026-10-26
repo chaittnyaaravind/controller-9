@@ -70,7 +70,7 @@ data class PadElement(
     val remappable: Boolean get() = part == Part.PADDLE || (default?.kind == Action.Kind.BUTTON && part in setOf(Part.FACE, Part.BUMPER, Part.CENTER, Part.STICK_PRESS))
 }
 
-enum class Family { XBOX, PLAYSTATION, NINTENDO, RETRO }
+enum class Family { XBOX, PLAYSTATION, NINTENDO, RETRO, ARCADE }
 
 /** A visual preset. Interface layout only — not hardware emulation (docs/LAYOUTS.md). */
 data class PadPreset(

@@ -35,7 +35,7 @@ public enum PadPart: Sendable { case face, bumper, trigger, stick, stickPress, d
 /// Drawn symbol: generic shapes only.
 public enum PadGlyph: Sendable { case text, cross, circle, square, triangle, home, plus, minus, menu, view, share, create, capture, mute, star }
 
-public enum PadFamily: Sendable { case xbox, playstation, nintendo, retro }
+public enum PadFamily: Sendable { case xbox, playstation, nintendo, retro, arcade }
 
 /// One control on the 200 x 100 preset canvas (landscape front view), sizes in the same units.
 public struct PadElement: Identifiable, Sendable {
@@ -176,7 +176,57 @@ public enum PadPresets {
         ],
         notes: ["Nintendo-style labels, positional mapping (B bottom sends Xbox A's bit).", "Rear paddles P1/P2 have no protocol input here. Star has none either."])
 
-    public static let all = [xbox, dualsense, dualshock4, switchPro, eightBitDoPro2]
+    public static let gamecube = PadPreset(
+        id: "gamecube", name: "GameCube-style", tagline: "Big A · C-stick · Z", family: .nintendo, symmetric: false,
+        elements: [
+            PadElement("trigger_l", .trigger, "L", 30, 9, 44, 14, .triggerL),
+            PadElement("trigger_r", .trigger, "R", 170, 9, 44, 14, .triggerR),
+            PadElement("bumper_r", .bumper, "Z", 170, 24.5, 34, 11, .bumperR),
+            PadElement("bumper_l", .bumper, "L click", 30, 24.5, 34, 11, .bumperL, short: "LB"),
+            // The big A is the primary button: it sends the bottom position (Xbox A's bit).
+            PadElement("face_s", .face, "A", 160, 58, 22, 22, .south),
+            PadElement("face_w", .face, "B", 141, 62, 12, 12, .west),
+            PadElement("face_e", .face, "X", 180, 50, 13, 13, .east),
+            PadElement("face_n", .face, "Y", 157, 38, 13, 13, .north),
+            PadElement("stick_l", .stick, "Control stick", 36, 52, 34, 34, .stickL),
+            PadElement("dpad", .dpad, "D-pad", 70, 82, 26, 26, .dpad),
+            PadElement("stick_r", .stick, "C-stick", 130, 82, 26, 26, .stickR, short: "C"),
+            PadElement("stick_l_press", .stickPress, "LS (stick press)", 14, 84, 12, 12, .stickLPress, short: "LS"),
+            PadElement("stick_r_press", .stickPress, "RS (stick press)", 186, 84, 12, 12, .stickRPress, short: "RS"),
+            PadElement("start", .center, "Start", 100, 50, 11, 11, .start, .menu),
+            PadElement("home", .center, "Home", 100, 66, 10, 10, .guide, .home),
+            PadElement("select", .center, "Select", 100, 34, 9, 9, .back, .view),
+        ],
+        notes: ["The big A sends Xbox A's bit, B the left position, X the right, Y the top — as SDL maps a GameCube pad.",
+                "Z sends RB; the original has no LB, so 'L click' gives one.", "Start, Home and Select are extras for PC games."])
+
+    public static let arcade = PadPreset(
+        id: "arcade", name: "Arcade stick", tagline: "Lever · 8 buttons · fighting games", family: .arcade, symmetric: false,
+        elements: [
+            // The lever is a D-pad, as on real fight sticks in their default (DP) mode.
+            PadElement("dpad", .dpad, "Lever", 46, 58, 54, 54, .dpad),
+            // Standard Xbox fight-stick layout: top row X Y RB LB, bottom row A B RT LT.
+            PadElement("face_w", .face, "X", 110, 46, 17, 17, .west),
+            PadElement("face_n", .face, "Y", 131, 41, 17, 17, .north),
+            PadElement("bumper_r", .face, "RB", 152, 41, 17, 17, .bumperR),
+            PadElement("bumper_l", .face, "LB", 173, 46, 17, 17, .bumperL),
+            PadElement("face_s", .face, "A", 112, 68, 17, 17, .south),
+            PadElement("face_e", .face, "B", 133, 63, 17, 17, .east),
+            PadElement("trigger_r", .trigger, "RT", 154, 63, 17, 15, .triggerR),
+            PadElement("trigger_l", .trigger, "LT", 175, 68, 17, 15, .triggerL),
+            PadElement("view", .center, "View", 84, 14, 11, 11, .back, .view),
+            PadElement("guide", .center, "Guide", 100, 14, 12, 12, .guide, .home),
+            PadElement("menu", .center, "Menu", 116, 14, 11, 11, .start, .menu),
+            // Small sticks for menus and camera (many fight sticks switch the lever between DP / LS / RS).
+            PadElement("stick_l", .stick, "Left stick", 88, 86, 20, 20, .stickL),
+            PadElement("stick_r", .stick, "Right stick", 186, 88, 20, 20, .stickR),
+            PadElement("stick_l_press", .stickPress, "LS (stick press)", 62, 92, 10, 10, .stickLPress, short: "LS"),
+            PadElement("stick_r_press", .stickPress, "RS (stick press)", 160, 92, 10, 10, .stickRPress, short: "RS"),
+        ],
+        notes: ["The lever sends the D-pad, like a fight stick in DP mode; two small sticks cover menus and camera.",
+                "Top row X Y RB LB, bottom row A B RT LT — the standard Xbox fight-stick order, so fighting games' defaults line up."])
+
+    public static let all = [xbox, dualsense, dualshock4, switchPro, eightBitDoPro2, gamecube, arcade]
 
     /// Settings value for "use a controller layout": `pad:<presetId>` (same as Android).
     public static let prefix = "pad:"

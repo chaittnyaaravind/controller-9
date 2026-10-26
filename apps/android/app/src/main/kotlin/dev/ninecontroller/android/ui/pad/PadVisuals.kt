@@ -78,6 +78,8 @@ private fun spec(f: Family) = when (f) {
     Family.NINTENDO -> BodySpec(12f, 4f, 188f, 88f, 30f, 38f, 76f, 30f, 24f)
     Family.PLAYSTATION -> BodySpec(14f, 6f, 186f, 82f, 24f, 40f, 78f, 24f, 22f)
     Family.RETRO -> BodySpec(6f, 8f, 194f, 92f, 38f, 34f, 84f, 28f, 16f)
+    // An arcade stick is a flat box: no grips.
+    Family.ARCADE -> BodySpec(4f, 4f, 196f, 98f, 10f, 100f, 50f, 0f, 0f)
 }
 
 private fun DrawScope.drawBody(f: Family, ox: Float, oy: Float, s: Float, accent: Accent) {

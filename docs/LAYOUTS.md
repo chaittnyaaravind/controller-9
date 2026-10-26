@@ -6,7 +6,7 @@ will treat Controller-9 as that controller. Every preset sends the same protocol
 (SPEC §6.3: 15 button bits, two sticks, two analog triggers).
 
 Code: `apps/android/app/src/main/kotlin/dev/ninecontroller/android/pad/` — `PadModel.kt` (logical
-actions, parts, glyphs), `PadPresets.kt` (the five presets as data), `PadMapping.kt` (the single
+actions, parts, glyphs), `PadPresets.kt` (the seven presets as data), `PadMapping.kt` (the single
 mapping layer, remap rules, persistence, screen geometry). One renderer
 (`ui/pad/PadVisuals.kt`) draws both the live touch surface and every preview. Tests:
 `app/src/test/.../PadMappingTest.kt` (18 tests) and `UiLogicTest.kt`.
@@ -35,7 +35,7 @@ Consequence: switching layouts never changes what a thumb position does in a gam
 labels this is the same choice Steam Input / SDL make by default for a Pro Controller. A user who
 wants Nintendo *label* order (A confirms) can swap A and B in the layout detail screen.
 
-## The five presets
+## The seven presets
 
 | Preset | Shape | Shoulders | Centre | Extra | Not carried by protocol v1 |
 |---|---|---|---|---|---|
@@ -44,9 +44,11 @@ wants Nintendo *label* order (A confirms) can swap A and B in the layout detail 
 | DualShock 4-style | symmetric, smaller touchpad, Share beside it | L2 R2 / L1 R1 | Share → Back, Options → Start, PS → Guide | L3 R3 | Touchpad |
 | Switch Pro-style | asymmetric | ZL ZR / L R | − → Back, + → Start, Home → Guide | LS RS | Capture |
 | 8BitDo Pro 2-style | symmetric retro body | L2 R2 / L R | Select → Back, Start → Start, Home → Guide | L3 R3, rear paddles P1 / P2 | Star; paddles start unassigned |
+| GameCube-style | asymmetric, big A with B / X / Y around it, C-stick | L R / Z (→ RB), "L click" (→ LB) | Select → Back, Start → Start, Home → Guide (extras for PC) | LS RS | — |
+| Arcade stick | flat box: lever (→ D-pad) left, 8 buttons right (X Y RB LB / A B RT LT) | in the button rows | View, Guide, Menu along the top | two small sticks, LS RS | — |
 
 Previews also draw a body silhouette per family (wide grips, long PlayStation grips, flat retro body)
-so the five cards are distinguishable at a glance. Previews draw no vendor logos; the Guide/PS/Home
+so the cards are distinguishable at a glance. Previews draw no vendor logos; the Guide/PS/Home
 buttons use a generic house glyph.
 
 ### Unavailable controls
@@ -91,4 +93,4 @@ slot after 250 ms without valid input. Tests: `layoutChangeOrDisconnectReleasesE
 The live controller screen is landscape (either rotation): it is a two-thumb surface and motion
 steering assumes landscape. Positions stretch with the screen width while sizes scale uniformly,
 and every target is at least 48 dp (`PadGeometry.hit`, tested at 873 × 393, 640 × 360 and
-1280 × 800 dp). All other screens — including the five previews — work in portrait and landscape.
+1280 × 800 dp). All other screens — including the previews — work in portrait and landscape.
