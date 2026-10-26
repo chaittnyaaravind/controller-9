@@ -24,11 +24,11 @@
       "id": "iphone",
       "name": "iPhone",
       "status": "preview",
-      "meta": "iOS 17 or newer · sideload",
-      "text": "Free with your own Apple ID. Add it to AltStore and it refreshes and updates itself; or install the file once with Sideloadly. Step-by-step in the guide.",
-      "file": "downloads/Controller-9-0.1.0-iphone-sideload.ipa",
+      "meta": "iOS 17 or newer · sideload · version 0.2.1",
+      "text": "Free with your own Apple ID. New in 0.2: the black-glass controller lit in each game's colour, a games row and a Now playing home screen. Add it to AltStore and it refreshes and updates itself; or install the file once with Sideloadly. Step-by-step in the guide.",
+      "file": "downloads/Controller-9-0.2.1-iphone-sideload.ipa",
       "guide": "/iphone/",
-      "tested": "This exact file was re-signed with a regular Apple ID the way Sideloadly does, installed and opened on an iPhone 15 running iOS 27.0.1, with no crash. The same app passed a 20-of-20 touch-accuracy test on that phone."
+      "tested": "This exact file (0.2.1) was re-signed with a regular Apple ID the way Sideloadly does, installed and launched on an iPhone 15 running iOS 27.0.1, and stayed running. The same app passed the 20-of-20 touch-accuracy UI test on an iPhone 18 Pro simulator."
     },
     {
       "id": "windows",
