@@ -17,7 +17,7 @@ data class Game(val id: String, val name: String, val accent: String, val layout
 
     companion object {
         fun fromJson(o: JSONObject) = Game(
-            o.getString("id"), o.getString("name").take(MAX_NAME), o.optString("accent", "VOLT"),
+            o.getString("id"), o.getString("name").take(MAX_NAME), o.optString("accent", "PLATINUM"),
             o.optString("layout", "pad:xbox"), o.optBoolean("tilt", false), o.optBoolean("aim", false),
         )
         const val MAX_NAME = 32
@@ -64,9 +64,9 @@ class GameStore(context: Context) {
         const val ANY = "any"
         /** Shipped on first run; the player edits or deletes them like their own. */
         val STARTERS = listOf(
-            Game(ANY, "Any game", "VOLT", "pad:xbox"),
-            Game("asphalt-legends", "Asphalt Legends", "MAGENTA", "pad:xbox"),
-            Game("go-kart-racing", "Go Kart Racing", "EMBER", "pad:xbox"),
+            Game(ANY, "Any game", "PLATINUM", "pad:xbox"),
+            Game("asphalt-legends", "Asphalt Legends", "CRIMSON", "pad:xbox"),
+            Game("go-kart-racing", "Go Kart Racing", "CHAMPAGNE", "pad:xbox"),
         )
     }
 }

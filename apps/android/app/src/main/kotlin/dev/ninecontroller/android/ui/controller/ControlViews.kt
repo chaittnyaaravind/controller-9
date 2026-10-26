@@ -24,7 +24,7 @@ import kotlin.math.min
 
 /** Draws one control. Visually distinct per type; pressed state uses the game's accent. */
 @Composable
-fun ControlVisual(c: ControlDef, v: Visual, steering: Double, accent: dev.ninecontroller.android.ui.theme.Accent = dev.ninecontroller.android.ui.theme.Accent.VOLT) {
+fun ControlVisual(c: ControlDef, v: Visual, steering: Double, accent: dev.ninecontroller.android.ui.theme.Accent = dev.ninecontroller.android.ui.theme.Accent.PLATINUM) {
     Box(Modifier.fillMaxSize().alpha(c.opacity.toFloat()), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width; val h = size.height

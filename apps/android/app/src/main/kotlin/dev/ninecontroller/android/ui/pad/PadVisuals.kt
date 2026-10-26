@@ -51,7 +51,7 @@ data class Look(val pressed: Boolean = false, val value: Float = 0f, val knobX: 
  * the layout detail and the home screen. [highlight] outlines one control in the accent.
  */
 @Composable
-fun PadDiagram(mapping: PadMapping, modifier: Modifier = Modifier, highlight: String? = null, body: Boolean = true, labels: Boolean = true, accent: Accent = Accent.VOLT) {
+fun PadDiagram(mapping: PadMapping, modifier: Modifier = Modifier, highlight: String? = null, body: Boolean = true, labels: Boolean = true, accent: Accent = Accent.PLATINUM) {
     val tm = rememberTextMeasurer()
     val desc = "${mapping.preset.name} layout diagram: " + mapping.preset.elements.joinToString("; ") { e ->
         e.label + (mapping.actionOf(e)?.let { "" } ?: " (unavailable)")
@@ -107,11 +107,11 @@ private val labelStyle = TextStyle(fontFamily = Nine.sans, fontWeight = FontWeig
  * Draws one control into [r] (px). [u] = px per canvas unit, used for strokes and glyph size.
  * Unavailable controls (no action) are dashed and dim; pressed ones light up in the game's colour.
  */
-fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, tm: TextMeasurer, u: Float, labels: Boolean = true, highlight: Boolean = false, accent: Accent = Accent.VOLT, frosted: Boolean = false) {
+fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, tm: TextMeasurer, u: Float, labels: Boolean = true, highlight: Boolean = false, accent: Accent = Accent.PLATINUM, frosted: Boolean = false) {
     val off = action == null
     val sw = (0.5f * u).coerceIn(1f, 1.6f * density)
     val c = r.center
-    val ink = when { off -> Nine.faint; look.pressed -> accent.ink; else -> Nine.text.copy(alpha = 0.94f) }
+    val ink = when { off -> Nine.faint; look.pressed -> lerp(accent.color, Color.White, 0.25f); else -> Nine.text.copy(alpha = 0.92f) }
     if (off) { drawUnavailable(e, r, u, sw); return }
     when (e.part) {
         Part.STICK -> {
@@ -137,21 +137,21 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
             drawPath(Path().apply { addPath(solid, Offset(0f, arm * 0.16f)) }, shade(accent, 0.40f))
             for ((b, at) in arms) if (look.dpad and b.mask != 0) glow(accent, o + at + Offset(arm / 2, arm / 2), arm * 1.5f)
             // Glass cross: clear body, colour poured into the pressed arm, specular rim and a shine.
-            drawPath(solid, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (frosted) 0.10f else 0.13f), Color.White.copy(alpha = 0.03f), Color.White.copy(alpha = 0.06f)), o.y, o.y + sz))
+            drawPath(solid, Brush.radialGradient(listOf(Color(0xFF15161A), Color(0xFF07080A)), o + Offset(sz * 0.3f, sz * 0.25f), sz))
             for ((b, at) in arms) if (look.dpad and b.mask != 0)
-                drawRoundRect(Brush.radialGradient(listOf(lerp(accent.color, Color.White, 0.25f), accent.color), o + at + Offset(arm * 0.35f, arm * 0.3f), arm), o + at, Size(arm, arm), cr)
-            drawPath(solid, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.30f)), o, o + Offset(sz, sz)), style = Stroke(sw * 1.1f))
-            drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), o.y, o.y + arm * 0.6f), Offset(o.x + arm * 1.15f, o.y + arm * 0.08f), Size(arm * 0.7f, arm * 0.45f), CornerRadius(arm * 0.2f))
-            drawCircle(Color.Black.copy(alpha = 0.18f), arm * 0.2f, c) // centre pivot
+                drawRoundRect(Brush.radialGradient(listOf(accent.color.copy(alpha = 0.40f), accent.color.copy(alpha = 0.12f)), o + at + Offset(arm / 2, arm / 2), arm * 0.8f), o + at, Size(arm, arm), cr)
+            drawPath(solid, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.42f), Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.16f)), o, o + Offset(sz, sz)), style = Stroke(sw))
+            drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), o.y, o.y + arm * 0.6f), Offset(o.x + arm * 1.15f, o.y + arm * 0.08f), Size(arm * 0.7f, arm * 0.45f), CornerRadius(arm * 0.2f))
+            drawCircle(Color.Black.copy(alpha = 0.4f), arm * 0.2f, c) // centre pivot
             for ((b, at) in arms) {
                 val on = look.dpad and b.mask != 0
-                chevron(o + at + Offset(arm / 2, arm / 2), arm * 0.16f, b, if (on) accent.ink else Nine.dim, sw * 1.2f)
+                chevron(o + at + Offset(arm / 2, arm / 2), arm * 0.16f, b, if (on) lerp(accent.color, Color.White, 0.25f) else Nine.muted, sw * 1.2f)
             }
         }
         Part.TRIGGER -> {
             val cr = CornerRadius(r.height * 0.42f)
             glassPill(accent, r, cr, false, sw, frosted, fill = look.value)
-            if (labels) text(tm, e.short, Offset(r.left + r.height * 0.6f, c.y), u, if (look.value > 0.45f) accent.ink else ink, start = true)
+            if (labels) text(tm, e.short, Offset(r.left + r.height * 0.6f, c.y), u, if (look.value > 0.45f) lerp(accent.color, Color.White, 0.25f) else ink, start = true)
         }
         Part.BUMPER, Part.PADDLE, Part.TOUCHPAD -> {
             val cr = CornerRadius(if (e.part == Part.TOUCHPAD) 3.5f * u else r.height / 2)

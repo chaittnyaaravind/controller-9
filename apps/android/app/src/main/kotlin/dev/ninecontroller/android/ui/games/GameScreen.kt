@@ -66,7 +66,7 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
     val profiles by app.profiles.profiles.collectAsState()
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(existing?.name ?: "") }
-    var accent by remember { mutableStateOf(Accent.of(existing?.accent ?: Accent.MAGENTA.name)) }
+    var accent by remember { mutableStateOf(Accent.of(existing?.accent ?: Accent.CHAMPAGNE.name)) }
     var layout by remember { mutableStateOf(existing?.layout ?: "pad:xbox") }
     var tilt by remember { mutableStateOf(existing?.tilt ?: false) }
     var aim by remember { mutableStateOf(existing?.aim ?: false) }

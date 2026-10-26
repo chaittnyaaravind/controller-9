@@ -375,6 +375,19 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
 
         // ---------------------------------------------------------------- top bar (between the shoulders)
         val barMax = with(density) { (wPx * if (spec.pad != null) 0.47f else 0.64f).toDp() }
+        // Connection state lives in the layout pill's dot (full text for screen readers): the bar stays one line.
+        val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
+            is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "BT" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
+            is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth off" to Tone.BAD
+            else -> "Waiting" to Tone.WARN
+        } else when (val c = conn) {
+            is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
+            is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
+            is ConnState.Connecting -> "Connecting" to Tone.WARN
+            is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
+            is ConnState.Failed -> "Offline" to Tone.BAD
+            ConnState.Idle -> "Offline" to Tone.BAD
+        }
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Box {
@@ -382,7 +395,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.06f))), Nine.pill)
                     .clickable(enabled = !locked, role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).background(accent.color, androidx.compose.foundation.shape.CircleShape))
+                    Box(Modifier.size(7.dp).background(tone.color(accent.color), androidx.compose.foundation.shape.CircleShape).semantics { contentDescription = label })
                     Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 92.dp))
                     if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim)
                 }
@@ -401,19 +414,6 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     }
                 }
             }
-            val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
-                is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "BT" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
-                is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth off" to Tone.BAD
-                else -> "Waiting" to Tone.WARN
-            } else when (val c = conn) {
-                is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
-                is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
-                is ConnState.Connecting -> "Connecting" to Tone.WARN
-                is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
-                is ConnState.Failed -> "Offline" to Tone.BAD
-                ConnState.Idle -> "Offline" to Tone.BAD
-            }
-            Pill(label, tone, Modifier.weight(1f, fill = false), accent = accent.color, fill = Color.White.copy(alpha = 0.08f))
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
             if (gyro.available) BarButton("Gyro", active = s.gyroAim) { scope.launch { app.settings.update { it.copy(gyroAim = !it.gyroAim) } } }
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }

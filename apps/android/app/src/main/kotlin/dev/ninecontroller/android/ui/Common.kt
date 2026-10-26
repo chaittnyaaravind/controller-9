@@ -72,7 +72,8 @@ fun Wordmark(markSize: Dp = 28.dp, modifier: Modifier = Modifier) =
     Row(modifier.semantics(mergeDescendants = true) { contentDescription = "Controller-9" }, verticalAlignment = Alignment.CenterVertically) {
         BrandMark(markSize)
         Spacer(Modifier.size(markSize * 8 / 48))
-        Image(painterResource(R.drawable.c9_logotype), null, Modifier.height(markSize * 0.40f * 22 / 20))
+        // One ink for the logotype: the generated drawable's lime dash predates the black-and-metal palette.
+        Image(painterResource(R.drawable.c9_logotype), null, Modifier.height(markSize * 0.40f * 22 / 20), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Nine.text))
     }
 
 // ---------------------------------------------------------------- layout

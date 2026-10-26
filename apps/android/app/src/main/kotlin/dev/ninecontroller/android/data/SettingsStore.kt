@@ -47,7 +47,7 @@ data class AppSettings(
     /** Bluetooth controller mode was on: restart it at launch so a paired computer reconnects like a real pad. */
     val hidMode: Boolean = false,
     /** The game colour (ui.theme.Accent name) that lights the controller; set by the chosen game. */
-    val accent: String = "VOLT",
+    val accent: String = "PLATINUM",
     /** The game being played (data.GameStore id). */
     val activeGame: String = "any",
     /** Pin the controller screen while playing (no notification shade, home or back until unlocked). */
@@ -59,7 +59,7 @@ data class AppSettings(
     /** Bluetooth controller also carries a keyboard, mouse and media keys (input/RemoteHidReport.kt). */
     val remoteKeys: Boolean = false,
     /** Light behind the glass controls: GAME (the game's colour family), RAINBOW or OFF (ui/pad/Glass.kt). */
-    val rgb: String = "RAINBOW",
+    val rgb: String = "GAME",
     /** Only alarms interrupt while the controller is open (ui/controller/ControllerQuiet.kt). */
     val quietPlay: Boolean = true,
 ) {
@@ -130,14 +130,14 @@ class SettingsStore(private val context: Context) {
             steering = steering,
             legacySteering = steering == null && (p[K.calAt] != null || (p[K.calibration] ?: 0.0) != 0.0),
             hidMode = p[K.hidMode] ?: false,
-            accent = p[K.accent] ?: "VOLT",
+            accent = p[K.accent] ?: "PLATINUM",
             activeGame = p[K.activeGame] ?: "any",
             lockOnPlay = p[K.lockOnPlay] ?: false,
             gyroAim = p[K.gyroAim] ?: false,
             aimSensitivity = p[K.aimSens] ?: 1.2,
             aimInvertY = p[K.aimInvert] ?: false,
             remoteKeys = p[K.remoteKeys] ?: false,
-            rgb = p[K.rgb] ?: "RAINBOW",
+            rgb = p[K.rgb] ?: "GAME",
             quietPlay = p[K.quietPlay] ?: true,
         )
     }

@@ -45,8 +45,8 @@ object Nine {
     val line = text.copy(alpha = 0.08f)
     val line2 = text.copy(alpha = 0.14f)
     /** Default accent (no game chosen). Screens that belong to a game use [LocalAccent]. */
-    val accent = Accent.VOLT.color
-    val accentInk = Accent.VOLT.ink
+    val accent = Accent.PLATINUM.color
+    val accentInk = Accent.PLATINUM.ink
     val accentSoft = accent.copy(alpha = 0.12f)
     val warn = Color(0xFFF5B14C)
     val bad = Color(0xFFF2675A)
@@ -78,17 +78,17 @@ object Nine {
 }
 
 /**
- * A game's light. [ink] is the text colour on a solid accent fill (≥ 6:1). Each game profile owns
- * one; nothing else on its screens is coloured.
+ * A game's light: one precious-metal or gem tone on a black instrument. [ink] is the text colour on
+ * a solid accent fill (≥ 4.5:1). Each game profile owns one; nothing else on its screens is coloured.
  */
 @Immutable
 enum class Accent(val label: String, val color: Color, val ink: Color) {
-    VOLT("Volt", Color(0xFFC6F432), Color(0xFF11140A)),
-    MAGENTA("Magenta", Color(0xFFFF2E88), Color(0xFF1C0410)),
-    EMBER("Ember", Color(0xFFFF6A1A), Color(0xFF1C0A02)),
-    CYAN("Cyan", Color(0xFF22D3EE), Color(0xFF03161A)),
-    VIOLET("Violet", Color(0xFFA78BFA), Color(0xFF130B26)),
-    GOLD("Gold", Color(0xFFFFC53D), Color(0xFF1C1302));
+    PLATINUM("Platinum", Color(0xFFE4E7EC), Color(0xFF0E0F12)),
+    CHAMPAGNE("Champagne", Color(0xFFD9B979), Color(0xFF1A1407)),
+    CRIMSON("Crimson", Color(0xFFE0394F), Color(0xFFFFFFFF)),
+    SAPPHIRE("Sapphire", Color(0xFF5B8CFF), Color(0xFF060B1A)),
+    EMERALD("Emerald", Color(0xFF34C08A), Color(0xFF04140D)),
+    COPPER("Copper", Color(0xFFD98A5B), Color(0xFF1A0D05));
 
     val soft get() = color.copy(alpha = 0.12f)
     val glow get() = color.copy(alpha = 0.22f)
@@ -96,10 +96,14 @@ enum class Accent(val label: String, val color: Color, val ink: Color) {
     val bg get() = lerp(Nine.bg, color, 0.04f)
     val surface get() = lerp(Nine.s1, color, 0.05f)
 
-    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: VOLT }
+    companion object {
+        /** Names saved before the black-and-metal palette map to their nearest premium tone. */
+        private val legacy = mapOf("VOLT" to PLATINUM, "MAGENTA" to CRIMSON, "EMBER" to COPPER, "CYAN" to SAPPHIRE, "VIOLET" to SAPPHIRE, "GOLD" to CHAMPAGNE)
+        fun of(name: String?) = entries.firstOrNull { it.name == name } ?: legacy[name] ?: PLATINUM
+    }
 }
 
-val LocalAccent = staticCompositionLocalOf { Accent.VOLT }
+val LocalAccent = staticCompositionLocalOf { Accent.PLATINUM }
 
 /** Type roles. Display is light and tight; labels are small caps; metrics are monospaced. */
 object NineType {
