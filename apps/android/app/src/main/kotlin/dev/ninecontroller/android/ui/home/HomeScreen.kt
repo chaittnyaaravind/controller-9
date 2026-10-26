@@ -205,7 +205,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                         StatusDot(tone.color(accent.color), 8.dp)
                         Text(title, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
-                    Text(detail, style = NineType.small, color = Nine.muted)
+                    if (hidState is HidGamepad.State.Advertising) PairingSteps(accent)
+                    else Text(detail, style = NineType.small, color = Nine.muted)
                     if (hidState is HidGamepad.State.Connected) Text("Not responding after this phone’s Bluetooth restarted? Turn the computer’s Bluetooth off and on.", style = NineType.small, color = Nine.dim)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (hidState is HidGamepad.State.Off || hidState is HidGamepad.State.Failed) {
@@ -294,7 +295,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
             Section(null) {
                 ListRow("Remote", detail = "Trackpad, keyboard and media keys for the computer — no app needed", onClick = { nav.navigate("remote") })
                 Divider()
-                ListRow("Controller layouts", detail = "Xbox, DualSense, Switch Pro, 8BitDo and your own", onClick = { nav.navigate("layouts") })
+                ListRow("Controller layouts", detail = "Xbox, DualSense, Switch Pro, GameCube, arcade stick and your own", onClick = { nav.navigate("layouts") })
                 Divider()
                 ListRow("Calibrate steering", detail = settings.steering?.let { c -> if (c.hasRange) "${c.leftDeg!!.toInt()}° left · ${c.rightDeg!!.toInt()}° right" else "Neutral set · range not measured" } ?: "Neutral grip and range", onClick = { nav.navigate("calibrate") })
                 Divider()
@@ -330,3 +331,25 @@ private fun NewGameCard(mark: String, label: String, onClick: () -> Unit) =
         Text(mark, style = NineType.title, color = Nine.muted)
         Text(label, style = NineType.small, color = Nine.muted)
     }
+
+/**
+ * The steps to pair, shown while the phone waits for a computer. A computer lists the phone twice only
+ * while the phone's own Bluetooth settings are open (that screen makes its classic identity visible),
+ * and old pairings from earlier tries also stay listed, so both are named here.
+ */
+@Composable
+private fun PairingSteps(accent: Accent) = Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    listOf(
+        "On the computer, open Bluetooth settings.",
+        "Choose “Xbox Wireless Controller” and accept the request on both.",
+        "Done. Next time it reconnects on its own.",
+    ).forEachIndexed { i, step ->
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("0${i + 1}", style = NineType.mono, color = accent.color, modifier = Modifier.padding(top = 2.dp))
+            Text(step, style = NineType.small, color = Nine.muted)
+        }
+    }
+    Text("Seeing it twice? Close this phone’s Bluetooth settings — that screen shows the phone under its own name too. "
+        + "Remove older “Xbox Wireless Controller” or phone entries on the computer before pairing again.",
+        style = NineType.small, color = Nine.dim)
+}

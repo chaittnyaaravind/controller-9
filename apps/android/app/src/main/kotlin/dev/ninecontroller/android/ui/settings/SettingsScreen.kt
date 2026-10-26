@@ -85,6 +85,11 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
                     Choice(dev.ninecontroller.android.net.LinkChoices.label(o), s.linkOverride == o, { set { it.copy(linkOverride = o) } })
                 }
             }
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                Divider()
+                ListRow("Add to Quick Settings", detail = "Turn the Bluetooth controller on or off from the notification panel", onClick = { requestTile(ctx) })
+            }
         }
 
         Section("Feel") {
@@ -102,16 +107,18 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
                     }
                 }
             }
-            Divider()
-            ToggleRow("Silence notifications while playing", if (dev.ninecontroller.android.ui.controller.ControllerQuiet.allowed(app)) "Only alarms can interrupt while the controller is open. Your usual setting comes back when you leave."
+        }
+
+        Section("While playing") {
+            ToggleRow("Silence notifications", if (dev.ninecontroller.android.ui.controller.ControllerQuiet.allowed(app)) "Only alarms can interrupt while the controller is open. Your usual setting comes back when you leave."
                 else "Needs Do Not Disturb access — tap to allow it once in Android settings.", s.quietPlay && dev.ninecontroller.android.ui.controller.ControllerQuiet.allowed(app)) { v ->
                 if (v && !dev.ninecontroller.android.ui.controller.ControllerQuiet.allowed(app)) dev.ninecontroller.android.ui.controller.ControllerQuiet.requestAccess(app)
                 set { it.copy(quietPlay = v) }
             }
             Divider()
-            ToggleRow("Lock the controller while playing", "No notification panel, home or back swipes during a game. Android asks you to confirm “Pin” once; hold LOCKED on the controller to unlock.", s.lockOnPlay) { v -> set { it.copy(lockOnPlay = v) } }
+            ToggleRow("Lock the controller", "No notification panel, home or back swipes during a game. Android asks you to confirm “Pin” once; hold LOCKED on the controller to unlock.", s.lockOnPlay) { v -> set { it.copy(lockOnPlay = v) } }
             Divider()
-            ToggleRow("Keep screen on while playing", null, s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
+            ToggleRow("Keep the screen on", null, s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
             Divider()
             ToggleRow("Show latency on the controller", null, s.showStats) { v -> set { it.copy(showStats = v) } }
             Divider()
@@ -168,3 +175,11 @@ private fun SliderRow(title: String, value: String, v: Float, range: ClosedFloat
         Slider(v.coerceIn(range.start, range.endInclusive), on, valueRange = range, modifier = Modifier.heightIn(min = Nine.target).semantics { contentDescription = title; stateDescription = value },
             colors = SliderDefaults.colors(thumbColor = Nine.text, activeTrackColor = LocalAccent.current.color, inactiveTrackColor = Nine.s3))
     }
+
+/** Asks Android to add the Controller tile (net/ControllerTile.kt) to Quick Settings; the system shows its own prompt. */
+@androidx.annotation.RequiresApi(33)
+private fun requestTile(ctx: android.content.Context) {
+    val sbm = ctx.getSystemService(android.app.StatusBarManager::class.java) ?: return
+    sbm.requestAddTileService(android.content.ComponentName(ctx, dev.ninecontroller.android.net.ControllerTile::class.java), "Controller",
+        android.graphics.drawable.Icon.createWithResource(ctx, dev.ninecontroller.android.R.drawable.c9_mark_small), ctx.mainExecutor) { }
+}
