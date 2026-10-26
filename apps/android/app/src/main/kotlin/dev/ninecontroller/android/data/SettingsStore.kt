@@ -58,6 +58,10 @@ data class AppSettings(
     val aimInvertY: Boolean = false,
     /** Bluetooth controller also carries a keyboard, mouse and media keys (input/RemoteHidReport.kt). */
     val remoteKeys: Boolean = false,
+    /** Light behind the glass controls: GAME (the game's colour family), RAINBOW or OFF (ui/pad/Glass.kt). */
+    val rgb: String = "RAINBOW",
+    /** Only alarms interrupt while the controller is open (ui/controller/ControllerQuiet.kt). */
+    val quietPlay: Boolean = true,
 ) {
     val padPreset get() = PadPresets.fromSelection(activeProfile)
     fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
@@ -97,6 +101,8 @@ class SettingsStore(private val context: Context) {
         val aimSens = doublePreferencesKey("aim_sensitivity")
         val aimInvert = booleanPreferencesKey("aim_invert_y")
         val remoteKeys = booleanPreferencesKey("remote_keys")
+        val rgb = stringPreferencesKey("rgb")
+        val quietPlay = booleanPreferencesKey("quiet_play")
         fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
         fun modes(preset: String) = stringPreferencesKey("pad_modes_$preset")
     }
@@ -131,6 +137,8 @@ class SettingsStore(private val context: Context) {
             aimSensitivity = p[K.aimSens] ?: 1.2,
             aimInvertY = p[K.aimInvert] ?: false,
             remoteKeys = p[K.remoteKeys] ?: false,
+            rgb = p[K.rgb] ?: "RAINBOW",
+            quietPlay = p[K.quietPlay] ?: true,
         )
     }
 
@@ -150,6 +158,8 @@ class SettingsStore(private val context: Context) {
         p[K.activeGame] = n.activeGame
         p[K.lockOnPlay] = n.lockOnPlay
         p[K.remoteKeys] = n.remoteKeys
+        p[K.rgb] = n.rgb
+        p[K.quietPlay] = n.quietPlay
         p[K.gyroAim] = n.gyroAim
         p[K.aimSens] = n.aimSensitivity.coerceIn(0.3, 4.0)
         p[K.aimInvert] = n.aimInvertY

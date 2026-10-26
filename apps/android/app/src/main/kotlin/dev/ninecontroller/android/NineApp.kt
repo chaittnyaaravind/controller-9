@@ -40,6 +40,8 @@ class NineApp : Application() {
         connection = ConnectionManager(this, identity, hosts, settings, haptics)
         localNetwork = LocalNetwork(this)
         hid = HidGamepad(this, haptics)
+        // A game that ended with the app killed must not leave the phone in Do Not Disturb.
+        dev.ninecontroller.android.ui.controller.ControllerQuiet.restoreIfLeftOn(this)
         val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
         scope.launch { if (!settings.flow.first().hidMode) hid.restoreNameIfIdle() }
         // Remote keys change the controller's report map, so they take effect when it next starts.

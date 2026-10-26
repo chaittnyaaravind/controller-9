@@ -95,6 +95,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.drawBehind
+import dev.ninecontroller.android.ui.pad.drawAurora
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import dev.ninecontroller.android.ui.theme.Accent
@@ -146,6 +151,11 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     LaunchedEffect(Unit) { while (true) { locked = ControllerLock.isLocked(activity); delay(400) } }
     LaunchedEffect(s.lockOnPlay) { if (s.lockOnPlay) ControllerLock.lock(activity) }
     DisposableEffect(Unit) { onDispose { ControllerLock.unlock(activity) } }
+    // Banners can't cover the pad: only alarms interrupt while this screen is open.
+    DisposableEffect(s.quietPlay) {
+        if (s.quietPlay) ControllerQuiet.quiet(context)
+        onDispose { ControllerQuiet.restore(context) }
+    }
 
     val turboIds = remember(s.padModes, spec.key) { s.padPreset?.let { pr -> dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[pr.id]).filterValues { it == dev.ninecontroller.android.pad.ButtonModes.Mode.TURBO }.keys } ?: emptySet() }
     val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
@@ -249,11 +259,14 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     CompositionLocalProvider(LocalAccent provides accent) {
     // The scene: black pulled toward the game colour, two pools of its light under the grips, grain.
     // Edge swipes belong to the game here, not to Android's back gesture.
+    val rgb = dev.ninecontroller.android.ui.pad.Rgb.of(s.rgb)
+    val reducedMotion = dev.ninecontroller.android.ui.theme.LocalReducedMotion.current
+    // The RGB light drifts on a slow 24 s loop (frozen when animations are off).
+    val glow = androidx.compose.animation.core.rememberInfiniteTransition(label = "rgb")
+    val t by if (reducedMotion || rgb == dev.ninecontroller.android.ui.pad.Rgb.OFF) remember { mutableStateOf(0.15f) }
+        else glow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(24_000, easing = androidx.compose.animation.core.LinearEasing)), label = "t")
     BoxWithConstraints(Modifier.fillMaxSize().drawBehind {
-        drawRect(accent.bg)
-        for (fx in listOf(0.2f, 0.8f)) drawCircle(
-            Brush.radialGradient(listOf(accent.color.copy(alpha = 0.11f), Color.Transparent), androidx.compose.ui.geometry.Offset(size.width * fx, size.height * 0.62f), size.height * 0.75f),
-            size.height * 0.75f, androidx.compose.ui.geometry.Offset(size.width * fx, size.height * 0.62f))
+        drawAurora(t, accent, rgb)
         drawRect(Grain.brush, alpha = Grain.ALPHA)
     }.systemGestureExclusion().windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
@@ -308,6 +321,26 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }) {
             val pad = spec.pad
             if (pad != null) {
+                // Frosted glass: the same light, blurred, seen only through the controls.
+                val glass = remember(spec.key, wPx, hPx) {
+                    dev.ninecontroller.android.ui.pad.glassPath(pad.preset.elements.flatMap { e ->
+                        val b = boxes[e.id] ?: inert.getValue(e.id)
+                        val r = Rect(b.left, b.top, b.right, b.bottom)
+                        when (e.part) {
+                            dev.ninecontroller.android.pad.Part.DPAD -> { val arm = minOf(r.width, r.height) / 3f
+                                listOf(Rect(r.center.x - arm / 2, r.center.y - arm * 1.5f, r.center.x + arm / 2, r.center.y + arm * 1.5f) to false,
+                                    Rect(r.center.x - arm * 1.5f, r.center.y - arm / 2, r.center.x + arm * 1.5f, r.center.y + arm / 2) to false) }
+                            dev.ninecontroller.android.pad.Part.STICK -> listOf(r to true)
+                            else -> listOf(r to e.round)
+                        }
+                    })
+                }
+                Box(Modifier.fillMaxSize().drawWithContent { clipPath(glass) { this@drawWithContent.drawContent() } }) {
+                    Canvas(Modifier.fillMaxSize().blur(26.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded)) {
+                        drawAurora(t, accent, rgb, vivid = 1.5f) // glass gathers the light: brighter inside
+                        drawRect(Color.White, alpha = 0.05f)
+                    }
+                }
                 val tm = rememberTextMeasurer()
                 val u = minOf(wPx / 200f, hPx / 100f)
                 Canvas(Modifier.fillMaxSize()) {
@@ -315,7 +348,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                         val b = boxes[e.id] ?: inert.getValue(e.id)
                         val v = visuals[e.id] ?: Visual(pressed = toggles[e.id] == true)
                         drawElement(e, Rect(b.left, b.top, b.right, b.bottom), pad.actionOf(e),
-                            Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u, accent = accent)
+                            Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u, accent = accent, frosted = true)
                     }
                 }
             }
@@ -343,13 +376,14 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         // ---------------------------------------------------------------- top bar (between the shoulders)
         val barMax = with(density) { (wPx * if (spec.pad != null) 0.47f else 0.64f).toDp() }
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Box {
-                Row(Modifier.heightIn(min = 36.dp).background(accent.surface.copy(alpha = 0.86f), Nine.pill).border(1.dp, Nine.line2, Nine.pill)
+                Row(Modifier.heightIn(min = 36.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.04f))), Nine.pill)
+                    .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.06f))), Nine.pill)
                     .clickable(enabled = !locked, role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).background(accent.color, androidx.compose.foundation.shape.CircleShape))
-                    Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 118.dp))
+                    Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 92.dp))
                     if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim)
                 }
                 DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
@@ -379,7 +413,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 is ConnState.Failed -> "Offline" to Tone.BAD
                 ConnState.Idle -> "Offline" to Tone.BAD
             }
-            Pill(label, tone, Modifier.weight(1f, fill = false), accent = accent.color, fill = accent.surface.copy(alpha = 0.86f))
+            Pill(label, tone, Modifier.weight(1f, fill = false), accent = accent.color, fill = Color.White.copy(alpha = 0.08f))
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
             if (gyro.available) BarButton("Gyro", active = s.gyroAim) { scope.launch { app.settings.update { it.copy(gyroAim = !it.gyroAim) } } }
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
@@ -422,10 +456,12 @@ private const val RECENTER_HOLD_MS = 900L
 @Composable
 private fun BarButton(text: String, active: Boolean = false, onClick: () -> Unit) {
     val a = LocalAccent.current
-    Box(Modifier.heightIn(min = 36.dp).background(if (active) a.soft else a.surface.copy(alpha = 0.86f), Nine.pill)
-        .border(1.dp, if (active) a.color.copy(alpha = 0.6f) else Nine.line2, Nine.pill)
+    Box(Modifier.heightIn(min = 36.dp)
+        .background(if (active) androidx.compose.ui.graphics.Brush.verticalGradient(listOf(a.color.copy(alpha = 0.32f), a.color.copy(alpha = 0.14f)))
+            else androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.04f))), Nine.pill)
+        .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = if (active) 0.6f else 0.32f), Color.White.copy(alpha = 0.06f))), Nine.pill)
         .semantics { if (active) stateDescription = "on" }
-        .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+        .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         // Single line, never wraps: a narrow bar truncates the pill first (it has the weight), not the buttons.
         Text(text.uppercase(), style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false)
     }

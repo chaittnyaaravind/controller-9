@@ -99,33 +99,6 @@ private fun shade(a: Accent, alpha: Float) = lerp(Color(0xFF020203), a.color, 0.
 private fun DrawScope.glow(a: Accent, c: Offset, r: Float, strength: Float = 1f) =
     drawCircle(Brush.radialGradient(listOf(a.color.copy(alpha = 0.42f * strength), a.color.copy(alpha = 0.10f * strength), Color.Transparent), c, r), r, c)
 
-/** Convex cap: top-lit graphite at rest, the game colour when pressed. */
-private fun capBrush(a: Accent, pressed: Boolean, top: Float, bottom: Float) =
-    if (pressed) Brush.verticalGradient(listOf(lerp(a.color, Color.White, 0.18f), a.color, lerp(a.color, Color.Black, 0.22f)), top, bottom)
-    else Brush.verticalGradient(listOf(Nine.s3, Nine.s2, Nine.s1), top, bottom)
-
-/** The 1px rim: lit from above, darker below; the game colour when pressed. */
-private fun rimBrush(a: Accent, pressed: Boolean, top: Float, bottom: Float) =
-    if (pressed) Brush.verticalGradient(listOf(lerp(a.color, Color.White, 0.45f), a.color), top, bottom)
-    else Brush.verticalGradient(listOf(Nine.text.copy(alpha = 0.20f), Nine.text.copy(alpha = 0.05f)), top, bottom)
-
-private fun DrawScope.roundCap(a: Accent, c: Offset, rad: Float, pressed: Boolean, sw: Float) {
-    val r = if (pressed) rad * 0.95f else rad // the cap travels down when pressed
-    drawCircle(shade(a, 0.55f), rad * 1.02f, c + Offset(0f, rad * 0.10f)) // the well it sits in
-    if (pressed) glow(a, c, rad * 2.0f)
-    drawCircle(capBrush(a, pressed, c.y - r, c.y + r), r, c)
-    drawCircle(rimBrush(a, pressed, c.y - r, c.y + r), r, c, style = Stroke(sw))
-    if (!pressed) drawArc(Nine.text.copy(alpha = 0.10f), 205f, 130f, false, c - Offset(r * 0.78f, r * 0.78f), Size(r * 1.56f, r * 1.56f), style = Stroke(sw * 1.2f, cap = StrokeCap.Round))
-}
-
-private fun DrawScope.pillCap(a: Accent, r: Rect, cr: CornerRadius, pressed: Boolean, sw: Float) {
-    val box = if (pressed) r.deflate(min(r.width, r.height) * 0.03f) else r
-    drawRoundRect(shade(a, 0.55f), Offset(r.left, r.top + r.height * 0.10f), r.size, cr)
-    if (pressed) glow(a, r.center, maxOf(r.width, r.height) * 0.75f, 0.8f)
-    drawRoundRect(capBrush(a, pressed, box.top, box.bottom), box.topLeft, box.size, cr)
-    drawRoundRect(rimBrush(a, pressed, box.top, box.bottom), box.topLeft, box.size, cr, style = Stroke(sw))
-}
-
 // ---------------------------------------------------------------- one control
 
 private val labelStyle = TextStyle(fontFamily = Nine.sans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp)
@@ -134,41 +107,24 @@ private val labelStyle = TextStyle(fontFamily = Nine.sans, fontWeight = FontWeig
  * Draws one control into [r] (px). [u] = px per canvas unit, used for strokes and glyph size.
  * Unavailable controls (no action) are dashed and dim; pressed ones light up in the game's colour.
  */
-fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, tm: TextMeasurer, u: Float, labels: Boolean = true, highlight: Boolean = false, accent: Accent = Accent.VOLT) {
+fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, tm: TextMeasurer, u: Float, labels: Boolean = true, highlight: Boolean = false, accent: Accent = Accent.VOLT, frosted: Boolean = false) {
     val off = action == null
     val sw = (0.5f * u).coerceIn(1f, 1.6f * density)
     val c = r.center
-    val ink = when { off -> Nine.faint; look.pressed -> accent.ink; else -> Nine.text.copy(alpha = 0.86f) }
+    val ink = when { off -> Nine.faint; look.pressed -> accent.ink; else -> Nine.text.copy(alpha = 0.94f) }
     if (off) { drawUnavailable(e, r, u, sw); return }
     when (e.part) {
         Part.STICK -> {
             val rad = min(r.width, r.height) / 2
             val live = look.pressed || look.knobX != 0f || look.knobY != 0f
-            // Recessed well with a gate ring and eight index marks.
-            drawCircle(shade(accent, 0.6f), rad * 1.03f, c + Offset(0f, rad * 0.06f))
-            drawCircle(Brush.radialGradient(listOf(Nine.bg, Nine.s1, Nine.s2), c, rad), rad, c)
-            drawCircle(Brush.verticalGradient(listOf(Nine.text.copy(alpha = 0.04f), Nine.text.copy(alpha = 0.16f)), c.y - rad, c.y + rad), rad, c, style = Stroke(sw))
-            val gate = rad * 0.78f
-            drawCircle(if (live) accent.color.copy(alpha = 0.55f) else Nine.line, gate, c, style = Stroke(sw))
-            for (i in 0 until 8) {
-                val ang = i * PI / 4
-                val p0 = c + Offset((cos(ang) * gate * 1.06f).toFloat(), (sin(ang) * gate * 1.06f).toFloat())
-                val p1 = c + Offset((cos(ang) * gate * 1.16f).toFloat(), (sin(ang) * gate * 1.16f).toFloat())
-                drawLine(if (live) accent.color.copy(alpha = 0.5f) else Nine.faint, p0, p1, sw, StrokeCap.Round)
-            }
+            glassWell(accent, c, rad, live, sw)
             val k = Offset(c.x + look.knobX * rad * 0.56f, c.y - look.knobY * rad * 0.56f)
-            val kr = rad * 0.40f
-            if (live) {
-                val m = hypot(look.knobX, look.knobY)
-                if (m > 0.05f) drawLine(Brush.linearGradient(listOf(accent.color.copy(alpha = 0f), accent.color.copy(alpha = 0.6f)), c, k), c, k, sw * 2.2f, StrokeCap.Round)
-                glow(accent, k, kr * 2.2f, 0.7f)
-            }
-            drawCircle(shade(accent, 0.5f), kr * 1.04f, k + Offset(0f, kr * 0.16f))
-            drawCircle(Brush.verticalGradient(listOf(Nine.s3, Nine.s2), k.y - kr, k.y + kr), kr, k)
-            drawCircle(if (live) accent.color else Nine.text.copy(alpha = 0.18f), kr, k, style = Stroke(sw * if (live) 1.4f else 1f))
-            // Concave thumb grip: two fine rings.
-            drawCircle(Nine.text.copy(alpha = 0.07f), kr * 0.66f, k, style = Stroke(sw))
-            drawCircle(Nine.text.copy(alpha = 0.05f), kr * 0.36f, k, style = Stroke(sw))
+            val kr = rad * 0.42f
+            if (live && hypot(look.knobX, look.knobY) > 0.05f)
+                drawLine(Brush.linearGradient(listOf(accent.color.copy(alpha = 0f), accent.color.copy(alpha = 0.7f)), c, k), c, k, sw * 2.4f, StrokeCap.Round)
+            glassRound(accent, k, kr, live, sw, frosted)
+            // Concave thumb grip.
+            drawCircle(Color.White.copy(alpha = if (live) 0.18f else 0.08f), kr * 0.62f, k, style = Stroke(sw))
         }
         Part.DPAD -> {
             val sz = min(r.width, r.height); val arm = sz / 3f
@@ -178,13 +134,15 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
             val solid = Path.combine(PathOperation.Union,
                 Path().apply { addRoundRect(RoundRect(Rect(o.x + arm, o.y, o.x + 2 * arm, o.y + sz), cr)) },
                 Path().apply { addRoundRect(RoundRect(Rect(o.x, o.y + arm, o.x + sz, o.y + 2 * arm), cr)) })
-            drawPath(Path().apply { addPath(solid, Offset(0f, arm * 0.12f)) }, shade(accent, 0.55f))
-            for ((b, at) in arms) if (look.dpad and b.mask != 0) glow(accent, o + at + Offset(arm / 2, arm / 2), arm * 1.4f)
-            drawPath(solid, Brush.verticalGradient(listOf(Nine.s3, Nine.s2, Nine.s1), o.y, o.y + sz))
+            drawPath(Path().apply { addPath(solid, Offset(0f, arm * 0.16f)) }, shade(accent, 0.40f))
+            for ((b, at) in arms) if (look.dpad and b.mask != 0) glow(accent, o + at + Offset(arm / 2, arm / 2), arm * 1.5f)
+            // Glass cross: clear body, colour poured into the pressed arm, specular rim and a shine.
+            drawPath(solid, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (frosted) 0.10f else 0.13f), Color.White.copy(alpha = 0.03f), Color.White.copy(alpha = 0.06f)), o.y, o.y + sz))
             for ((b, at) in arms) if (look.dpad and b.mask != 0)
-                drawRoundRect(capBrush(accent, true, o.y + at.y, o.y + at.y + arm), o + at, Size(arm, arm), cr)
-            drawPath(solid, Brush.verticalGradient(listOf(Nine.text.copy(alpha = 0.20f), Nine.text.copy(alpha = 0.05f)), o.y, o.y + sz), style = Stroke(sw))
-            drawCircle(shade(accent, 0.35f), arm * 0.22f, c) // centre pivot dimple
+                drawRoundRect(Brush.radialGradient(listOf(lerp(accent.color, Color.White, 0.25f), accent.color), o + at + Offset(arm * 0.35f, arm * 0.3f), arm), o + at, Size(arm, arm), cr)
+            drawPath(solid, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.30f)), o, o + Offset(sz, sz)), style = Stroke(sw * 1.1f))
+            drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), o.y, o.y + arm * 0.6f), Offset(o.x + arm * 1.15f, o.y + arm * 0.08f), Size(arm * 0.7f, arm * 0.45f), CornerRadius(arm * 0.2f))
+            drawCircle(Color.Black.copy(alpha = 0.18f), arm * 0.2f, c) // centre pivot
             for ((b, at) in arms) {
                 val on = look.dpad and b.mask != 0
                 chevron(o + at + Offset(arm / 2, arm / 2), arm * 0.16f, b, if (on) accent.ink else Nine.dim, sw * 1.2f)
@@ -192,24 +150,17 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
         }
         Part.TRIGGER -> {
             val cr = CornerRadius(r.height * 0.42f)
-            drawRoundRect(shade(accent, 0.55f), Offset(r.left, r.top + r.height * 0.10f), r.size, cr)
-            drawRoundRect(Brush.verticalGradient(listOf(Nine.s3, Nine.s1), r.top, r.bottom), r.topLeft, r.size, cr)
-            if (look.value > 0f) {
-                glow(accent, Offset(r.left + r.width * look.value * 0.6f, c.y), r.width * 0.6f, look.value)
-                drawRoundRect(Brush.horizontalGradient(listOf(lerp(accent.color, Color.Black, 0.2f), accent.color, lerp(accent.color, Color.White, 0.2f)), r.left, r.left + r.width * look.value),
-                    r.topLeft, Size(r.width * look.value, r.height), cr)
-            }
-            drawRoundRect(rimBrush(accent, look.value > 0.5f, r.top, r.bottom), r.topLeft, r.size, cr, style = Stroke(sw))
+            glassPill(accent, r, cr, false, sw, frosted, fill = look.value)
             if (labels) text(tm, e.short, Offset(r.left + r.height * 0.6f, c.y), u, if (look.value > 0.45f) accent.ink else ink, start = true)
         }
         Part.BUMPER, Part.PADDLE, Part.TOUCHPAD -> {
             val cr = CornerRadius(if (e.part == Part.TOUCHPAD) 3.5f * u else r.height / 2)
-            pillCap(accent, r, cr, look.pressed, sw)
+            glassPill(accent, r, cr, look.pressed, sw, frosted)
             if (labels) text(tm, e.short, c, u, ink)
         }
         else -> { // FACE, STICK_PRESS, CENTER
-            if (e.round) roundCap(accent, c, min(r.width, r.height) / 2, look.pressed, sw)
-            else pillCap(accent, r, CornerRadius(min(r.width, r.height) / 2), look.pressed, sw)
+            if (e.round) glassRound(accent, c, min(r.width, r.height) / 2, look.pressed, sw, frosted)
+            else glassPill(accent, r, CornerRadius(min(r.width, r.height) / 2), look.pressed, sw, frosted)
             if (e.glyph == Glyph.TEXT) { if (labels) text(tm, e.short, c, u, ink, big = e.part == Part.FACE) }
             else glyph(e.glyph, c, min(r.width, r.height) * 0.26f, ink, sw)
         }

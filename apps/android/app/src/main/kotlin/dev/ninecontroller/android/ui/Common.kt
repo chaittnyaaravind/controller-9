@@ -36,6 +36,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -55,10 +57,14 @@ import dev.ninecontroller.android.ui.theme.NineType
 
 // ---------------------------------------------------------------- brand
 
-/** The Controller-9 mark ("Pocket Pad"). [small] uses the heavier cut drawn for sizes under 32dp. */
+/** The Controller-9 mark: the app icon — a liquid-glass controller over RGB light — on a rounded tile. */
 @Composable
-fun BrandMark(size: Dp, modifier: Modifier = Modifier, small: Boolean = size < 32.dp) =
-    Image(painterResource(if (small) R.drawable.c9_mark_small else R.drawable.c9_mark), null, modifier.size(size))
+fun BrandMark(size: Dp, modifier: Modifier = Modifier) =
+    Box(modifier.size(size).clip(androidx.compose.foundation.shape.RoundedCornerShape(size * 0.28f))) {
+        Image(painterResource(R.drawable.ic_launcher_glass_background), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        // The icon's foreground is drawn for a 108 dp canvas with a 66 dp safe zone: scale it up to fill the tile.
+        Image(painterResource(R.drawable.ic_launcher_glass_foreground), null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.45f; scaleY = 1.45f })
+    }
 
 /** Mark + logotype lockup; cap height is 0.40 of the mark, gap 8/48, as in brand/svg/controller9-wordmark.svg. */
 @Composable
