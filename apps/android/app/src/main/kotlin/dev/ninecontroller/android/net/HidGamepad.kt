@@ -142,6 +142,7 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         if (early.isNotEmpty()) Thread({
             for (d in early) { Log.i(TAG, "dropping a link made before the controller was ready"); s.connect(d, false); Thread.sleep(150); s.cancelConnection(d) }
         }, "c9-hid-drop-early").apply { isDaemon = true; start() }
+        adoptPadName()
         advertise()
         return true
     }
@@ -150,7 +151,28 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         if (wanted) HidService.stop(context)
         wanted = false
         teardown()
+        restoreName()
         _state.value = State.Off
+    }
+
+    /** macOS takes the HID product string from the phone's Bluetooth name, and games match on it:
+     *  Unity's Input System only applies its Xbox layout to "Xbox.*Wireless Controller" (a pad named
+     *  "realme 12 5G" stays an unknown joystick and the game's gamepad bindings never fire). So the
+     *  phone carries a real pad's name while the mode is on; the user's name is kept and restored. */
+    private val names = context.getSharedPreferences("hid_name", Context.MODE_PRIVATE)
+
+    private fun adoptPadName() {
+        val adapter = manager.adapter
+        val current = runCatching { adapter.name }.getOrNull() ?: return
+        if (current == PAD_NAME) return
+        names.edit().putString("original", current).apply()
+        if (runCatching { adapter.setName(PAD_NAME) }.getOrDefault(false)) Log.i(TAG, "Bluetooth name set to the pad's name")
+        else Log.w(TAG, "could not set the Bluetooth name; games that match on the name will not see an Xbox pad")
+    }
+
+    private fun restoreName() {
+        val original = names.getString("original", null) ?: return
+        if (runCatching { manager.adapter.setName(original) }.getOrDefault(false)) names.edit().remove("original").apply()
     }
 
     @Synchronized private fun teardown() {
@@ -226,13 +248,7 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
             Log.i(TAG, "connection state=$newState status=$status bond=${d.bondState}")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 host = d
-                if (d.bondState == BluetoothDevice.BOND_BONDED && subscribers.getBoolean(d.address, true)) {
-                    // Let the computer encrypt the link first: a report sent earlier collides with its
-                    // encryption start and macOS then never attaches its controller driver.
-                    quietUntilNs = System.nanoTime() + RECONNECT_QUIET_MS * 1_000_000L
-                    subscribed = true; values[inputCccd] = byteArrayOf(1, 0); dirty = true; wake.release()
-                    Log.i(TAG, "bonded computer reconnected: input reports resume")
-                }
+                resumeIfBonded(d)
                 publishConnected()
                 server?.connect(d, false) // hold the link from our side too
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED && d == host) {
@@ -293,10 +309,23 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         adoptedAtNs = now
         if (host?.address != d.address) Log.i(TAG, "link adopted without a connection callback")
         host = d
+        // The same reconnect as onConnectionStateChange, which this stack skips: without it the phone
+        // shows "connected" but never sends a report (measured after the Mac's Bluetooth restarted).
+        if (!subscribed) resumeIfBonded(d)
         server?.connect(d, false)
         publishConnected()
     }
     @Volatile private var adoptedAtNs = 0L
+
+    /** A bonded computer keeps its input subscription across reconnects (macOS does not subscribe again). */
+    private fun resumeIfBonded(d: BluetoothDevice) {
+        if (d.bondState != BluetoothDevice.BOND_BONDED || !subscribers.getBoolean(d.address, true)) return
+        // Let the computer encrypt the link first: a report sent earlier collides with its
+        // encryption start and macOS then never attaches its controller driver.
+        quietUntilNs = System.nanoTime() + RECONNECT_QUIET_MS * 1_000_000L
+        subscribed = true; values[inputCccd] = byteArrayOf(1, 0); dirty = true; wake.release()
+        Log.i(TAG, "bonded computer reconnected: input reports resume")
+    }
 
     private fun respond(d: BluetoothDevice, requestId: Int, offset: Int, v: ByteArray?) {
         val s = server ?: return
@@ -373,6 +402,8 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         /** First handle of the controller's services (see start()). Far above Android's next free handle,
          *  measured at 234–351 on a realme 12 5G depending on what the system registered first. */
         const val HANDLE_BASE = 640
+        /** The name a real Xbox Wireless Controller reports; see [adoptPadName]. */
+        const val PAD_NAME = "Xbox Wireless Controller"
         /** After a bonded computer reconnects, send nothing for this long (link encryption first). */
         const val RECONNECT_QUIET_MS = 1500L
         /** Private UUID of the layout marker and filler services. */

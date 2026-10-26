@@ -16,6 +16,7 @@ object HidSweep {
     private const val TAG = "C9HidSweep"
 
     fun start(app: NineApp, sweep: Boolean) {
+        Log.i(TAG, "hook: sweep=$sweep state=${app.hid.state.value}")
         app.connection.disconnect()
         app.hid.start()
         if (!sweep) return
@@ -30,7 +31,9 @@ object HidSweep {
                 app.hid.submit(InputState.NEUTRAL); Thread.sleep(250)
             }
             for (round in 1..2) {
-                for (b in Button.entries) hold(b.id, InputState(buttons = b.mask))
+                // Not GUIDE: macOS takes the Xbox button for its game overlay and holds back controller
+                // input from apps for a few seconds after it (measured 2026-10-25), hiding later steps.
+                for (b in Button.entries) if (b != Button.GUIDE) hold(b.id, InputState(buttons = b.mask))
                 hold("lx+", InputState(lx = AXIS_MAX)); hold("lx-", InputState(lx = -AXIS_MAX))
                 hold("ly+", InputState(ly = AXIS_MAX)); hold("ly-", InputState(ly = -AXIS_MAX))
                 hold("rx+", InputState(rx = AXIS_MAX)); hold("rx-", InputState(rx = -AXIS_MAX))

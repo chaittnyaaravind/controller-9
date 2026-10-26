@@ -52,7 +52,8 @@ computer, unit tests for the report encoder, site + docs updated with evidence o
 | Stability | 60 s steady state: 0 disconnects; app swiped from Recents and reopened: controller stays, all inputs arrive |
 | Computer's Bluetooth off/on (sleep, range) | recovers by itself in ~6 s |
 | **Phone's** Bluetooth off/on or phone reboot | does **not** recover by itself; turning the computer's Bluetooth off and on fixes it (tip shown in the app) |
-| G5–G9 | not run yet (SDL, a real game, rumble from a game, latency, Windows/Linux) |
+| G6 (2026-10-25) | **PASS in Asphalt Legends** (Mac App Store, GameController.framework): with the debug sweep and Asphalt in front, Asphalt switches to Xbox button prompts, the pad closes a pop-up and opens its settings (`tests/results/2026-10-25-asphalt/`). A Unity game (Go Kart Racing) not yet tested |
+| G5, G7–G9 | not run yet (SDL, rumble from a game, latency, Windows/Linux) |
 
 ### What the hardware taught us (each fix is in `HidGamepad.kt`)
 1. A bonded host's notification subscription must persist across reconnects (macOS does not subscribe again).
@@ -66,3 +67,21 @@ computer, unit tests for the report encoder, site + docs updated with evidence o
    claim the link (`connect`) or Android drops it within seconds (the controller flapped 14×/min).
 5. Advertising needs a fresh callback per session and a retry while the LE advertiser comes up.
 6. Pair from System Settings: a pairing made through CoreBluetooth or `blueutil` does not attach the HID driver.
+7. Games match on the pad's **name**, not only 045E:0B13. macOS takes the HID product string from the
+   phone's Bluetooth name ("realme 12 5G"), and Unity's Input System applies its Xbox layout only to
+   `Xbox.*Wireless Controller` (checked in Go Kart Racing's Unity 6000.0.67 Input System). So the phone
+   takes the name "Xbox Wireless Controller" while the mode is on and restores the user's name when it
+   is turned off. A computer paired under the old name must pair again. Device-tested 2026-10-25: macOS
+   lists the HID product and the GameController vendor as "Xbox Wireless Controller"
+   (`tests/results/2026-10-25-direct-bluetooth-mac.txt`).
+8. After the computer's Bluetooth restarts, a link this stack reports only through MTU/read/write
+   callbacks (lesson 4) must also resume the bonded host's subscription. Before 2026-10-25 only the
+   connection callback did, so the phone could show "connected" and send nothing (seen once: the sweep
+   waited for a subscription that never came). In the re-test the connection callback fired, so the
+   adopted-link path is fixed in code but not yet seen on hardware.
+9. The Xbox (Guide) button belongs to macOS: it opens the game overlay, and controller input to apps
+   stops for a few seconds afterwards. The debug sweep skips it; a player pressing it mid-game sees
+   the same pause, as with a real Xbox pad.
+10. Never `am force-stop` the app while a computer is paired: the computer keeps the Bluetooth link
+   but drops the gamepad until its own Bluetooth is turned off and on. Debug hooks are sent to the
+   running app with `am start -f 0x20000000` (single top), not by restarting it.
