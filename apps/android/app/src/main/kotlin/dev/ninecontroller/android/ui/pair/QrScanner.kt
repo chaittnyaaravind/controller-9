@@ -21,9 +21,9 @@ import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import java.util.concurrent.Executors
 
-/** CameraX preview + ZXing QR decoding. Calls [onResult] once with the first ninectl:// code. */
+/** CameraX preview + ZXing QR decoding. Calls [onResult] once with the first code starting with [prefix]. */
 @Composable
-fun QrScanner(modifier: Modifier = Modifier, onResult: (String) -> Unit) {
+fun QrScanner(modifier: Modifier = Modifier, prefix: String = "ninectl://pair?", onResult: (String) -> Unit) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
@@ -43,7 +43,7 @@ fun QrScanner(modifier: Modifier = Modifier, onResult: (String) -> Unit) {
                         val bytes = ByteArray(plane.buffer.remaining()).also { plane.buffer.get(it) }
                         val src = PlanarYUVLuminanceSource(bytes, plane.rowStride, image.height, 0, 0, image.width, image.height, false)
                         val text = runCatching { reader.decodeWithState(BinaryBitmap(HybridBinarizer(src))).text }.getOrNull()
-                        if (text != null && text.startsWith("ninectl://pair?")) {
+                        if (text != null && text.startsWith(prefix)) {
                             done = true
                             ContextCompat.getMainExecutor(context).execute { onResult(text) }
                         }

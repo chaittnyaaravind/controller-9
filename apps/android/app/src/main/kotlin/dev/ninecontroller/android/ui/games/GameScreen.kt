@@ -71,6 +71,7 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
     var tilt by remember { mutableStateOf(existing?.tilt ?: false) }
     var aim by remember { mutableStateOf(existing?.aim ?: false) }
     val preset = PadPresets.fromSelection(layout)
+    var sharing by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalAccent provides accent) {
         Page(if (existing == null) "New game" else existing.name, "Game", nav) {
@@ -130,6 +131,7 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
                     app.games.save(g)
                     scope.launch { if (existing == null || settings.activeGame == g.id) app.play(g); nav.popBackStack() }
                 })
+                if (existing != null) SecondaryButton("Share", { sharing = true })
                 if (existing != null && existing.id != GameStore.ANY) SecondaryButton("Delete", {
                     app.games.delete(existing.id)
                     scope.launch {
@@ -139,6 +141,7 @@ fun GameScreen(app: NineApp, nav: NavController, id: String) {
                 }, color = Nine.bad)
             }
             Micro("Colour lights the whole app while this game is chosen.", Modifier.padding(top = 4.dp), color = Nine.dim)
+            if (sharing && existing != null) ShareGameDialog(app, existing) { sharing = false }
         }
     }
 }

@@ -188,7 +188,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
             Micro("Games", Modifier.padding(start = 4.dp, top = 14.dp).semantics { heading() })
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 games.forEach { g -> GameCard(g.name, Accent.of(g.accent), g.id == game?.id) { scope.launch { app.play(g) } } }
-                NewGameCard { nav.navigate("game/new") }
+                NewGameCard("+", "New game") { nav.navigate("game/new") }
+                NewGameCard("⌗", "Scan a game") { nav.navigate("games/scan") }
             }
 
             // ---------------------------------------------------------------- Bluetooth controller (no computer app)
@@ -271,6 +272,25 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                 Divider(); ListRow(if (hosts.isEmpty()) "Add a computer" else "Add another computer", detail = if (hosts.isEmpty()) "Pair by QR code, six-digit code or Bluetooth" else null, onClick = { nav.navigate("add") })
             }
 
+            // ---------------------------------------------------------------- play with friends
+            var friends by remember { androidx.compose.runtime.mutableStateOf(false) }
+            Section("Play with friends") {
+                ListRow("Add players 2–4", detail = "Friends scan a code to get the app; every phone becomes its own controller", onClick = { friends = true })
+            }
+            if (friends) androidx.compose.material3.AlertDialog(onDismissRequest = { friends = false }, containerColor = Nine.s1,
+                title = { Text("Play with friends") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val img = remember { dev.ninecontroller.android.ui.games.qrImage("https://controller-9.vercel.app/#download") }
+                        androidx.compose.foundation.Image(img, "QR code for the Controller-9 download page",
+                            Modifier.fillMaxWidth().aspectRatio(1f), filterQuality = androidx.compose.ui.graphics.FilterQuality.None)
+                        Text("1  Your friend scans this and installs Controller-9.", style = NineType.small, color = Nine.muted)
+                        Text("2  Bluetooth: they turn on Bluetooth controller and pair from the computer's Bluetooth settings — each phone is its own Xbox controller.", style = NineType.small, color = Nine.muted)
+                        Text("3  Or with the computer app: they pair with it too and join as player 2, 3 or 4.", style = NineType.small, color = Nine.muted)
+                    }
+                },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { friends = false }) { Text("Done", color = Nine.text) } })
+
             Section(null) {
                 ListRow("Remote", detail = "Trackpad, keyboard and media keys for the computer — no app needed", onClick = { nav.navigate("remote") })
                 Divider()
@@ -304,9 +324,9 @@ private fun GameCard(name: String, a: Accent, active: Boolean, onClick: () -> Un
     }
 
 @Composable
-private fun NewGameCard(onClick: () -> Unit) =
+private fun NewGameCard(mark: String, label: String, onClick: () -> Unit) =
     Column(Modifier.width(140.dp).height(96.dp).border(1.dp, Nine.line2, Nine.card)
         .clickable(role = Role.Button, onClick = onClick).padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        Text("+", style = NineType.title, color = Nine.muted)
-        Text("New game", style = NineType.small, color = Nine.muted)
+        Text(mark, style = NineType.title, color = Nine.muted)
+        Text(label, style = NineType.small, color = Nine.muted)
     }

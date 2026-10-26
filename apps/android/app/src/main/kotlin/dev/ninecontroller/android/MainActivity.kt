@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     composable("calibrate") { dev.ninecontroller.android.ui.calibration.CalibrationScreen(app, nav) }
                     composable("game/{id}") { dev.ninecontroller.android.ui.games.GameScreen(app, nav, it.arguments?.getString("id") ?: "new") }
                     composable("remote") { dev.ninecontroller.android.ui.remote.RemoteScreen(app, nav) }
+                    composable("games/scan") { dev.ninecontroller.android.ui.games.ScanGameScreen(app, nav) }
                 }
                 }
             }
