@@ -22,9 +22,9 @@ import dev.ninecontroller.protocol.ControlDef
 import dev.ninecontroller.protocol.ControlKind
 import kotlin.math.min
 
-/** Draws one control. Visually distinct per type; pressed state uses the single accent. */
+/** Draws one control. Visually distinct per type; pressed state uses the game's accent. */
 @Composable
-fun ControlVisual(c: ControlDef, v: Visual, steering: Double) {
+fun ControlVisual(c: ControlDef, v: Visual, steering: Double, accent: dev.ninecontroller.android.ui.theme.Accent = dev.ninecontroller.android.ui.theme.Accent.VOLT) {
     Box(Modifier.fillMaxSize().alpha(c.opacity.toFloat()), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width; val h = size.height
@@ -34,10 +34,10 @@ fun ControlVisual(c: ControlDef, v: Visual, steering: Double) {
                     val r = min(w, h) / 2f
                     val round = min(w, h) < 140 * density || kotlin.math.abs(w - h) < 0.2f * w
                     if (round) {
-                        drawCircle(if (v.pressed) Nine.accent else Nine.s2, r * 0.94f)
+                        drawCircle(if (v.pressed) accent.color else Nine.s2, r * 0.94f)
                         drawCircle(Nine.line2, r * 0.94f, style = stroke)
                     } else {
-                        drawRoundRect(if (v.pressed) Nine.accent else Nine.s2, cornerRadius = CornerRadius(18 * density))
+                        drawRoundRect(if (v.pressed) accent.color else Nine.s2, cornerRadius = CornerRadius(18 * density))
                         drawRoundRect(Nine.line2, cornerRadius = CornerRadius(18 * density), style = stroke)
                     }
                 }
@@ -57,7 +57,7 @@ fun ControlVisual(c: ControlDef, v: Visual, steering: Double) {
                     val arms = listOf(Btn.UP to Offset(arm, 0f), Btn.LEFT to Offset(0f, arm), Btn.RIGHT to Offset(2 * arm, arm), Btn.DOWN to Offset(arm, 2 * arm))
                     for ((b, at) in arms) {
                         val on = v.mask and b.mask != 0
-                        drawRoundRect(if (on) Nine.accent else Nine.s2, o + at, Size(arm, arm), CornerRadius(8 * density))
+                        drawRoundRect(if (on) accent.color else Nine.s2, o + at, Size(arm, arm), CornerRadius(8 * density))
                         drawRoundRect(Nine.line2, o + at, Size(arm, arm), CornerRadius(8 * density), style = stroke)
                     }
                     drawRect(Nine.s2, o + Offset(arm, arm), Size(arm, arm))
@@ -66,7 +66,7 @@ fun ControlVisual(c: ControlDef, v: Visual, steering: Double) {
                     val cr = CornerRadius((if (c.kind == ControlKind.PEDAL) 22 else 14) * density)
                     drawRoundRect(Nine.s1, cornerRadius = cr)
                     val fill = (v.value * h).toFloat()
-                    if (fill > 0) drawRoundRect(Nine.accent.copy(alpha = 0.85f), Offset(0f, 0f), Size(w, fill), cr)
+                    if (fill > 0) drawRoundRect(accent.color.copy(alpha = 0.85f), Offset(0f, 0f), Size(w, fill), cr)
                     drawRoundRect(Nine.line2, cornerRadius = cr, style = stroke)
                     if (c.kind == ControlKind.PEDAL) for (i in 1..5) {
                         val y = h * i / 6f
@@ -87,7 +87,7 @@ fun ControlVisual(c: ControlDef, v: Visual, steering: Double) {
         val label = c.label ?: when (c.kind) { ControlKind.BUTTON -> c.bind.uppercase(); ControlKind.TRIGGER, ControlKind.PEDAL -> c.bind.uppercase(); else -> null }
         if (label != null && c.kind != ControlKind.STICK && c.kind != ControlKind.DPAD) {
             val pressed = v.pressed && c.kind == ControlKind.BUTTON
-            Text(label, color = if (pressed) Nine.accentInk else Nine.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            Text(label, color = if (pressed) accent.ink else Nine.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 modifier = if (c.kind == ControlKind.PEDAL || c.kind == ControlKind.TRIGGER) Modifier.align(Alignment.BottomCenter) else Modifier)
         }
     }

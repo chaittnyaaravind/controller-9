@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.editor
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.WindowInsets
@@ -91,7 +92,7 @@ fun LayoutEditorScreen(app: NineApp, nav: NavController, profileId: String) {
             with(d) {
                 Box(Modifier.offset((c.x * wPx).toFloat().toDp(), (c.y * hPx).toFloat().toDp())
                     .size((c.w * wPx).toFloat().toDp(), (c.h * hPx).toFloat().toDp())
-                    .border(if (sel) 2.dp else 1.dp, if (sel) Nine.accent else Nine.line2, Nine.small)
+                    .border(if (sel) 2.dp else 1.dp, if (sel) LocalAccent.current.color else Nine.line2, Nine.small)
                     .semantics { contentDescription = "${c.kind.name.lowercase()} ${c.label ?: c.bind}. Drag to move." }
                     .pointerInput(c.id) {
                         detectTapGestures { selected = c.id }
@@ -103,7 +104,7 @@ fun LayoutEditorScreen(app: NineApp, nav: NavController, profileId: String) {
                         }
                     }) {
                     ControlVisual(c, Visual(), 0.0)
-                    if (sel) Box(Modifier.align(Alignment.BottomEnd).size(28.dp).background(Nine.accent, Nine.small)
+                    if (sel) Box(Modifier.align(Alignment.BottomEnd).size(28.dp).background(LocalAccent.current.color, Nine.small)
                         .semantics { contentDescription = "Resize handle" }
                         .pointerInput(c.id + "resize") {
                             detectDragGestures { ch, drag ->
@@ -147,7 +148,7 @@ fun LayoutEditorScreen(app: NineApp, nav: NavController, profileId: String) {
         controls.find { it.id == selected }?.let { c ->
             Column(Modifier.align(Alignment.CenterEnd).padding(12.dp).width(260.dp).background(Nine.s1, Nine.card).border(1.dp, Nine.line2, Nine.card).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Micro(c.kind.name.lowercase(), color = Nine.accent)
+                Micro(c.kind.name.lowercase(), color = LocalAccent.current.color)
                 var bindMenu by remember(c.id) { mutableStateOf(false) }
                 Box {
                     TextButton(onClick = { bindMenu = true }) { Text("Action: ${c.bind}", color = Nine.text) }

@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.diagnostics
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -97,7 +98,7 @@ fun ConnectionScreen(app: NineApp, nav: NavController) {
         links.forEach { l ->
             Card {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    dev.ninecontroller.android.ui.StatusDot(if (l.available) Nine.accent else Nine.dim)
+                    dev.ninecontroller.android.ui.StatusDot(if (l.available) LocalAccent.current.color else Nine.dim)
                     Text("  ${l.kind.label}", modifier = Modifier.weight(1f), color = Nine.text)
                     Text(l.score?.let { "score ${it.toInt()}" } ?: "unavailable", color = Nine.dim)
                 }

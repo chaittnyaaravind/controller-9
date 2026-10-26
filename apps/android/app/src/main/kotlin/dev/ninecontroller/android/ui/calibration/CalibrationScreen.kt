@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.calibration
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -153,8 +154,8 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
                 !connected -> "Not connected — preview only"
                 !send -> "Off — the computer sees a centered controller"
                 else -> "Sending ${if (motion.axis == "rx") "right" else "left"} stick X = ${sentAxis ?: 0} · computer replied ${(now - app.connection.lastAckNs) / 1_000_000} ms ago"
-            }, detailColor = if (sending) Nine.accent else Nine.muted, trailing = {
-                Switch(send, { send = it }, enabled = connected, colors = SwitchDefaults.colors(checkedTrackColor = Nine.accent, checkedThumbColor = Nine.accentInk))
+            }, detailColor = if (sending) LocalAccent.current.color else Nine.muted, trailing = {
+                Switch(send, { send = it }, enabled = connected, colors = SwitchDefaults.colors(checkedTrackColor = LocalAccent.current.color, checkedThumbColor = LocalAccent.current.ink))
             })
         }
 
@@ -243,8 +244,8 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
 
 @Composable
 private fun StepRow(n: Int, title: String, how: String, result: String?, current: Boolean) =
-    ListRow("$n  ·  $title", detail = result ?: how, detailColor = when { result != null -> Nine.accent; current -> Nine.text; else -> Nine.dim },
-        trailing = { Text(if (result != null) "Done" else if (current) "Now" else "", style = NineType.small, color = if (result != null) Nine.accent else Nine.muted) })
+    ListRow("$n  ·  $title", detail = result ?: how, detailColor = when { result != null -> LocalAccent.current.color; current -> Nine.text; else -> Nine.dim },
+        trailing = { Text(if (result != null) "Done" else if (current) "Now" else "", style = NineType.small, color = if (result != null) LocalAccent.current.color else Nine.muted) })
 
 /**
  * The wheel turns with the measured angle (local sensor, not the transmitted value). The arc behind it
@@ -252,6 +253,7 @@ private fun StepRow(n: Int, title: String, how: String, result: String?, current
  */
 @Composable
 private fun Wheel(angle: Double, cal: SteeringCalibrationV2?, m: MotionSettings) {
+    val accentColor = LocalAccent.current.color
     val leftDeg = cal?.leftDeg ?: m.lockDeg
     val rightDeg = cal?.rightDeg ?: m.lockDeg
     Canvas(Modifier.fillMaxWidth().height(180.dp).semantics {
@@ -268,7 +270,7 @@ private fun Wheel(angle: Double, cal: SteeringCalibrationV2?, m: MotionSettings)
         fun tick(deg: Double, color: Color, len: Float) = rotate(deg.toFloat(), c) {
             drawLine(color, Offset(c.x, c.y - ring - 3.dp.toPx()), Offset(c.x, c.y - ring - 3.dp.toPx() - len), 2.dp.toPx(), StrokeCap.Round)
         }
-        tick(0.0, Nine.accent, 10.dp.toPx())
+        tick(0.0, accentColor, 10.dp.toPx())
         tick(-leftDeg, Nine.muted, 7.dp.toPx()); tick(rightDeg, Nine.muted, 7.dp.toPx())
         // The wheel itself.
         val measured = !angle.isNaN()
@@ -280,14 +282,14 @@ private fun Wheel(angle: Double, cal: SteeringCalibrationV2?, m: MotionSettings)
             drawLine(spoke, Offset(c.x - r, c.y), Offset(c.x - r * 0.22f, c.y), 2.dp.toPx())
             drawLine(spoke, Offset(c.x + r * 0.22f, c.y), Offset(c.x + r, c.y), 2.dp.toPx())
             drawLine(spoke, Offset(c.x, c.y + r * 0.22f), Offset(c.x, c.y + r), 2.dp.toPx())
-            drawCircle(if (measured) Nine.accent else Nine.dim, 5.dp.toPx(), Offset(c.x, c.y - r)) // top marker
+            drawCircle(if (measured) accentColor else Nine.dim, 5.dp.toPx(), Offset(c.x, c.y - r)) // top marker
         }
     }
 }
 
 /** Normalized output −1…+1 (local) with the dead zone shaded; a ring marks the value actually sent. */
 @Composable
-private fun OutputBar(v: Double, deadzone: Double, sent: Double?) = Canvas(Modifier.fillMaxWidth().height(30.dp).semantics {
+private fun OutputBar(v: Double, deadzone: Double, sent: Double?) { val accentColor = LocalAccent.current.color; Canvas(Modifier.fillMaxWidth().height(30.dp).semantics {
     contentDescription = "Steering output %+.2f".format(v) + (sent?.let { ", sent to computer %+.2f".format(it) } ?: "")
 }) {
     val y = size.height / 2; val w = size.width; val pad = 10.dp.toPx(); val half = w / 2 - pad
@@ -295,7 +297,7 @@ private fun OutputBar(v: Double, deadzone: Double, sent: Double?) = Canvas(Modif
     if (deadzone > 0) drawLine(Nine.faint, Offset(w / 2 - half * deadzone.toFloat(), y), Offset(w / 2 + half * deadzone.toFloat(), y), 10.dp.toPx())
     drawLine(Nine.dim, Offset(w / 2, y - 10.dp.toPx()), Offset(w / 2, y + 10.dp.toPx()), 1.5.dp.toPx())
     val x = w / 2 + v.toFloat().coerceIn(-1f, 1f) * half
-    drawLine(Nine.accent, Offset(w / 2, y), Offset(x, y), 4.dp.toPx(), StrokeCap.Round)
+    drawLine(accentColor, Offset(w / 2, y), Offset(x, y), 4.dp.toPx(), StrokeCap.Round)
     drawCircle(Nine.text, 6.dp.toPx(), Offset(x, y))
-    sent?.let { drawCircle(Nine.accent, 10.dp.toPx(), Offset(w / 2 + it.toFloat().coerceIn(-1f, 1f) * half, y), style = Stroke(1.5.dp.toPx())) }
-}
+    sent?.let { drawCircle(accentColor, 10.dp.toPx(), Offset(w / 2 + it.toFloat().coerceIn(-1f, 1f) * half, y), style = Stroke(1.5.dp.toPx())) }
+} }

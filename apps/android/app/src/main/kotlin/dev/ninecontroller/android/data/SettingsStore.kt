@@ -44,6 +44,12 @@ data class AppSettings(
     val legacySteering: Boolean = false,
     /** Bluetooth controller mode was on: restart it at launch so a paired computer reconnects like a real pad. */
     val hidMode: Boolean = false,
+    /** The game colour (ui.theme.Accent name) that lights the controller; set by the chosen game. */
+    val accent: String = "VOLT",
+    /** The game being played (data.GameStore id). */
+    val activeGame: String = "any",
+    /** Pin the controller screen while playing (no notification shade, home or back until unlocked). */
+    val lockOnPlay: Boolean = false,
 ) {
     val padPreset get() = PadPresets.fromSelection(activeProfile)
     fun padMotion() = MotionSettings(enabled = padTilt, axis = "lx", lockDeg = tiltLockDeg, deadzone = tiltDeadzone, sensitivity = tiltSensitivity)
@@ -76,6 +82,9 @@ class SettingsStore(private val context: Context) {
         val calAt = longPreferencesKey("cal_measured_at")
         val steering = stringPreferencesKey("steering_cal_v2")
         val hidMode = booleanPreferencesKey("hid_mode")
+        val accent = stringPreferencesKey("accent")
+        val activeGame = stringPreferencesKey("active_game")
+        val lockOnPlay = booleanPreferencesKey("lock_on_play")
         fun map(preset: String) = stringPreferencesKey("pad_map_$preset")
     }
 
@@ -101,6 +110,9 @@ class SettingsStore(private val context: Context) {
             steering = steering,
             legacySteering = steering == null && (p[K.calAt] != null || (p[K.calibration] ?: 0.0) != 0.0),
             hidMode = p[K.hidMode] ?: false,
+            accent = p[K.accent] ?: "VOLT",
+            activeGame = p[K.activeGame] ?: "any",
+            lockOnPlay = p[K.lockOnPlay] ?: false,
         )
     }
 
@@ -116,6 +128,9 @@ class SettingsStore(private val context: Context) {
         p[K.onboarded] = n.onboarded
         p[K.link] = n.linkOverride
         p[K.hidMode] = n.hidMode
+        p[K.accent] = n.accent
+        p[K.activeGame] = n.activeGame
+        p[K.lockOnPlay] = n.lockOnPlay
         for (pr in PadPresets.all) n.padMappings[pr.id]?.takeIf { it.isNotEmpty() }?.let { p[K.map(pr.id)] = it } ?: p.remove(K.map(pr.id))
         // Same ranges as the protocol profile validator (MotionSettings / StickSettings).
         p[K.stickDz] = n.stickDeadzone.coerceIn(0.0, 0.5)

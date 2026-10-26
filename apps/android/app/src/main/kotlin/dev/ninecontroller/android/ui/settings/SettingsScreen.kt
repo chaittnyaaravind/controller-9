@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.settings
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -84,6 +85,8 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
                 Divider(); ToggleRow("Trigger and steering feel", "A click at the pedal’s resistance point and at full press, a light detent at steering center and a bump at full lock. Made on this phone, not by the game.", s.feelEffects) { v -> set { it.copy(feelEffects = v) } }
             }
             Divider()
+            ToggleRow("Lock the controller while playing", "No notification panel, home or back swipes during a game. Android asks you to confirm “Pin” once; hold LOCKED on the controller to unlock.", s.lockOnPlay) { v -> set { it.copy(lockOnPlay = v) } }
+            Divider()
             ToggleRow("Keep screen on while playing", null, s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
             Divider()
             ToggleRow("Show latency on the controller", null, s.showStats) { v -> set { it.copy(showStats = v) } }
@@ -128,7 +131,7 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
 @Composable
 private fun ToggleRow(title: String, detail: String?, value: Boolean, on: (Boolean) -> Unit) =
     ListRow(title, detail = detail, trailing = {
-        Switch(value, on, colors = SwitchDefaults.colors(checkedTrackColor = Nine.accent, checkedThumbColor = Nine.accentInk, uncheckedTrackColor = Nine.s3, uncheckedThumbColor = Nine.muted, uncheckedBorderColor = Nine.line2))
+        Switch(value, on, colors = SwitchDefaults.colors(checkedTrackColor = dev.ninecontroller.android.ui.theme.LocalAccent.current.color, checkedThumbColor = dev.ninecontroller.android.ui.theme.LocalAccent.current.ink, uncheckedTrackColor = Nine.s3, uncheckedThumbColor = Nine.muted, uncheckedBorderColor = Nine.line2))
     })
 
 @Composable
@@ -139,5 +142,5 @@ private fun SliderRow(title: String, value: String, v: Float, range: ClosedFloat
             Text(value, style = NineType.mono, color = Nine.muted)
         }
         Slider(v.coerceIn(range.start, range.endInclusive), on, valueRange = range, modifier = Modifier.heightIn(min = Nine.target).semantics { contentDescription = title; stateDescription = value },
-            colors = SliderDefaults.colors(thumbColor = Nine.text, activeTrackColor = Nine.accent, inactiveTrackColor = Nine.s3))
+            colors = SliderDefaults.colors(thumbColor = Nine.text, activeTrackColor = LocalAccent.current.color, inactiveTrackColor = Nine.s3))
     }

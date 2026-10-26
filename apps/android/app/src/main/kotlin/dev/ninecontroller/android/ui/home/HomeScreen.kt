@@ -64,6 +64,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import dev.ninecontroller.android.ui.Pill
+import dev.ninecontroller.android.ui.theme.Accent
+import dev.ninecontroller.android.ui.theme.Grain
+import dev.ninecontroller.android.ui.theme.LocalAccent
 
 /** What the connection panel says and offers. Pure; see HomeLogicTest. */
 object HomeLogic {
@@ -127,69 +140,75 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     val preset = settings.padPreset
     val profile = profiles.find { it.id == settings.activeProfile }
 
-    Box(Modifier.fillMaxSize().background(Nine.bg).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
+    val games by app.games.games.collectAsState()
+    val game = games.find { it.id == settings.activeGame } ?: games.firstOrNull()
+    val accent = LocalAccent.current
+    val hidLive = hidState as? HidGamepad.State.Connected
+    // One line that says how this phone reaches the game right now.
+    val (linkLine, linkTone) = when {
+        hidLive != null -> "Bluetooth controller · ${hidLive.host}" to (if (hidLive.subscribed) Tone.OK else Tone.WARN)
+        hidState is HidGamepad.State.Advertising -> "Bluetooth controller · waiting for a computer" to Tone.WARN
+        connected != null -> "${connected.hostName} · ${connected.linksLabel}" + (stats.rttP50?.let { " · ${it.toInt()} ms" } ?: "") to sum.tone
+        else -> "Not connected" to Tone.IDLE
+    }
+
+    Box(Modifier.fillMaxSize().drawBehind {
+        drawRect(accent.bg)
+        val c = Offset(size.width * 0.85f, size.height * 0.08f)
+        drawCircle(Brush.radialGradient(listOf(accent.color.copy(alpha = 0.16f), Color.Transparent), c, size.width * 0.9f), size.width * 0.9f, c)
+        drawRect(Grain.brush, alpha = Grain.ALPHA)
+    }.safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Nine.gutter, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(Nine.gap)) {
-            Wordmark(30.dp, Modifier.padding(top = 4.dp, bottom = 14.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Wordmark(28.dp)
+                Spacer(Modifier.weight(1f))
+                Pill(when (linkTone) { Tone.OK -> "Live"; Tone.WARN -> "Connecting"; Tone.BAD -> "Offline"; Tone.IDLE -> "Idle" }, linkTone, fill = accent.surface)
+            }
 
-            // ---------------------------------------------------------------- connection panel
-            Column(Modifier.fillMaxWidth().background(Nine.s1, Nine.card).border(1.dp, if (sum.tone == Tone.OK) Nine.accent.copy(alpha = 0.35f) else Nine.line, Nine.card).padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (sum.busy && !reduced) CircularProgressIndicator(Modifier.size(14.dp), color = Nine.warn, strokeWidth = 2.dp, trackColor = Nine.line)
-                    else StatusDot(sum.tone.color(), 9.dp)
-                    Micro(when (sum.tone) { Tone.OK -> "Live"; Tone.WARN -> if (sum.busy) "Working" else "Attention"; Tone.BAD -> "Offline"; Tone.IDLE -> "Idle" }, color = sum.tone.color())
+            // ---------------------------------------------------------------- now playing (the one hero)
+            Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(accent.surface, Nine.s1)), Nine.card)
+                .border(1.dp, Brush.verticalGradient(listOf(accent.color.copy(alpha = 0.45f), Nine.line)), Nine.card).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Micro("Now playing", color = accent.color)
+                Text(game?.name ?: "Any game", style = NineType.hero, maxLines = 2, modifier = Modifier.semantics { heading() })
+                Text((preset?.name ?: profile?.name ?: "No layout") + if (settings.padTilt && preset != null) " · tilt to steer" else "", style = NineType.small, color = Nine.muted)
+                if (preset != null) PadDiagram(settings.mappingFor(preset), Modifier.fillMaxWidth().aspectRatio(2.1f).padding(vertical = 10.dp), accent = accent)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+                    StatusDot(linkTone.color(accent.color), 7.dp)
+                    Text(linkLine, style = NineType.small, color = Nine.muted, maxLines = 1)
                 }
-                Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
-                    Text(sum.headline, style = NineType.display.copy(fontSize = NineType.title.fontSize * 1.25f, lineHeight = NineType.title.lineHeight * 1.2f), modifier = Modifier.semantics { heading() })
-                    sum.detail?.let { Text(it, style = NineType.body, color = Nine.muted) }
-                    sum.health?.let { Text(it, style = NineType.small, color = if (sum.tone == Tone.OK) Nine.accent else Nine.warn) }
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryButton("Play", { nav.navigate("play") }, Modifier.weight(1f))
+                    game?.let { g -> SecondaryButton("Edit game", { nav.navigate("game/${g.id}") }) }
                 }
-                connected?.backendWarning?.let {
-                    Column(Modifier.fillMaxWidth().background(Nine.warnSoft, Nine.small).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Games on ${connected.hostName} can’t see a controller yet", style = NineType.small, color = Nine.warn)
-                        Text("Input reaches the computer, but it can’t create a virtual game controller: $it", style = NineType.small, color = Nine.muted)
-                    }
-                }
-                if (connected != null) Row(Modifier.fillMaxWidth()) {
-                    Metric(fmt(stats.rttP50, 0), "Latency ms", Modifier.weight(1f))
-                    Metric(fmt(stats.rttP95, 0), "p95 ms", Modifier.weight(1f))
-                    Metric(fmt(stats.sendHz, 0), "Updates/s", Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    when (sum.act) {
-                        HomeLogic.Act.PAIR -> PrimaryButton("Pair a computer", { nav.navigate("add") })
-                        HomeLogic.Act.CONNECT -> PrimaryButton("Connect", { lastHost?.let { app.connection.connect(it) } }, enabled = lastHost != null)
-                        HomeLogic.Act.RECONNECT -> PrimaryButton("Reconnect", { lastHost?.let { app.connection.connect(it) } }, enabled = lastHost != null)
-                        HomeLogic.Act.CANCEL -> SecondaryButton("Cancel", { app.connection.disconnect() })
-                        HomeLogic.Act.CONFIRM -> PrimaryButton("Open pairing", { nav.navigate("add") })
-                        HomeLogic.Act.PLAY_DISCONNECT -> { PrimaryButton("Play", { nav.navigate("play") }); SecondaryButton("Disconnect", { app.connection.disconnect() }) }
-                    }
-                    if (sum.act == HomeLogic.Act.CONNECT || sum.act == HomeLogic.Act.RECONNECT) SecondaryButton("Play", { nav.navigate("play") })
-                }
-                if (blePerm != null && Build.VERSION.SDK_INT >= 31) SecondaryButton("Allow Bluetooth fallback", {
-                    perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
-                })
+            }
+
+            // ---------------------------------------------------------------- games
+            Micro("Games", Modifier.padding(start = 4.dp, top = 14.dp).semantics { heading() })
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                games.forEach { g -> GameCard(g.name, Accent.of(g.accent), g.id == game?.id) { scope.launch { app.play(g) } } }
+                NewGameCard { nav.navigate("game/new") }
             }
 
             // ---------------------------------------------------------------- Bluetooth controller (no computer app)
             Section("Bluetooth controller") {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val (title, detail, tone) = when (val h = hidState) {
-                        HidGamepad.State.Off -> Triple("No app needed on the computer", "Your phone becomes a wireless controller. Pair it once from the computer’s Bluetooth settings.", Tone.IDLE)
-                        HidGamepad.State.Advertising -> Triple("Waiting for a computer", "On the computer, open Bluetooth settings and connect to this phone. Accept the pairing request on both.", Tone.WARN)
-                        is HidGamepad.State.Connected -> Triple("Controller connected to ${h.host}", if (h.subscribed) "Games see an Xbox Wireless Controller." else "Finishing setup…", if (h.subscribed) Tone.OK else Tone.WARN)
+                        HidGamepad.State.Off -> Triple("No app needed on the computer", "Your phone becomes a wireless Xbox controller. Pair it once from the computer’s Bluetooth settings.", Tone.IDLE)
+                        HidGamepad.State.Advertising -> Triple("Waiting for a computer", "On the computer, open Bluetooth settings and connect to “Xbox Wireless Controller”. Accept the pairing request on both.", Tone.WARN)
+                        is HidGamepad.State.Connected -> Triple("Connected to ${h.host}", if (h.subscribed) "Games see an Xbox Wireless Controller." else "Finishing setup…", if (h.subscribed) Tone.OK else Tone.WARN)
                         is HidGamepad.State.Failed -> Triple("Bluetooth controller unavailable", h.reason, Tone.BAD)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatusDot(tone.color(), 9.dp)
+                        StatusDot(tone.color(accent.color), 8.dp)
                         Text(title, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
                     Text(detail, style = NineType.small, color = Nine.muted)
                     if (hidState is HidGamepad.State.Connected) Text("Not responding after this phone’s Bluetooth restarted? Turn the computer’s Bluetooth off and on.", style = NineType.small, color = Nine.dim)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (hidState is HidGamepad.State.Off || hidState is HidGamepad.State.Failed) {
-                            PrimaryButton("Start", {
+                            SecondaryButton("Turn on", {
                                 if (app.hid.unavailableReason()?.contains("permission", ignoreCase = true) == true && Build.VERSION.SDK_INT >= 31)
                                     perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
                                 else {
@@ -199,49 +218,93 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                                     app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
                                 }
                             })
-                        } else {
-                            PrimaryButton("Play", { nav.navigate("play") })
-                            SecondaryButton("Stop", { app.hid.stop(); scope.launch { app.settings.update { it.copy(hidMode = false) } } })
-                        }
+                        } else SecondaryButton("Turn off", { app.hid.stop(); scope.launch { app.settings.update { it.copy(hidMode = false) } } })
                     }
                 }
             }
 
-            // ---------------------------------------------------------------- layout
-            Section("Layout") {
-                Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Change layout") { nav.navigate("layouts") }.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (preset != null) PadDiagram(settings.mappingFor(preset), Modifier.fillMaxWidth().aspectRatio(2.2f))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(preset?.name ?: profile?.name ?: "No layout", style = NineType.title)
-                            Text(preset?.tagline ?: profile?.let { "Custom profile · ${it.controls.size} controls" + if (it.motion.enabled) " · tilt steering" else "" } ?: "", style = NineType.small, color = Nine.muted)
+            // ---------------------------------------------------------------- computer app connection
+            Section("Computer app") {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (sum.busy && !reduced) CircularProgressIndicator(Modifier.size(14.dp), color = Nine.warn, strokeWidth = 2.dp, trackColor = Nine.line)
+                        else StatusDot(sum.tone.color(accent.color), 8.dp)
+                        Text(sum.headline, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
+                    sum.detail?.let { Text(it, style = NineType.small, color = Nine.muted) }
+                    sum.health?.let { Text(it, style = NineType.small, color = if (sum.tone == Tone.OK) accent.color else Nine.warn) }
+                    connected?.backendWarning?.let {
+                        Column(Modifier.fillMaxWidth().background(Nine.warnSoft, Nine.small).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Games on ${connected.hostName} can’t see a controller yet", style = NineType.small, color = Nine.warn)
+                            Text("Input reaches the computer, but it can’t create a virtual game controller: $it", style = NineType.small, color = Nine.muted)
                         }
-                        Text("Change", style = NineType.small, color = Nine.text)
+                    }
+                    if (connected != null) Row(Modifier.fillMaxWidth()) {
+                        Metric(fmt(stats.rttP50, 0), "Latency ms", Modifier.weight(1f))
+                        Metric(fmt(stats.rttP95, 0), "p95 ms", Modifier.weight(1f))
+                        Metric(fmt(stats.sendHz, 0), "Updates/s", Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        when (sum.act) {
+                            HomeLogic.Act.PAIR -> SecondaryButton("Pair a computer", { nav.navigate("add") })
+                            HomeLogic.Act.CONNECT -> SecondaryButton("Connect", { lastHost?.let { app.connection.connect(it) } }, enabled = lastHost != null)
+                            HomeLogic.Act.RECONNECT -> SecondaryButton("Reconnect", { lastHost?.let { app.connection.connect(it) } }, enabled = lastHost != null)
+                            HomeLogic.Act.CANCEL -> SecondaryButton("Cancel", { app.connection.disconnect() })
+                            HomeLogic.Act.CONFIRM -> SecondaryButton("Open pairing", { nav.navigate("add") })
+                            HomeLogic.Act.PLAY_DISCONNECT -> SecondaryButton("Disconnect", { app.connection.disconnect() })
+                        }
+                    }
+                    if (blePerm != null && Build.VERSION.SDK_INT >= 31) SecondaryButton("Allow Bluetooth fallback", {
+                        perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
+                    })
+                }
+                if (hosts.isNotEmpty()) {
+                    Divider()
+                    hosts.forEachIndexed { i, h ->
+                        if (i > 0) Divider()
+                        val isActive = (state as? ConnState.Connected)?.hostName == h.name
+                        ListRow(h.name, detail = if (h.addr.isNotBlank()) "${h.addr}:${h.port}" else "Bluetooth only",
+                            onClick = { app.connection.connect(h) },
+                            trailing = { Text(if (isActive) "Connected" else if (settings.lastHost == h.id) "Last used" else "Connect", style = NineType.small, color = if (isActive) accent.color else Nine.muted) })
                     }
                 }
-            }
-
-            // ---------------------------------------------------------------- computers
-            Section("Computers") {
-                if (hosts.isEmpty()) ListRow("Add a computer", detail = "Pair by QR code, six-digit code or Bluetooth", onClick = { nav.navigate("add") })
-                hosts.forEachIndexed { i, h ->
-                    if (i > 0) Divider()
-                    val isActive = (state as? ConnState.Connected)?.hostName == h.name
-                    ListRow(h.name, detail = if (h.addr.isNotBlank()) "${h.addr}:${h.port}" else "Bluetooth only",
-                        onClick = { app.connection.connect(h) },
-                        trailing = { Text(if (isActive) "Connected" else if (settings.lastHost == h.id) "Last used" else "Connect", style = NineType.small, color = if (isActive) Nine.accent else Nine.muted) })
-                }
-                if (hosts.isNotEmpty()) { Divider(); ListRow("Add another computer", onClick = { nav.navigate("add") }) }
+                Divider(); ListRow(if (hosts.isEmpty()) "Add a computer" else "Add another computer", detail = if (hosts.isEmpty()) "Pair by QR code, six-digit code or Bluetooth" else null, onClick = { nav.navigate("add") })
             }
 
             Section(null) {
+                ListRow("Controller layouts", detail = "Xbox, DualSense, Switch Pro, 8BitDo and your own", onClick = { nav.navigate("layouts") })
+                Divider()
                 ListRow("Calibrate steering", detail = settings.steering?.let { c -> if (c.hasRange) "${c.leftDeg!!.toInt()}° left · ${c.rightDeg!!.toInt()}° right" else "Neutral set · range not measured" } ?: "Neutral grip and range", onClick = { nav.navigate("calibrate") })
                 Divider()
-                ListRow("Settings", detail = "Controls, connection, privacy", onClick = { nav.navigate("settings") })
+                ListRow("Settings", detail = "Controls, lock, connection, privacy", onClick = { nav.navigate("settings") })
                 Divider()
                 ListRow("Advanced diagnostics", detail = "Links, freshness, reconnects", onClick = { nav.navigate("diagnostics") })
             }
+            Spacer(Modifier.size(24.dp))
         }
     }
 }
+
+/** One game in the rail: its colour as a lit dot, its name; the chosen one carries its colour's rim. */
+@Composable
+private fun GameCard(name: String, a: Accent, active: Boolean, onClick: () -> Unit) =
+    Column(Modifier.width(140.dp).height(96.dp)
+        .background(if (active) Brush.verticalGradient(listOf(a.surface, Nine.s1)) else Brush.verticalGradient(listOf(Nine.s1, Nine.s1)), Nine.card)
+        .border(1.dp, if (active) a.color.copy(alpha = 0.7f) else Nine.line, Nine.card)
+        .semantics { selected = active }
+        .clickable(role = Role.Button, onClickLabel = "Play $name", onClick = onClick).padding(14.dp),
+        verticalArrangement = Arrangement.SpaceBetween) {
+        Box(Modifier.size(14.dp).drawBehind {
+            drawCircle(Brush.radialGradient(listOf(a.color.copy(alpha = 0.5f), Color.Transparent), center, size.width * 1.4f), size.width * 1.4f, center)
+            drawCircle(a.color, size.width / 2, center)
+        })
+        Text(name, style = NineType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+
+@Composable
+private fun NewGameCard(onClick: () -> Unit) =
+    Column(Modifier.width(140.dp).height(96.dp).border(1.dp, Nine.line2, Nine.card)
+        .clickable(role = Role.Button, onClick = onClick).padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Text("+", style = NineType.title, color = Nine.muted)
+        Text("New game", style = NineType.small, color = Nine.muted)
+    }

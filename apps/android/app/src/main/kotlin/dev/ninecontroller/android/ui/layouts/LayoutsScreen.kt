@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.layouts
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,7 +89,7 @@ fun LayoutsScreen(app: NineApp, nav: NavController) {
                 if (i > 0) Divider()
                 val active = s.activeProfile == p.id
                 ListRow(p.name, detail = "${p.controls.size} controls" + (if (p.motion.enabled) " · tilt steering" else "") + (if (active) " · active" else ""),
-                    detailColor = if (active) Nine.accent else Nine.muted,
+                    detailColor = if (active) LocalAccent.current.color else Nine.muted,
                     onClick = { scope.launch { app.settings.update { it.copy(activeProfile = p.id) } } })
             }
             Divider()
@@ -101,16 +102,16 @@ fun LayoutsScreen(app: NineApp, nav: NavController) {
 private fun PresetCard(p: PadPreset, mapping: PadMapping, active: Boolean, modifier: Modifier, onUse: () -> Unit, onOpen: () -> Unit) {
     Column(modifier
         .semantics(mergeDescendants = false) { selected = active; contentDescription = "${p.name}${if (active) ", active" else ""}" }
-        .background(Nine.s1, Nine.card).border(1.dp, if (active) Nine.accent.copy(alpha = 0.55f) else Nine.line, Nine.card)
+        .background(Nine.s1, Nine.card).border(1.dp, if (active) LocalAccent.current.color.copy(alpha = 0.55f) else Nine.line, Nine.card)
         .clickable(role = Role.Button, onClickLabel = "Show details", onClick = onOpen).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2.1f))
+        PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2.1f), accent = LocalAccent.current)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(p.name, style = NineType.title)
                 Text(p.tagline + if (!mapping.isDefault) " · remapped" else "", style = NineType.small, color = Nine.muted)
             }
-            if (active) Micro("Active", color = Nine.accent)
+            if (active) Micro("Active", color = LocalAccent.current.color)
             else TextButton(onClick = onUse, modifier = Modifier.heightIn(min = Nine.target)) { Text("Use", color = Nine.text) }
         }
     }
@@ -131,9 +132,9 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
     fun save(m: PadMapping) = scope.launch { app.settings.update { it.copy(padMappings = it.padMappings + (p.id to m.encode())) } }
 
     Page(p.name, if (active) "Active layout" else "Layout", nav) {
-        PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2f).background(Nine.bg), highlight = focus)
+        PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2f).background(Nine.bg), highlight = focus, accent = LocalAccent.current)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (active) Text("This is the layout on your controller screen.", style = NineType.small, color = Nine.accent, modifier = Modifier.weight(1f).padding(top = 12.dp))
+            if (active) Text("This is the layout on your controller screen.", style = NineType.small, color = LocalAccent.current.color, modifier = Modifier.weight(1f).padding(top = 12.dp))
             else PrimaryButton("Use this layout", { scope.launch { app.settings.update { it.copy(activeProfile = PadPresets.selection(p)) } } })
             SecondaryButton("Restore defaults", { save(mapping.reset()); error = null }, enabled = !mapping.isDefault)
         }
@@ -157,7 +158,7 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
                     ListRow(
                         e.label,
                         detail = a?.let { "Sends ${it.title} · ${it.wire}" + if (changed) " · remapped" else "" } ?: (e.unavailable ?: "Sends nothing"),
-                        detailColor = when { a == null -> Nine.dim; changed -> Nine.accent; else -> Nine.muted },
+                        detailColor = when { a == null -> Nine.dim; changed -> LocalAccent.current.color; else -> Nine.muted },
                         onClick = if (e.remappable) ({ focus = e.id; editing = e }) else ({ focus = e.id }),
                         trailing = if (e.remappable) ({ Text("Change", style = NineType.small, color = Nine.text) }) else ({ }),
                     )
@@ -187,7 +188,7 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
                             try { save(mapping.assign(e.id, a)); error = null } catch (x: MappingException) { error = x.message }
                             editing = null
                         }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(sel, null, colors = RadioButtonDefaults.colors(selectedColor = Nine.accent, unselectedColor = Nine.dim))
+                            RadioButton(sel, null, colors = RadioButtonDefaults.colors(selectedColor = LocalAccent.current.color, unselectedColor = Nine.dim))
                             Column(Modifier.padding(start = 8.dp)) {
                                 Text(a?.title ?: "Unassigned", style = NineType.body)
                                 Text(a?.let { holderLabel(mapping, it, e) } ?: "Sends nothing", style = NineType.small, color = Nine.dim)

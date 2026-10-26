@@ -1,6 +1,7 @@
 package dev.ninecontroller.android
 
 import android.app.Application
+import dev.ninecontroller.android.data.GameStore
 import dev.ninecontroller.android.data.HostStore
 import dev.ninecontroller.android.data.IdentityStore
 import dev.ninecontroller.android.data.ProfileStore
@@ -17,6 +18,7 @@ class NineApp : Application() {
     lateinit var hosts: HostStore; private set
     lateinit var profiles: ProfileStore; private set
     lateinit var settings: SettingsStore; private set
+    lateinit var games: GameStore; private set
     lateinit var haptics: Haptics; private set
     lateinit var discovery: Discovery; private set
     lateinit var connection: ConnectionManager; private set
@@ -30,10 +32,15 @@ class NineApp : Application() {
         hosts = HostStore(this)
         profiles = ProfileStore(this)
         settings = SettingsStore(this)
+        games = GameStore(this)
         haptics = Haptics(this)
         discovery = Discovery(this)
         connection = ConnectionManager(this, identity, hosts, settings, haptics)
         localNetwork = LocalNetwork(this)
         hid = HidGamepad(this, haptics)
     }
+
+    /** Make [g] the game being played: its colour, layout and steering, in one step. */
+    suspend fun play(g: dev.ninecontroller.android.data.Game) =
+        settings.update { it.copy(activeGame = g.id, accent = g.accent, activeProfile = g.layout, padTilt = g.tilt) }
 }

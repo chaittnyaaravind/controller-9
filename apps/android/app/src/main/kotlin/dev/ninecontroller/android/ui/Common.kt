@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import dev.ninecontroller.android.R
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import dev.ninecontroller.android.ui.theme.Micro
 import dev.ninecontroller.android.ui.theme.Nine
 import dev.ninecontroller.android.ui.theme.NineType
@@ -83,7 +84,7 @@ fun Page(title: String, eyebrow: String, nav: NavController?, actions: @Composab
                 Spacer(Modifier.weight(1f))
                 actions()
             }
-            Micro(eyebrow, Modifier.padding(top = 8.dp), color = Nine.accent)
+            Micro(eyebrow, Modifier.padding(top = 8.dp), color = LocalAccent.current.color)
             Text(title, style = NineType.display, modifier = Modifier.padding(top = 6.dp, bottom = 22.dp).semantics { heading() })
             Column(verticalArrangement = Arrangement.spacedBy(Nine.gap), content = content)
             Spacer(Modifier.size(40.dp))
@@ -144,7 +145,7 @@ fun Card(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> U
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
     Button(onClick, modifier.heightIn(min = Nine.target), enabled = enabled, shape = Nine.pill,
-        colors = ButtonDefaults.buttonColors(containerColor = Nine.accent, contentColor = Nine.accentInk, disabledContainerColor = Nine.s3, disabledContentColor = Nine.dim),
+        colors = ButtonDefaults.buttonColors(containerColor = LocalAccent.current.color, contentColor = LocalAccent.current.ink, disabledContainerColor = Nine.s3, disabledContentColor = Nine.dim),
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) { Text(text, style = NineType.body) }
 
 @Composable
@@ -158,24 +159,24 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 @Composable
 fun Choice(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) =
     Box(modifier.heightIn(min = 40.dp).semantics { this.selected = selected }
-        .background(if (selected) Nine.accentSoft else Color.Transparent, Nine.pill)
-        .border(1.dp, if (selected) Nine.accent.copy(alpha = 0.6f) else Nine.line2, Nine.pill)
+        .background(if (selected) LocalAccent.current.soft else Color.Transparent, Nine.pill)
+        .border(1.dp, if (selected) LocalAccent.current.color.copy(alpha = 0.6f) else Nine.line2, Nine.pill)
         .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center) { Text(text, style = NineType.small, color = if (selected) Nine.text else Nine.muted) }
 
 enum class Tone { OK, WARN, BAD, IDLE }
 
-fun Tone.color() = when (this) { Tone.OK -> Nine.accent; Tone.WARN -> Nine.warn; Tone.BAD -> Nine.bad; Tone.IDLE -> Nine.dim }
+fun Tone.color(accent: Color = Nine.accent) = when (this) { Tone.OK -> accent; Tone.WARN -> Nine.warn; Tone.BAD -> Nine.bad; Tone.IDLE -> Nine.dim }
 
 @Composable
 fun StatusDot(color: Color, size: Dp = 7.dp) = Box(Modifier.size(size).background(color, CircleShape))
 
 /** Small status capsule: dot + uppercase label. */
 @Composable
-fun Pill(text: String, tone: Tone, modifier: Modifier = Modifier) =
-    Row(modifier.background(Nine.s2, Nine.pill).border(1.dp, Nine.line, Nine.pill).padding(horizontal = 10.dp, vertical = 5.dp),
+fun Pill(text: String, tone: Tone, modifier: Modifier = Modifier, accent: Color = LocalAccent.current.color, fill: Color = Nine.s2) =
+    Row(modifier.background(fill, Nine.pill).border(1.dp, Nine.line, Nine.pill).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        StatusDot(tone.color(), 6.dp)
+        StatusDot(tone.color(accent), 6.dp)
         Text(text.uppercase(), style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 

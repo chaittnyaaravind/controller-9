@@ -1,7 +1,26 @@
-# Design system — "graphite precision"
+# Design system — "Lit Hardware" (Android) / "graphite precision" (desktop)
 
-One system for the Android app (`ui/theme/Theme.kt`, `ui/Common.kt`) and the desktop companion
-(`hosts/app/ui/styles.css`). Same token values in both; components use tokens, never raw values.
+Android (`ui/theme/Theme.kt`, `ui/Common.kt`) moved to **Lit Hardware** on 2026-10-25: the phone is a
+graphite instrument lit by one colour that belongs to the game being played. The desktop companion
+(`hosts/app/ui/styles.css`) still uses graphite precision below. Components use tokens, never raw values.
+
+## Lit Hardware (Android)
+
+- **Game accents** (`Accent`): Volt `#C6F432` (default), Magenta `#FF2E88`, Ember `#FF6A1A`, Cyan
+  `#22D3EE`, Violet `#A78BFA`, Gold `#FFC53D`, each with an ink colour for text on it. A game
+  (`data/GameStore`) owns one; `LocalAccent` carries it to every screen. One accent per screen.
+- **Scene**: bg `#0A0B0D` pulled 4 % toward the accent; surfaces `#121418 / #191C21 / #23272E`;
+  two accent pools (11 %) under the grips on the controller, one top-right on Home; film grain 4 %.
+- **Controls** (`ui/pad/PadVisuals.kt`): each sits in a well (shadow tinted with the accent),
+  convex top-lit cap, 1 px rim lit from above; pressed = accent cap + glow + 5 % travel. Sticks:
+  gate ring with 8 index marks, concave knob, deflection trail. Unavailable controls stay dashed.
+- **Type**: Geist (variable, 400/510/600) for everything, Geist Mono for numbers; bundled in
+  `res/font` (SIL OFL, `apps/android/licenses/Geist-OFL.txt`). Hero 40/41 sp −1.4.
+- **Radius**: 10 (small), 20 (cards), pill. Effects limited to wells/glow, scene pools, grain.
+- **Controller Lock**: screen pinning (`ControllerLock`), hold LOCKED to unlock; edge swipes are
+  excluded from the back gesture on the controller.
+
+The tables below describe the desktop companion.
 
 ## Identity
 

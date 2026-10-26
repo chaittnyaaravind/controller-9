@@ -90,6 +90,16 @@ import dev.ninecontroller.protocol.Profile
 import dev.ninecontroller.protocol.PoseCapture
 import dev.ninecontroller.protocol.SteeringCalibrator
 import kotlinx.coroutines.delay
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import dev.ninecontroller.android.ui.theme.Accent
+import dev.ninecontroller.android.ui.theme.Grain
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
@@ -129,6 +139,13 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     val s = settings ?: return // wait for stored settings: never flash the wrong layout
 
     val spec = remember(s.activeProfile, s.padMappings, s.padTilt, s.tiltSensitivity, s.tiltDeadzone, s.tiltLockDeg, s.stickDeadzone, profiles) { surfaceFor(s, profiles) } ?: return
+
+    val accent = Accent.of(s.accent)
+    var locked by remember { mutableStateOf(ControllerLock.isLocked(activity)) }
+    // Pinning is confirmed by the player in a system dialog, so its state is read back, not assumed.
+    LaunchedEffect(Unit) { while (true) { locked = ControllerLock.isLocked(activity); delay(400) } }
+    LaunchedEffect(s.lockOnPlay) { if (s.lockOnPlay) ControllerLock.lock(activity) }
+    DisposableEffect(Unit) { onDispose { ControllerLock.unlock(activity) } }
 
     val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
@@ -220,7 +237,16 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     // A steering session with no center at all: capture the player's grip once, automatically.
     LaunchedEffect(spec.key, spec.motion.enabled) { if (spec.motion.enabled && s.steering == null) { delay(800); recenter(auto = true) } }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Nine.bg).windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
+    CompositionLocalProvider(LocalAccent provides accent) {
+    // The scene: black pulled toward the game colour, two pools of its light under the grips, grain.
+    // Edge swipes belong to the game here, not to Android's back gesture.
+    BoxWithConstraints(Modifier.fillMaxSize().drawBehind {
+        drawRect(accent.bg)
+        for (fx in listOf(0.2f, 0.8f)) drawCircle(
+            Brush.radialGradient(listOf(accent.color.copy(alpha = 0.11f), Color.Transparent), androidx.compose.ui.geometry.Offset(size.width * fx, size.height * 0.62f), size.height * 0.75f),
+            size.height * 0.75f, androidx.compose.ui.geometry.Offset(size.width * fx, size.height * 0.62f))
+        drawRect(Grain.brush, alpha = Grain.ALPHA)
+    }.systemGestureExclusion().windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
         val density = LocalDensity.current
         val minTarget = with(density) { Nine.target.toPx() }
@@ -280,7 +306,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                         val b = boxes[e.id] ?: inert.getValue(e.id)
                         val v = visuals[e.id] ?: Visual(pressed = toggles[e.id] == true)
                         drawElement(e, Rect(b.left, b.top, b.right, b.bottom), pad.actionOf(e),
-                            Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u)
+                            Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u, accent = accent)
                     }
                 }
             }
@@ -299,7 +325,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                                 engine.setButtons(c.id, m); scope.launch { delay(120); engine.setButtons(c.id, 0) }; true
                             }
                         }) {
-                        if (pad == null) ControlVisual(c, v, steeringValue)
+                        if (pad == null) ControlVisual(c, v, steeringValue, accent)
                     }
                 }
             }
@@ -310,31 +336,32 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box {
-                Row(Modifier.heightIn(min = 36.dp).background(Nine.s1.copy(alpha = 0.92f), Nine.pill).border(1.dp, Nine.line, Nine.pill)
-                    .clickable(role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+                Row(Modifier.heightIn(min = 36.dp).background(accent.surface.copy(alpha = 0.86f), Nine.pill).border(1.dp, Nine.line2, Nine.pill)
+                    .clickable(enabled = !locked, role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text(spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 118.dp))
-                    Text("  ▾", style = NineType.small, color = Nine.dim)
+                    Box(Modifier.size(7.dp).background(accent.color, androidx.compose.foundation.shape.CircleShape))
+                    Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 118.dp))
+                    if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim)
                 }
                 DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
                     Micro("Controller layouts", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     PadPresets.all.forEach { p ->
                         val sel = PadPresets.selection(p)
-                        DropdownMenuItem(text = { Text(p.name + if (sel == s.activeProfile) "  ·  active" else "", color = if (sel == s.activeProfile) Nine.accent else Nine.text) },
+                        DropdownMenuItem(text = { Text(p.name + if (sel == s.activeProfile) "  ·  active" else "", color = if (sel == s.activeProfile) LocalAccent.current.color else Nine.text) },
                             onClick = { switcher = false; scope.launch { app.settings.update { it.copy(activeProfile = sel) } } })
                     }
                     HorizontalDivider(color = Nine.line)
                     Micro("Custom profiles", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     profiles.forEach { p ->
-                        DropdownMenuItem(text = { Text(p.name + if (p.id == s.activeProfile) "  ·  active" else "", color = if (p.id == s.activeProfile) Nine.accent else Nine.text) },
+                        DropdownMenuItem(text = { Text(p.name + if (p.id == s.activeProfile) "  ·  active" else "", color = if (p.id == s.activeProfile) LocalAccent.current.color else Nine.text) },
                             onClick = { switcher = false; scope.launch { app.settings.update { it.copy(activeProfile = p.id) } } })
                     }
                 }
             }
             val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
-                is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "Bluetooth controller · ${h.host}" else "Pairing…") to (if (h.subscribed) Tone.OK else Tone.WARN)
-                is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth controller off" to Tone.BAD
-                else -> "Waiting for computer" to Tone.WARN
+                is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "BT" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
+                is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth off" to Tone.BAD
+                else -> "Waiting" to Tone.WARN
             } else when (val c = conn) {
                 is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
                 is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
@@ -343,11 +370,15 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 is ConnState.Failed -> "Offline" to Tone.BAD
                 ConnState.Idle -> "Offline" to Tone.BAD
             }
-            Pill(label, tone, Modifier.weight(1f, fill = false))
-            BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
+            Pill(label, tone, Modifier.weight(1f, fill = false), accent = accent.color, fill = accent.surface.copy(alpha = 0.86f))
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
-            if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
-            BarButton("Exit") { nav.popBackStack() }
+            if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
+            else {
+                BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
+                if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
+                BarButton("Lock") { ControllerLock.lock(activity); hint = "Lock: confirm \u201cPin\u201d once. Hold LOCKED to unlock." }
+                BarButton("Exit") { nav.popBackStack() }
+            }
         }
 
         // ---------------------------------------------------------------- inspector / hints (non-interactive)
@@ -368,6 +399,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             }
         }
     }
+    }
 
 }
 
@@ -378,14 +410,29 @@ private const val MIN_PRESS_MS = 40L
 private const val RECENTER_HOLD_MS = 900L
 
 @Composable
-private fun BarButton(text: String, active: Boolean = false, onClick: () -> Unit) =
-    Box(Modifier.heightIn(min = 36.dp).background(if (active) Nine.accentSoft else Nine.s1.copy(alpha = 0.92f), Nine.pill)
-        .border(1.dp, if (active) Nine.accent.copy(alpha = 0.6f) else Nine.line, Nine.pill)
+private fun BarButton(text: String, active: Boolean = false, onClick: () -> Unit) {
+    val a = LocalAccent.current
+    Box(Modifier.heightIn(min = 36.dp).background(if (active) a.soft else a.surface.copy(alpha = 0.86f), Nine.pill)
+        .border(1.dp, if (active) a.color.copy(alpha = 0.6f) else Nine.line2, Nine.pill)
         .semantics { if (active) stateDescription = "on" }
         .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         // Single line, never wraps: a narrow bar truncates the pill first (it has the weight), not the buttons.
         Text(text.uppercase(), style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false)
     }
+}
+
+/** Shown while the controller is pinned. A hold (not a tap) unlocks, so a stray thumb can't. */
+@Composable
+private fun LockPill(onUnlock: () -> Unit) {
+    val a = LocalAccent.current
+    Row(Modifier.heightIn(min = 36.dp).background(a.soft, Nine.pill).border(1.dp, a.color.copy(alpha = 0.6f), Nine.pill)
+        .semantics { stateDescription = "locked"; onLongClick("Unlock") { onUnlock(); true } }
+        .pointerInput(Unit) { detectTapGestures(onLongPress = { onUnlock() }) }
+        .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp).background(a.color, androidx.compose.foundation.shape.CircleShape))
+        Text("  LOCKED", style = NineType.label, color = Nine.text, maxLines = 1, softWrap = false)
+    }
+}
 
 /** Compact link names for the in-game bar; the full label is on Home and Diagnostics. */
 internal fun shortLink(k: dev.ninecontroller.protocol.LinkKind) = when (k) {

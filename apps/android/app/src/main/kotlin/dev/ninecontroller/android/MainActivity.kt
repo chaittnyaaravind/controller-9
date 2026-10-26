@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -33,6 +34,9 @@ class MainActivity : ComponentActivity() {
         debugHook(intent)
         setContent {
             NineTheme {
+                // The game being played lights every screen (ui.theme.Accent).
+                val accent = app.settings.flow.collectAsState(null).value?.accent
+                androidx.compose.runtime.CompositionLocalProvider(dev.ninecontroller.android.ui.theme.LocalAccent provides dev.ninecontroller.android.ui.theme.Accent.of(accent)) {
                 val nav = rememberNavController()
                 NavHost(nav, startDestination = "home") {
                     composable("home") { HomeScreen(app, nav) }
@@ -47,6 +51,8 @@ class MainActivity : ComponentActivity() {
                     composable("layouts") { dev.ninecontroller.android.ui.layouts.LayoutsScreen(app, nav) }
                     composable("layout/{id}") { dev.ninecontroller.android.ui.layouts.LayoutDetailScreen(app, nav, it.arguments?.getString("id") ?: "") }
                     composable("calibrate") { dev.ninecontroller.android.ui.calibration.CalibrationScreen(app, nav) }
+                    composable("game/{id}") { dev.ninecontroller.android.ui.games.GameScreen(app, nav, it.arguments?.getString("id") ?: "new") }
+                }
                 }
             }
         }

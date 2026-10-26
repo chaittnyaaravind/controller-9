@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.profiles
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +65,7 @@ fun ProfilesScreen(app: NineApp, nav: NavController) {
             Card {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(p.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (p.id == settings.activeProfile) Micro("In use", color = Nine.accent)
+                    if (p.id == settings.activeProfile) Micro("In use", color = LocalAccent.current.color)
                 }
                 Text("${p.controls.size} controls" + if (p.motion.enabled) " · motion steering (${p.motion.lockDeg.toInt()}° lock)" else "", color = Nine.muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -1,5 +1,6 @@
 package dev.ninecontroller.android.ui.motion
 
+import dev.ninecontroller.android.ui.theme.LocalAccent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,6 +91,7 @@ fun MotionScreen(app: NineApp, nav: NavController, profileId: String) {
 
 @Composable
 private fun Curve(m: MotionSettings, liveAngle: Double) {
+    val accentColor = LocalAccent.current.color
     Canvas(Modifier.fillMaxWidth().height(160.dp).semantics { contentDescription = "Steering response curve" }) {
         val w = size.width; val h = size.height
         drawLine(Nine.line, Offset(0f, h / 2), Offset(w, h / 2)); drawLine(Nine.line, Offset(w / 2, 0f), Offset(w / 2, h))
@@ -104,7 +106,7 @@ private fun Curve(m: MotionSettings, liveAngle: Double) {
         if (!liveAngle.isNaN()) {
             val d = liveAngle.coerceIn(-m.lockDeg * 1.2, m.lockDeg * 1.2)
             val px = ((d / (m.lockDeg * 1.2) + 1) / 2 * w).toFloat()
-            drawCircle(Nine.accent, 5.dp.toPx(), Offset(px, (h / 2 - MotionMath.shape(d, m) * h / 2 * 0.92).toFloat()))
+            drawCircle(accentColor, 5.dp.toPx(), Offset(px, (h / 2 - MotionMath.shape(d, m) * h / 2 * 0.92).toFloat()))
         }
     }
 }
