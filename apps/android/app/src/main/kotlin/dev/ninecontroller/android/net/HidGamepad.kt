@@ -400,6 +400,10 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
             (x.PRODUCT_ID shr 8).toByte(), x.VERSION.toByte(), (x.VERSION shr 8).toByte())
         addCharacteristic(char(PNP_ID, PROPERTY_READ, PERMISSION_READ, pnp))
         addCharacteristic(char(MANUFACTURER, PROPERTY_READ, PERMISSION_READ, "Controller-9".toByteArray()))
+        // Experiment (2026-10-26, not yet device-tested): macOS lists this pad as "Firmware Version: 0.0.0"
+        // and never sends rumble (docs/DIRECT_BLUETOOTH.md, G7). Xbox Bluetooth rumble came with 5.x
+        // controller firmware, so report a 5.x revision. Adding it moves the later handles: re-pair once.
+        addCharacteristic(char(FIRMWARE_REVISION, PROPERTY_READ, PERMISSION_READ, PAD_FIRMWARE.toByteArray()))
     }
 
     private fun battery() = BluetoothGattService(BATTERY_SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
@@ -465,6 +469,9 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         val PROTOCOL_MODE = u16(0x2A4E)
         val PNP_ID = u16(0x2A50)
         val MANUFACTURER = u16(0x2A29)
+        val FIRMWARE_REVISION = u16(0x2A26)
+        /** Firmware revision a current Xbox Wireless Controller (1914) reports; see deviceInfo(). */
+        const val PAD_FIRMWARE = "5.17.3202.0"
         val BATTERY_LEVEL = u16(0x2A19)
         val CCCD = u16(0x2902)
         val REPORT_REFERENCE = u16(0x2908)

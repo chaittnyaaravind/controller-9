@@ -15,6 +15,15 @@ import dev.ninecontroller.protocol.TRIGGER_MAX
 object HidSweep {
     private const val TAG = "C9HidSweep"
 
+    /** Remote keys check (tools/direct-bt-check/remote-check.sh): pointer 400 px right, then Volume Up. */
+    fun remote(app: NineApp) = Thread({
+        Log.i(TAG, "remote: ready=${app.hid.remoteReady}")
+        repeat(10) { app.hid.sendMouse(0, 40, 0); Thread.sleep(30) }
+        Thread.sleep(500)
+        app.hid.tapConsumer(dev.ninecontroller.android.input.RemoteHidReport.VOLUME_UP)
+        Log.i(TAG, "remote: sent pointer + volume up")
+    }, "c9-remote-check").apply { isDaemon = true }.start()
+
     fun start(app: NineApp, sweep: Boolean) {
         Log.i(TAG, "hook: sweep=$sweep state=${app.hid.state.value}")
         app.connection.disconnect()

@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
     /** Debug builds only: tools/direct-bt-check starts the Bluetooth controller mode (and its sweep). */
     private fun debugHook(i: android.content.Intent?) {
         if (BuildConfig.DEBUG && i?.getBooleanExtra("c9_hid", false) == true) HidSweep.start(application as NineApp, i.getBooleanExtra("c9_hid_sweep", false))
+        if (BuildConfig.DEBUG && i?.getBooleanExtra("c9_remote", false) == true) HidSweep.remote(application as NineApp)
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); debugHook(intent) }
