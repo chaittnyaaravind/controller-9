@@ -39,6 +39,7 @@ import dev.ninecontroller.android.input.RemoteHidReport as R
 import dev.ninecontroller.android.net.HidGamepad
 import dev.ninecontroller.android.ui.Page
 import dev.ninecontroller.android.ui.PrimaryButton
+import dev.ninecontroller.android.ui.SecondaryButton
 import dev.ninecontroller.android.ui.Section
 import dev.ninecontroller.android.ui.theme.LocalAccent
 import dev.ninecontroller.android.ui.theme.Micro
@@ -79,6 +80,17 @@ fun RemoteScreen(app: NineApp, nav: NavController) {
             }
             return@Page
         }
+        // Measured 2026-10-26: macOS gives a device with the Xbox ID wholly to its game-controller driver
+        // (AppleGCHIDUserEventDriver) and drops these reports; Windows and TVs use their own HID drivers.
+        Text("Not on a Mac: macOS hands an Xbox controller only to its game-controller driver and ignores its keys. Use the remote with Windows, Android TV or other TVs.",
+            style = NineType.small, color = Nine.warn)
+        SecondaryButton("Turn off remote keys", {
+            scope.launch {
+                app.settings.update { it.copy(remoteKeys = false) }
+                app.hid.remoteKeys = false
+                if (app.hid.active) { app.hid.stop(); app.hid.start(); app.settings.update { it.copy(hidMode = true) } }
+            }
+        })
         if (!live) Text("Connect the Bluetooth controller to use the remote (Home → Bluetooth controller).", style = NineType.small, color = Nine.warn)
 
         // ---------------------------------------------------------------- trackpad

@@ -53,11 +53,11 @@ computer, unit tests for the report encoder, site + docs updated with evidence o
 | Computer's Bluetooth off/on (sleep, range) | recovers by itself in ~6 s |
 | **Phone's** Bluetooth off/on or phone reboot | does **not** recover by itself; turning the computer's Bluetooth off and on fixes it (tip shown in the app) |
 | G6 (2026-10-25) | **PASS in Asphalt Legends** (Mac App Store, GameController.framework): with the debug sweep and Asphalt in front, Asphalt switches to Xbox button prompts, the pad closes a pop-up and opens its settings (`tests/results/2026-10-25-asphalt/`). A Unity game (Go Kart Racing) not yet tested |
-| Web Gamepad API (2026-10-25) | **Safari: PASS** — "Xbox Wireless Controller Extended Gamepad", mapping `standard`, buttons 0–15 and all four axes both ways (`tests/results/2026-10-25-safari-gamepad-api.png`); browser cloud gaming reads exactly this. **Chrome on macOS 27: FAIL** — no gamepad over `file://` or `http://localhost` while macOS GameController received the same sweep (`tests/results/2026-10-25-chrome-gamepad-api.png`); cause not found yet |
-| G7 rumble (2026-10-25) | **FAIL** — GameController haptics on the Mac accepts a 1.2 s rumble ("haptics": true) but no output report reaches the phone; the phone side (report 3 → vibration) is unit-tested only |
+| Web Gamepad API (2026-10-25) | **Safari: PASS** — "Xbox Wireless Controller Extended Gamepad", mapping `standard`, buttons 0–15 and all four axes both ways (`tests/results/2026-10-25-safari-gamepad-api.png`); browser cloud gaming reads exactly this. **Chrome: PASS (2026-10-26)** after a Chrome restart — "Xbox Wireless Controller (STANDARD GAMEPAD)", buttons 0–15, all axes (`tests/results/2026-10-26-chrome-gamepad-api.png`). The 2026-10-25 failure: Chrome's `chrome://histograms` showed `Gamepad.Mac.GameController.ConnectionOutcome` = kSuccess ×7 then kNoSlotAvailable ×17 — every reconnect of the day left a stale pad in Chrome's 4 slots. Restarting Chrome clears them |
+| G7 rumble (2026-10-25, 2026-10-26) | **FAIL** — also with a 5.x firmware revision in Device Information (tried 2026-10-26, reverted: no rumble, and View stopped) — GameController haptics on the Mac accepts a 1.2 s rumble ("haptics": true) but no output report reaches the phone; the phone side (report 3 → vibration) is unit-tested only |
 | Turbo (2026-10-25) | PASS — one 1.5 s hold of a turbo A gave 20 A presses in GameController |
-| Gyro aim (2026-10-25) | sensors run at 200 Hz; 0 right-stick events in 10 s at rest; aiming by hand not yet confirmed |
-| Remote keys (2026-10-25) | built, off by default, needs a re-pair; not yet device-tested |
+| Gyro aim | PASS (2026-10-26) — by hand: 584 right-stick events, full deflection left, right, up and down; 0 events in 10 s at rest |
+| Remote keys | **macOS: not possible** (2026-10-26) — after a re-pair macOS parsed the keyboard/mouse/consumer collections but attached only `AppleGCHIDUserEventDriver` (it owns 045E:0B13) and dropped those reports; pointer and volume did not move. Off by default; the Remote screen says so. Windows / TVs untested. With it on, macOS also stopped reporting View — another reason it stays off |
 | G5, G8, G9 | not run yet (SDL, latency, Windows/Linux) |
 
 ### What the hardware taught us (each fix is in `HidGamepad.kt`)
@@ -87,6 +87,8 @@ computer, unit tests for the report encoder, site + docs updated with evidence o
 9. The Xbox (Guide) button belongs to macOS: it opens the game overlay, and controller input to apps
    stops for a few seconds afterwards. The debug sweep skips it; a player pressing it mid-game sees
    the same pause, as with a real Xbox pad.
-10. Never `am force-stop` the app while a computer is paired: the computer keeps the Bluetooth link
+10. (Lesson 2, again) The pinned base moved from 640 to **1024** on 2026-10-26: Android's own next free handle had
+   grown to 651 after system updates, which silently unpinned the layout. Changing the base means re-pairing once.
+11. Never `am force-stop` the app while a computer is paired: the computer keeps the Bluetooth link
    but drops the gamepad until its own Bluetooth is turned off and on. Debug hooks are sent to the
    running app with `am start -f 0x20000000` (single top), not by restarting it.
