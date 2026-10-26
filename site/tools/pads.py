@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the five controller-style layouts as SVG for the website, from the same geometry as
+"""Render the controller-style layouts as SVG for the website, from the same geometry as
 apps/android/.../pad/PadPresets.kt and apps/ios/Core/.../PadPresets.swift (200 x 100 canvas).
 
     python3 site/tools/pads.py      # writes site/assets/pad-<id>.svg
@@ -54,6 +54,21 @@ PADS = {
         ("select", "center", "", 84, 44, 14, 7, True), ("start", "center", "", 116, 44, 14, 7, True),
         ("star", "center", "", 100, 34, 9, 9, False), ("home", "center", "", 100, 58, 11, 11, True),
         ("paddle_l", "paddle", "P1", 22, 92, 20, 10, False), ("paddle_r", "paddle", "P2", 178, 92, 20, 10, False)]),
+    "gamecube": ("GameCube-style", [("trigger_l", "trigger", "L", 30, 9, 44, 14, True), ("trigger_r", "trigger", "R", 170, 9, 44, 14, True),
+        ("bumper_l", "bumper", "L click", 30, 24.5, 34, 11, True), ("bumper_r", "bumper", "Z", 170, 24.5, 34, 11, True),
+        ("face_s", "face", "A", 160, 58, 22, 22, True), ("face_w", "face", "B", 141, 62, 12, 12, True),
+        ("face_e", "face", "X", 180, 50, 13, 13, True), ("face_n", "face", "Y", 157, 38, 13, 13, True),
+        ("stick_l", "stick", "", 36, 52, 34, 34, True), ("dpad", "dpad", "", 70, 82, 26, 26, True), ("stick_r", "stick", "", 130, 82, 26, 26, True),
+        ("stick_l_press", "press", "LS", 14, 84, 12, 12, True), ("stick_r_press", "press", "RS", 186, 84, 12, 12, True),
+        ("start", "center", "", 100, 50, 11, 11, True), ("home", "center", "", 100, 66, 10, 10, True), ("select", "center", "", 100, 34, 9, 9, True)]),
+    "arcade": ("Arcade stick", [("dpad", "dpad", "", 46, 58, 54, 54, True),
+        ("face_w", "face", "X", 110, 46, 17, 17, True), ("face_n", "face", "Y", 131, 41, 17, 17, True),
+        ("bumper_r", "face", "RB", 152, 41, 17, 17, True), ("bumper_l", "face", "LB", 173, 46, 17, 17, True),
+        ("face_s", "face", "A", 112, 68, 17, 17, True), ("face_e", "face", "B", 133, 63, 17, 17, True),
+        ("trigger_r", "face", "RT", 154, 63, 17, 17, True), ("trigger_l", "face", "LT", 175, 68, 17, 17, True),
+        ("view", "center", "", 84, 14, 11, 11, True), ("guide", "center", "", 100, 14, 12, 12, True), ("menu", "center", "", 116, 14, 11, 11, True),
+        ("stick_l", "stick", "", 88, 86, 20, 20, True), ("stick_r", "stick", "", 186, 88, 20, 20, True),
+        ("stick_l_press", "press", "LS", 62, 92, 10, 10, True), ("stick_r_press", "press", "RS", 160, 92, 10, 10, True)]),
 }
 
 def glyph(label, cx, cy, r):

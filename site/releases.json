@@ -6,10 +6,10 @@
       "id": "android",
       "name": "Android",
       "status": "available",
-      "meta": "Android 8 or newer · APK · version 0.2.1",
-      "file": "downloads/Controller-9-0.2.1.apk",
-      "text": "The phone app. Pairs as an Xbox Wireless Controller over Bluetooth, so a Mac needs nothing installed; works in games and in browser cloud gaming (Safari and Chrome see a standard gamepad). Black-glass controller lit in each game's colour, gyro aim, turbo buttons, Controller Lock, games you can share by QR code. Open the file on your phone and allow installing from your browser when Android asks. Updates earlier versions in place.",
-      "tested": "This exact file (signed release 0.2.1) was installed on a realme 12 5G (Android 16) and used as a Bluetooth controller for a MacBook Air (macOS 27.0.1): A, B, X, Y, D-pad and both sticks arrived in macOS GameController. Gyro aim reached full stick deflection in all four directions by hand; Safari and Chrome read it as a standard gamepad; Asphalt Legends shows Xbox prompts and is played from the phone."
+      "meta": "Android 8 or newer · APK · version 0.2.2",
+      "file": "downloads/Controller-9-0.2.2.apk",
+      "text": "The phone app. Pairs as an Xbox Wireless Controller over Bluetooth, so a Mac needs nothing installed; works in games and in browser cloud gaming (Safari and Chrome see a standard gamepad). Black-glass controller lit in each game's colour, gyro aim, turbo buttons, Controller Lock, games you can share by QR code, GameCube and arcade-stick layouts, a Quick Settings tile and per-game shortcuts. Open the file on your phone and allow installing from your browser when Android asks. Updates earlier versions in place.",
+      "tested": "This exact file (signed release 0.2.2) was installed over 0.2.1 on a realme 12 5G (Android 16), kept its settings, and came back as the Bluetooth controller for a MacBook Air (macOS 27.0.1): A, B, X, Y and the D-pad pressed on the phone arrived in macOS GameController. Earlier on 0.2.1: both sticks, gyro aim in all four directions, Safari and Chrome as a standard gamepad, Asphalt Legends with Xbox prompts. Quick Settings tile and game shortcuts checked on an Android 16 emulator."
     },
     {
       "id": "mac",

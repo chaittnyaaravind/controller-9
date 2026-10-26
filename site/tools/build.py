@@ -15,7 +15,8 @@ PUB = SITE / "public"
 DRAFT = "--draft" in sys.argv  # local preview only: a missing file shows as "Building…"; never deploy a draft
 LAYOUTS = [("xbox", "Xbox-style", "Asymmetric sticks · A B X Y"), ("dualsense", "DualSense-style", "Symmetric sticks · touchpad"),
            ("dualshock4", "DualShock 4-style", "Symmetric sticks · Share"), ("switchpro", "Switch Pro-style", "Nintendo labels, positional"),
-           ("8bitdo-pro2", "8BitDo Pro 2-style", "Symmetric retro · rear paddles")]
+           ("8bitdo-pro2", "8BitDo Pro 2-style", "Symmetric retro · rear paddles"),
+           ("gamecube", "GameCube-style", "Big A · C-stick · Z"), ("arcade", "Arcade stick", "Lever · 8 buttons · fighting games")]
 CHIP = {"available": ("ok", "Available"), "preview": ("pre", "Preview"), "soon": ("soon", "Coming soon")}
 
 

@@ -16,8 +16,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 const gsap = window.gsap, ScrollTrigger = window.ScrollTrigger;
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const canvas = document.getElementById("gl");
-const LAYOUTS = ["xbox", "dualsense", "dualshock4", "switchpro", "8bitdo-pro2"];
-const NAMES = ["Xbox-style", "DualSense-style", "DualShock 4-style", "Switch Pro-style", "8BitDo Pro 2-style"];
+const LAYOUTS = ["xbox", "dualsense", "dualshock4", "switchpro", "8bitdo-pro2", "gamecube", "arcade"];
+const NAMES = ["Xbox-style", "DualSense-style", "DualShock 4-style", "Switch Pro-style", "8BitDo Pro 2-style", "GameCube-style", "Arcade stick"];
 
 // ------------------------------------------------------------------ chrome (works without WebGL)
 const nav = document.getElementById("nav");

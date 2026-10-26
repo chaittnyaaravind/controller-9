@@ -140,7 +140,7 @@ section.block { padding: clamp(88px, 11vw, 168px) 0; background: var(--bg); }
 .layouts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
 .layout { grid-column: span 2; display: flex; flex-direction: column; gap: 20px; transition: box-shadow var(--dur-hover) var(--ease-hover); }
 .layout:hover { box-shadow: inset 0 0 0 1px var(--line-2), inset 0 1px 0 rgb(255 255 255 / .03); }
-.layout:nth-child(4), .layout:nth-child(5) { grid-column: span 3; }
+.layout:nth-child(n+4) { grid-column: span 3; }
 .layout .art { aspect-ratio: 2 / 1; display: grid; place-items: center; }
 .layout h3 { font-size: 18px; letter-spacing: -0.015em; }
 .layout p { color: var(--muted); font-size: 14.5px; margin-top: 4px; }
@@ -195,8 +195,8 @@ footer img { height: 24px; width: auto; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .steps, .feel, .dl .cards, .privacy .card { grid-template-columns: 1fr; }
   .layouts { grid-template-columns: 1fr 1fr; }
-  .layout, .layout:nth-child(4), .layout:nth-child(5) { grid-column: span 1; }
-  .layout:nth-child(5) { grid-column: span 2; }
+  .layout, .layout:nth-child(n+4) { grid-column: span 1; }
+  .layout:last-child { grid-column: span 2; }
 }
 @media (max-width: 760px) {
   .corner { display: none; }
@@ -208,7 +208,7 @@ footer img { height: 24px; width: auto; }
 }
 @media (max-width: 560px) {
   .layouts { grid-template-columns: 1fr; }
-  .layout:nth-child(5) { grid-column: span 1; }
+  .layout:last-child { grid-column: span 1; }
   .card { padding: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -253,7 +253,7 @@ footer img { height: 24px; width: auto; }
 
     <svg id="leaders" aria-hidden="true"><path/><path/><path/><path/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/></svg>
     <div class="callout" aria-hidden="true"><span>Glass<em>Round buttons touched as circles · 20/20 accurate</em></span></div>
-    <div class="callout" aria-hidden="true"><span>Controller screen<em>Five layouts, drawn to fit your phone</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Controller screen<em>Seven layouts, drawn to fit your phone</em></span></div>
     <div class="callout" aria-hidden="true"><span>Sensors &amp; radios<em>Grip-relative steering · Wi-Fi + Bluetooth together</em></span></div>
     <div class="callout" aria-hidden="true"><span>Link<em>Encrypted end to end · ~100 updates/s</em></span></div>
     <section class="story" id="story" aria-label="How Controller-9 works, in three moves">
@@ -285,9 +285,9 @@ footer img { height: 24px; width: auto; }
             <p>Steering is measured from your grip, not from the phone being upright. Lean back, hold it tilted, recenter any time.</p>
           </div>
           <div class="panel" data-at="0.76,0.80,0.93,0.97">
-            <div class="micro accent">05 · Five layouts</div>
+            <div class="micro accent">05 · Seven layouts</div>
             <h2>The controller you already know.</h2>
-            <p>Xbox, DualSense, DualShock 4, Switch Pro and 8BitDo Pro 2 styles. The bottom face button always sends A, whatever it is called.</p>
+            <p>Xbox, DualSense, DualShock 4, Switch Pro, 8BitDo Pro 2 and GameCube styles, plus an arcade stick. The bottom face button always sends A, whatever it is called.</p>
             <div class="name" id="layout-name" aria-live="polite">Xbox-style</div>
           </div>
         </div>
@@ -309,7 +309,7 @@ footer img { height: 24px; width: auto; }
       <div class="head reveal">
         <div class="micro">Layouts</div>
         <h2>Every face, drawn to fit your phone.</h2>
-        <p>Positional buttons, round controls that are touched as circles, and a D-pad that favours straight directions. Racing, arcade and custom layouts too.</p>
+        <p>Positional buttons, round controls that are touched as circles, and a D-pad that favours straight directions. Racing and custom layouts too.</p>
       </div>
       <div class="layouts">{{LAYOUT_CARDS}}</div>
     </div>
@@ -346,6 +346,11 @@ footer img { height: 24px; width: auto; }
         <div class="card reveal"><div class="micro accent">New · Android</div><h3>Aim by turning.</h3><p>Gyro aim moves the right stick as you turn the phone, like a DualSense. Tested by hand: full stick travel left, right, up and down.</p></div>
         <div class="card reveal"><div class="micro accent">New · Android</div><h3>Cloud gaming, in the browser.</h3><p>Safari and Chrome on a Mac read the phone as a standard gamepad — what browser cloud-gaming services use.</p></div>
         <div class="card reveal"><div class="micro accent">New · Android</div><h3>Share your setup.</h3><p>A game's layout, colour, steering and turbo buttons travel phone to phone as a QR code. Friends join from the Home screen.</p></div>
+      </div>
+      <div class="feel" style="margin-top:16px">
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>One tap from anywhere.</h3><p>A Controller tile in Quick Settings turns the Bluetooth controller on or off without opening the app.</p></div>
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Straight into the game.</h3><p>Long-press the app icon: "Play Asphalt Legends" opens that game's controller, lit in its colour.</p></div>
+        <div class="card reveal"><div class="micro accent">New · Android</div><h3>GameCube and arcade.</h3><p>A big-A GameCube-style pad with C-stick, and an arcade stick in the standard fight-stick button order.</p></div>
       </div>
     </div>
   </section>
