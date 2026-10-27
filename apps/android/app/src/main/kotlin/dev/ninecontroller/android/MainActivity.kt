@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
     private fun debugHook(i: android.content.Intent?) {
         if (BuildConfig.DEBUG && i?.getBooleanExtra("c9_hid", false) == true) HidSweep.start(application as NineApp, i.getBooleanExtra("c9_hid_sweep", false))
         if (BuildConfig.DEBUG && i?.getBooleanExtra("c9_remote", false) == true) HidSweep.remote(application as NineApp)
+        if (BuildConfig.DEBUG) i?.getStringExtra("c9_bond")?.let { HidSweep.bond(application as NineApp, it) } // TV-emulator host test
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); debugHook(intent) }

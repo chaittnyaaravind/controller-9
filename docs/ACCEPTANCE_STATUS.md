@@ -19,7 +19,7 @@ Every "done" points at evidence. Anything not run on the named hardware says so.
 | Touch accuracy | **done** — every control sends only itself (iPhone 15 and Simulator, 20/20); chords tested on both platforms | `2026-10-19-iphone15-wifi.md`, `2026-10-26-ios-simulator/accuracy.txt` |
 | Connection problems explained to the user | **done** — connection check on Android and iPhone, checked against a real host up and down | `2026-10-26-connection-doctor/` |
 | Download page links only real, tested artifacts | **done** — sizes and SHA-256 computed from the files; the build stops on a missing file | `site/tools/build.py` |
-| Android TV / smart TV | **not tested** — needs a TV | — |
+| Android TV / Google TV | **done in simulation** — Google TV emulator over the emulator's virtual Bluetooth: bonded, Google TV's own HID host made an *Xbox Wireless Controller* gamepad, A/B/X/Y and D-pad arrived. Real TV hardware and its accessory screen not yet tried | `2026-10-26-google-tv-emulator/` |
 | iPhone Bluetooth link to the computer app | **not tested** — code compiles; needs the iPhone and a host side by side | — |
 
 Broad public launch criteria: Android and the website are ready; the remaining blockers are a desktop

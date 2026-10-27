@@ -24,6 +24,28 @@ object HidSweep {
         Log.i(TAG, "remote: sent pointer + volume up")
     }, "c9-remote-check").apply { isDaemon = true }.start()
 
+    /**
+     * Simulation test only (tools/tv-sim): run on an Android TV *emulator* acting as the host. Its accessory
+     * screen can't see BLE devices in the emulator (the virtual controller rejects the scan filter it uses), so
+     * this scans without filters for [name] and bonds; Android's own HID host then takes over, as on a real TV.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun bond(app: NineApp, name: String) {
+        val adapter = app.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter
+        val scanner = adapter.bluetoothLeScanner ?: run { Log.w(TAG, "bond: no LE scanner"); return }
+        val cb = object : android.bluetooth.le.ScanCallback() {
+            override fun onScanResult(type: Int, r: android.bluetooth.le.ScanResult) {
+                if (r.device.name != name && r.scanRecord?.deviceName != name) return
+                scanner.stopScan(this)
+                Log.i(TAG, "bond: found $name, type=${r.device.type}, bonding")
+                Log.i(TAG, "bond: createBond=${r.device.createBond()}")
+            }
+            override fun onScanFailed(errorCode: Int) { Log.w(TAG, "bond: scan failed $errorCode") }
+        }
+        Log.i(TAG, "bond: scanning for $name")
+        scanner.startScan(null, android.bluetooth.le.ScanSettings.Builder().setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY).build(), cb)
+    }
+
     fun start(app: NineApp, sweep: Boolean) {
         Log.i(TAG, "hook: sweep=$sweep state=${app.hid.state.value}")
         app.connection.disconnect()

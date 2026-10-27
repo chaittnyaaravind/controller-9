@@ -32,6 +32,7 @@ iPhone cannot do this (CoreBluetooth refuses the HID service). iPhone keeps the 
 | G7 | Rumble from the game vibrates the phone | output report 3 received |
 | G8 | Latency / rate | report rate and button-to-host latency measured |
 | G9 | Windows and Linux pair the same way | to be run when hardware is available |
+| G10 | Android TV / Google TV sees a gamepad | Google TV emulator over netsim: HID host creates 045E:0B13 GAMEPAD; A/B/X/Y + D-pad arrive (`tests/results/2026-10-26-google-tv-emulator/`) — PASS in simulation |
 
 ## Product work after G4
 Home-screen mode "Bluetooth controller (no computer app)" with a pairing guide, connection

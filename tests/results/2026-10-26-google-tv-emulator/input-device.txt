@@ -1,0 +1,14 @@
+    2: Xbox Wireless Controller
+      Classes: KEYBOARD | GAMEPAD | JOYSTICK | VIBRATOR | EXTERNAL
+      Path: /dev/input/event1
+      Enabled: true
+      Descriptor: 275033870361d1098bba197b4ce7485cf1a8f572
+      Location: 03:00:00:bb:bb:bb
+      ControllerNumber: 1
+      UniqueId: 60:38:0b:5d:98:dc
+      Identifier: bus=0x0005, vendor=0x045e, product=0x0b13, version=0x0111, bluetoothAddress=60:38:0B:5D:98:DC
+      KeyLayoutFile: /system/usr/keylayout/Generic.kl
+      KeyCharacterMapFile: /system/usr/keychars/Generic.kcm
+      LanguageTag: 
+      LayoutType: 
+--

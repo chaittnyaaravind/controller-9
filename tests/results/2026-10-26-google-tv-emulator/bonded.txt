@@ -1,0 +1,3 @@
+  Bonded devices:
+    XX:XX:XX:XX:98:DC => XX:XX:XX:XX:BB:BB [ DUAL ][ 0x000500 ] Xbox Wireless Controller
+
