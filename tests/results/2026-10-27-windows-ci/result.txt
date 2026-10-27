@@ -1,0 +1,7 @@
+Microsoft Windows Server 2025 Datacenter
+xusb in driver store:
+xusb21.inf_amd64_68c06a8fe00c5ac3
+SDL 2.30: 'Xbox 360 Controller', rumble=True, buttons in order, guide=True, all axes
+XInput (Xbox 360 path): every button in order, all axes both ways, rumble reached the phone (2 events)
+SDL 2.30: 'Xbox 360 Controller', rumble=True, buttons in order, guide=True, all axes
+XInput (Xbox 360 path): every button in order, all axes both ways, rumble reached the phone (2 events)
