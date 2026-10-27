@@ -29,3 +29,8 @@ release-secrets/
 # Website: deploy link and built downloads (published to Vercel, not committed)
 site/public/.vercel/
 site/public/downloads/
+
+# Third-party review text collected for research (replica-entrepreneur); kept local
+replica/raw/
+replica/reviews.csv
+replica/feedback.md

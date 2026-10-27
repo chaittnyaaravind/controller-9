@@ -1,0 +1,369 @@
+{
+ "_about": "Controller-app themes for Controller-9 (phone-as-gamepad), added on top of the pack's defaults.",
+ "request_patterns": [
+  "\\bi wish\\b",
+  "\\bplease add\\b",
+  "\\bwould be (nice|great|good|helpful)\\b",
+  "\\bwould love\\b",
+  "\\bneeds? (a|an|the|to|more)\\b",
+  "\\bno way to\\b",
+  "\\bthere'?s no (way|option)\\b",
+  "\\b(can'?t|cannot|unable to) (even )?(add|change|edit|set|choose|export|import|customi[sz]e|connect|undo|delete|turn off)\\b",
+  "\\b(missing|lacks|lacking)\\b",
+  "\\bdoesn'?t (have|support|let|allow)\\b",
+  "\\bif only\\b",
+  "\\bfeature request\\b",
+  "\\bwhy (can'?t|isn'?t|doesn'?t)\\b"
+ ],
+ "themes": [
+  {
+   "id": "connect",
+   "label": "Can't connect / server not found",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcan'?t (get it to )?connect",
+    "\\b(won'?t|doesn'?t|not|never|refuses? to) connect",
+    "\\bserver (not found|can'?t be found)",
+    "\\bnot (detect|find|recogni[sz])",
+    "\\bconnection (fail|lost|issue|problem)",
+    "\\bcouldn'?t (get it working|connect)",
+    "\\bfirewall\\b"
+   ]
+  },
+  {
+   "id": "lag",
+   "label": "Lag, delay and disconnects",
+   "kind": "complaint",
+   "patterns": [
+    "\\blag",
+    "\\bdelay",
+    "\\blatency",
+    "\\bdisconnect",
+    "\\bunresponsive",
+    "\\bfreez",
+    "\\bstutter",
+    "\\bdrops?\\b",
+    "\\bkeeps? (closing|crashing|stopping)"
+   ]
+  },
+  {
+   "id": "setup",
+   "label": "Setup, PC software and drivers",
+   "kind": "complaint",
+   "patterns": [
+    "\\bset ?up\\b",
+    "\\bserver (program|app|software)",
+    "\\binstall (a|the|something)",
+    "\\bdriver",
+    "\\bvigem",
+    "\\bcompanion",
+    "\\btutorial",
+    "\\bsuspi(c|s)ious",
+    "\\bvirus",
+    "\\bmalware"
+   ]
+  },
+  {
+   "id": "layout",
+   "label": "Layout and button customisation",
+   "kind": "request",
+   "patterns": [
+    "\\bcustomi[sz]",
+    "\\bseparate(ly)?\\b|\\bseperat",
+    "\\bresiz",
+    "\\blayout",
+    "\\bmove (the )?buttons?",
+    "\\bbutton (size|placement|position)",
+    "\\bplace (the )?buttons?"
+   ]
+  },
+  {
+   "id": "motion",
+   "label": "Tilt, gyro and steering",
+   "kind": "request",
+   "patterns": [
+    "\\bgyro",
+    "\\btilt",
+    "\\baccelerometer",
+    "\\bmotion (sensor|control)",
+    "\\bsteer",
+    "\\bg ?sensor",
+    "\\bcalibrat"
+   ]
+  },
+  {
+   "id": "vibration",
+   "label": "Vibration / rumble",
+   "kind": "request",
+   "patterns": [
+    "\\bvibrat",
+    "\\brumble",
+    "\\bhaptic",
+    "\\bforce feedback"
+   ]
+  },
+  {
+   "id": "triggers",
+   "label": "Missing buttons (triggers, Xbox button, sticks)",
+   "kind": "request",
+   "patterns": [
+    "\\b(lt|rt|l2|r2|trigger)s?\\b",
+    "\\bxbox button\\b",
+    "\\bguide button\\b",
+    "\\bright (stick|pad)\\b",
+    "\\bstick press"
+   ]
+  },
+  {
+   "id": "ads",
+   "label": "Ads and paywalled basics",
+   "kind": "complaint",
+   "patterns": [
+    "\\bads?\\b",
+    "\\badvert",
+    "\\bpro version\\b",
+    "\\bpay(wall| to unlock| for)",
+    "\\bfree version\\b",
+    "\\blicen[cs]e"
+   ]
+  },
+  {
+   "id": "platforms",
+   "label": "Platform support (Mac, Linux, TV, consoles)",
+   "kind": "request",
+   "patterns": [
+    "\\bmac(os|book)?\\b",
+    "\\blinux\\b",
+    "\\braspberry",
+    "\\bandroid tv\\b|\\bgoogle tv\\b|\\btv\\b",
+    "\\bps[345]\\b|\\bplaystation\\b",
+    "\\bswitch\\b",
+    "\\bxcloud\\b|\\bcloud gaming\\b"
+   ]
+  },
+  {
+   "id": "multiplayer",
+   "label": "Several players / several phones",
+   "kind": "request",
+   "patterns": [
+    "\\bmulti(ple)? ?(player|people|phones|controllers)",
+    "\\bco-?op\\b",
+    "\\b(2|3|4|two|three|four) (players|phones|controllers)",
+    "\\blocal multiplayer"
+   ]
+  },
+  {
+   "id": "noapp",
+   "label": "Wants no PC app (Bluetooth controller)",
+   "kind": "request",
+   "patterns": [
+    "\\bwithout (installing|an? app|software)",
+    "\\bno (pc )?(app|software|server) (needed|required)",
+    "\\bbluetooth (controller|gamepad|hid)",
+    "\\bhid\\b"
+   ]
+  },
+  {
+   "id": "pricing",
+   "label": "Price and paywalls",
+   "kind": "complaint",
+   "patterns": [
+    "\\bexpensive\\b",
+    "\\boverpriced\\b",
+    "\\bpric(e|es|ey|ing)\\b",
+    "\\bpaywall",
+    "\\bsubscription\\b",
+    "\\bper (month|seat|user)\\b",
+    "\\bfree (plan|tier|version)\\b",
+    "\\bupgrade to\\b",
+    "\\bpremium\\b",
+    "\\bnot worth\\b",
+    "\\bcost(s|ly)?\\b"
+   ]
+  },
+  {
+   "id": "billing",
+   "label": "Billing, cancelling and refunds",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcharged\\b",
+    "\\brefund",
+    "\\bcancel(l?ing|l?ed|lation)?\\b",
+    "\\bauto.?renew",
+    "\\bhidden (fee|charge)",
+    "\\bbilling\\b",
+    "\\bscam\\b",
+    "\\bcredit card\\b"
+   ]
+  },
+  {
+   "id": "bugs",
+   "label": "Bugs and crashes",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcrash(es|ed|ing)?\\b",
+    "\\bbugs?\\b",
+    "\\bbuggy\\b",
+    "\\bglitch",
+    "\\bfreez(e|es|ing)\\b",
+    "\\bbroken\\b",
+    "\\b(doesn'?t|does not|stopped) work",
+    "\\bnot working\\b",
+    "\\berror\\b"
+   ]
+  },
+  {
+   "id": "performance",
+   "label": "Slow, laggy, heavy",
+   "kind": "complaint",
+   "patterns": [
+    "\\bslow\\b",
+    "\\blag(gy|s)?\\b",
+    "\\bloading\\b",
+    "\\btakes forever\\b",
+    "\\bbattery\\b",
+    "\\bsluggish\\b",
+    "\\bheavy\\b"
+   ]
+  },
+  {
+   "id": "data",
+   "label": "Sync and lost data",
+   "kind": "complaint",
+   "patterns": [
+    "\\bsync(ing|s|ed)?\\b",
+    "\\blost (my|all)\\b",
+    "\\bdisappear",
+    "\\bdata loss\\b",
+    "\\bwiped\\b",
+    "\\bbackup\\b",
+    "\\bduplicat"
+   ]
+  },
+  {
+   "id": "ux",
+   "label": "Confusing or clunky to use",
+   "kind": "complaint",
+   "patterns": [
+    "\\bconfus",
+    "\\bhard to (use|find|navigate|understand)\\b",
+    "\\bcomplicated\\b",
+    "\\bcluttered\\b",
+    "\\bunintuitive\\b",
+    "\\bnot intuitive\\b",
+    "\\bclunky\\b",
+    "\\btoo many (steps|clicks|taps)\\b",
+    "\\blearning curve\\b",
+    "\\bcan'?t find\\b"
+   ]
+  },
+  {
+   "id": "support",
+   "label": "Support that does not answer",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcustomer (service|support)\\b",
+    "\\bsupport (team|is|was)\\b",
+    "\\bno (response|reply)\\b",
+    "\\bnever (replied|responded|heard back)\\b",
+    "\\bticket\\b",
+    "\\bchat ?bot\\b"
+   ]
+  },
+  {
+   "id": "account",
+   "label": "Login and account problems",
+   "kind": "complaint",
+   "patterns": [
+    "\\blog ?in\\b",
+    "\\bsign ?in\\b",
+    "\\bpassword\\b",
+    "\\blocked out\\b",
+    "\\bverification\\b",
+    "\\b2fa\\b",
+    "\\bdelete (my )?account\\b"
+   ]
+  },
+  {
+   "id": "notifications",
+   "label": "Notifications and spam",
+   "kind": "complaint",
+   "patterns": [
+    "\\bnotification",
+    "\\bspam",
+    "\\btoo many emails\\b",
+    "\\bpush\\b",
+    "\\breminders?\\b"
+   ]
+  },
+  {
+   "id": "updates",
+   "label": "A redesign or update made it worse",
+   "kind": "complaint",
+   "patterns": [
+    "\\b(new|latest|recent) (update|version|design)\\b",
+    "\\bredesign",
+    "\\bused to be\\b",
+    "\\bbring back\\b",
+    "\\bsince the update\\b"
+   ]
+  },
+  {
+   "id": "privacy",
+   "label": "Privacy and permissions",
+   "kind": "complaint",
+   "patterns": [
+    "\\bprivacy\\b",
+    "\\btracking\\b",
+    "\\bsell(s|ing)? (my )?data\\b",
+    "\\bpermissions?\\b",
+    "\\bcreepy\\b"
+   ]
+  },
+  {
+   "id": "integrations",
+   "label": "Integrations, import and export",
+   "kind": "request",
+   "patterns": [
+    "\\bintegrat",
+    "\\bzapier\\b",
+    "\\bgoogle (calendar|sheets|drive)\\b",
+    "\\boutlook\\b",
+    "\\bslack\\b",
+    "\\bapi\\b",
+    "\\bexport\\b",
+    "\\bimport\\b",
+    "\\bcsv\\b",
+    "\\bwebhook"
+   ]
+  },
+  {
+   "id": "customisation",
+   "label": "Customisation and control",
+   "kind": "request",
+   "patterns": [
+    "\\bcustomi[sz]",
+    "\\bdark mode\\b",
+    "\\btheme\\b",
+    "\\bbranding\\b",
+    "\\bwhite.?label\\b",
+    "\\btemplates?\\b",
+    "\\bsettings?\\b",
+    "\\boption to\\b"
+   ]
+  },
+  {
+   "id": "collaboration",
+   "label": "Teams and sharing",
+   "kind": "request",
+   "patterns": [
+    "\\bteam(s|mates?)?\\b",
+    "\\bshar(e|ing)\\b",
+    "\\bcollaborat",
+    "\\bmultiple (users|accounts|people)\\b",
+    "\\broles?\\b",
+    "\\bpermissions for\\b"
+   ]
+  }
+ ]
+}
