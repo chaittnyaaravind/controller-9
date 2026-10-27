@@ -1,7 +1,7 @@
 feature,area,priority,original,clone,notes
-Customise any controller layout (move/resize each button; snap),layouts,must,no,no,F1; 48 reviews 5 sources; PadPreset.toProfile exists unused
-Connection doctor (name the cause: network isolation/firewall/VPN/app not running; manual address),connect,must,no,no,F2; 64 reviews 7 sources
+Customise any controller layout (move/resize each button; snap),layouts,must,no,yes,F1; 48 reviews 5 sources; PadPreset.toProfile exists unused | done: yes (68f7aac; Android unit + iOS UI test)
+Connection doctor (name the cause: network isolation/firewall/VPN/app not running; manual address),connect,must,no,yes,"F2; 64 reviews 7 sources | done: yes (d3ba978 Android, 701d726 iPhone; emulator + simulator)"
 Android TV / Google TV / smart TV tested with Bluetooth controller mode,platforms,should,no,no,F3; 30 reviews 6 sources; needs a TV
-Chord accuracy steps (A+B; stick+button) in automated tests,quality,should,no,no,F4; thin (1) + bugs theme
+Chord accuracy steps (A+B; stick+button) in automated tests,quality,should,no,yes,F4; thin (1) + bugs theme | done: yes (6bab910; engine-level on both; two-finger release fix)
 iPhone Bluetooth link to computer app tested,connect,should,no,no,F5; 9 reviews 2 sources
-Free/no ads/nothing-to-install/Mac/accuracy stated on site and listing,launch,must,no,no,F6; 107 reviews
+Free/no ads/nothing-to-install/Mac/accuracy stated on site and listing,launch,must,no,yes,F6; 107 reviews | done: yes (08ce099; site + linted listing; deploy pending owner)
