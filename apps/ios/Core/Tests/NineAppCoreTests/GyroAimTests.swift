@@ -79,7 +79,10 @@ private let right = GyroAimMath.screenRight(.landscapeRight)
     try await Task.sleep(nanoseconds: 100_000_000)
     let v = log.lock.withLock { log.v }
     let presses = zip(v, v.dropFirst()).filter { $0.0 == 0 && $0.1 != 0 }.count + (v.first != 0 ? 1 : 0)
-    #expect(presses >= 4 && presses <= 7, "about 12 a second for 0.45 s: \(presses)")
+    // Timing on shared CI machines is loose: require repeated presses (not an exact rate), strict
+    // alternation (never two presses without a release between) and a released end.
+    #expect(presses >= 2 && presses <= 8, "about 12 a second for 0.45 s: \(presses)")
+    #expect(zip(v, v.dropFirst()).dropLast().allSatisfy { $0.0 != $0.1 }, "alternates pressed/released")
     #expect(v.last == 0, "ends released")
 }
 

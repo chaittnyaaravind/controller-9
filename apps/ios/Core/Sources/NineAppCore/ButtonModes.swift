@@ -56,7 +56,8 @@ public final class TurboPulser: @unchecked Sendable {
             guard running[id] == nil else { return }
             var down = false
             let t = DispatchSource.makeTimerSource(queue: queue)
-            t.schedule(deadline: .now(), repeating: ButtonModes.turboHalfPeriod)
+            // Little slack: the system may otherwise batch timer fires on a busy device and turbo stutters.
+            t.schedule(deadline: .now(), repeating: ButtonModes.turboHalfPeriod, leeway: .milliseconds(2))
             t.setEventHandler { [set] in down.toggle(); set(id, down ? mask : 0) }
             running[id] = t
             t.resume()

@@ -79,6 +79,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var gyroAimOn: Bool { get { gyroAim ?? false } set { gyroAim = newValue } }
     public var aimSensitivityValue: Double { get { aimSensitivity ?? 1.2 } set { aimSensitivity = newValue } }
     public var aimInvert: Bool { get { aimInvertY ?? false } set { aimInvertY = newValue } }
+    /// The game-coloured light behind the controls (Android's "RGB light behind the controls": Game light / Off).
+    public var glow: Bool?
+    public var glowOn: Bool { get { glow ?? true } set { glow = newValue } }
     /// Turbo / toggle buttons per controller layout: layout id → `elementId=turbo;elementId=toggle` (ButtonModes).
     public var padModes: [String: String]?
     public func modes(for pad: PadPreset) -> [String: ButtonModes.Mode] { ButtonModes.decode(padModes?[pad.id]) }

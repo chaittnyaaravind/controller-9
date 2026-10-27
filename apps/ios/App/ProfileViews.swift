@@ -336,6 +336,7 @@ struct SettingsView: View {
                     LabeledContent("Vibration strength", value: "\(Int((model.settings.hapticStrength * 100).rounded()))%")
                     Slider(value: $model.settings.hapticStrength, in: 0...1).accessibilityLabel("Vibration strength")
                 }.disabled(!model.settings.hapticsEnabled)
+                Toggle("Light behind the controls", isOn: $model.settings.glowOn)
                 Toggle("Show latency on the controller", isOn: $model.settings.showStats)
                 Picker("Motion sensor rate", selection: $model.settings.sensorHz) { Text("100 Hz").tag(100); Text("200 Hz").tag(200) }
             }

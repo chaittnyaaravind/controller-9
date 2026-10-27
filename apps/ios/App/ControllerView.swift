@@ -34,7 +34,7 @@ struct ControllerView: View {
                     // The scene: near-black, the game's tone glowing softly behind the grips.
                     ZStack {
                         Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x06 / 255)
-                        ForEach([0.18, 0.82], id: \.self) { fx in
+                        ForEach(model.settings.glowOn ? [0.18, 0.82] : [], id: \.self) { fx in
                             RadialGradient(colors: [Nine.accent.opacity(0.13), Nine.accent.opacity(0.04), .clear], center: UnitPoint(x: fx, y: 0.7), startRadius: 0, endRadius: geo.size.height * 0.8)
                         }
                         LinearGradient(colors: [.white.opacity(0.035), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
