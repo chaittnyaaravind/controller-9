@@ -239,5 +239,20 @@ class PadMappingTest {
         assertTrue("letterboxed horizontally", wide.left > 36f)
     }
 
+    @Test fun customisedLayoutIsAValidEditableProfile() {
+        // "Customise positions and sizes": every preset becomes a profile the editor and validator accept,
+        // with the same controls, inside the screen, and round controls still round in pixels.
+        for (p in PadPresets.all) for ((w, h) in listOf(800f to 360f, 915f to 412f, 1280f to 800f)) {
+            val m = PadMapping.default(p)
+            val prof = m.toProfile(w, h, "x-custom", p.name + " · custom")
+            prof.validate()
+            assertEquals(p.id, m.controls().map { it.id }.toSet(), prof.controls.map { it.id }.toSet())
+            for (c in prof.controls) {
+                assertTrue("${p.id}.${c.id} inside", c.x >= 0 && c.y >= 0 && c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001)
+                if (p.element(c.id).round) assertEquals("${p.id}.${c.id} round", c.w * w, c.h * h, 1.0)
+            }
+        }
+    }
+
     private fun expectFail(f: () -> Unit) { try { f(); fail("expected MappingException") } catch (_: MappingException) { } }
 }

@@ -77,6 +77,24 @@ class PadMapping private constructor(val preset: PadPreset, private val override
         controls = controls(), motion = motion, sticks = StickSettings(stickDeadzone),
     )
 
+    /**
+     * The layout as an editable profile for a screen of [w] x [h] (any unit): each control where the
+     * controller screen draws it (PadGeometry.place), so round controls stay round and the user can then
+     * move and resize every button on its own (the layout editor).
+     */
+    fun toProfile(w: Float, h: Float, id: String, name: String, motion: MotionSettings = MotionSettings(), stickDeadzone: Double = 0.08): Profile {
+        val controls = active.map { (e, a) ->
+            val b = PadGeometry.place(e, w, h)
+            val kind = when (a.kind) {
+                Action.Kind.STICK -> ControlKind.STICK; Action.Kind.DPAD -> ControlKind.DPAD
+                Action.Kind.TRIGGER -> ControlKind.TRIGGER; Action.Kind.BUTTON -> ControlKind.BUTTON
+            }
+            val x = (b.left / w).toDouble().coerceIn(0.0, 0.97); val y = (b.top / h).toDouble().coerceIn(0.0, 0.97)
+            ControlDef(e.id, kind, a.bind, x, y, (b.width / w).toDouble().coerceIn(0.03, 1 - x), (b.height / h).toDouble().coerceIn(0.03, 1 - y), label = e.short.take(12))
+        }
+        return Profile(id = id, name = name.take(48), orientation = Orientation.LANDSCAPE, controls = controls, motion = motion, sticks = StickSettings(stickDeadzone))
+    }
+
     private fun primaries() = preset.elements.filter { it.remappable && it.part != Part.PADDLE }
     private fun current(): Map<String, Action?> = preset.elements.filter { it.remappable }.associate { it.id to actionOf(it) }
 

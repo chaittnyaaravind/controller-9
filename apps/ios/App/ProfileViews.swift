@@ -17,6 +17,7 @@ struct ProfilesView: View {
     @State private var exporting: Profile?
     @State private var message: String?
     @State private var deleting: Profile?
+    @State private var customised: String?
 
     var body: some View {
         List {
@@ -34,6 +35,9 @@ struct ProfilesView: View {
                             if inUse { Micro("In use", color: Nine.accent) }
                             else { Button("Use") { model.settings.activeProfile = PadPresets.selection(pad) }.buttonStyle(SecondaryButton()) }
                         }
+                        // Move and resize each button on its own: an editable copy fitted to this screen.
+                        Button("Customise positions and sizes") { customise(pad) }
+                            .buttonStyle(.borderless).font(.subheadline).foregroundStyle(Nine.text)
                         DisclosureGroup("How it maps") {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(pad.notes, id: \.self) { Text($0).font(.footnote).foregroundStyle(Nine.muted) }
@@ -94,6 +98,20 @@ struct ProfilesView: View {
             }
             Button("Keep", role: .cancel) { deleting = nil }
         }
+        .navigationDestination(item: $customised) { id in LayoutEditorView(profileId: id) }
+    }
+
+    /// Copies a controller layout into an editable one fitted to this screen (landscape), makes it the
+    /// layout in use and opens the editor.
+    private func customise(_ pad: PadPreset) {
+        let b = UIScreen.main.bounds
+        let fitted = pad.profile(for: CGSize(width: max(b.width, b.height), height: min(b.width, b.height)))
+        let ids = Set(model.profiles.map(\.id))
+        let id = (1...).lazy.map { n in n == 1 ? "\(pad.id)-custom" : "\(pad.id)-custom-\(n)" }.first { !ids.contains($0) }!
+        var p = Profile(id: id, name: "\(pad.name) · custom", controls: fitted.controls)
+        p.orientation = .landscape
+        do { try model.save(p); model.settings.activeProfile = id; customised = id }
+        catch { message = "Couldn’t copy the layout: \(error.localizedDescription)" }
     }
 }
 

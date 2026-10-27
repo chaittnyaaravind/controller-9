@@ -142,6 +142,19 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
             else PrimaryButton("Use this layout", { scope.launch { app.settings.update { it.copy(activeProfile = PadPresets.selection(p)) } } })
             SecondaryButton("Restore defaults", { save(mapping.reset()); error = null }, enabled = !mapping.isDefault)
         }
+        // Move and resize each button on its own: copy this layout (with its remaps) into an editable one,
+        // fitted to this phone's landscape screen, make it the active layout and open the editor.
+        val conf = androidx.compose.ui.platform.LocalConfiguration.current
+        SecondaryButton("Customise positions and sizes", {
+            val w = maxOf(conf.screenWidthDp, conf.screenHeightDp).toFloat(); val h = minOf(conf.screenWidthDp, conf.screenHeightDp).toFloat()
+            runCatching {
+                val prof = mapping.toProfile(w, h, app.profiles.uniqueId("${p.id}-custom"), "${p.name} · custom",
+                    stickDeadzone = s.stickDeadzone)
+                app.profiles.save(prof)
+                scope.launch { app.settings.update { it.copy(activeProfile = prof.id) } }
+                nav.navigate("edit/${prof.id}")
+            }.onFailure { error = it.message ?: "Couldn't copy this layout" }
+        })
         error?.let { Text(it, color = Nine.bad, style = NineType.small) }
 
         val groups = listOf(

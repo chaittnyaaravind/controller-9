@@ -32,13 +32,15 @@ fun ControlVisual(c: ControlDef, v: Visual, steering: Double, accent: dev.nineco
             when (c.kind) {
                 ControlKind.BUTTON -> {
                     val r = min(w, h) / 2f
-                    val round = min(w, h) < 140 * density || kotlin.math.abs(w - h) < 0.2f * w
+                    // Near-square buttons are round; wide or tall ones (bumpers, customised layouts) are capsules.
+                    val round = kotlin.math.abs(w - h) < 0.25f * maxOf(w, h)
                     if (round) {
                         drawCircle(if (v.pressed) accent.color else Nine.s2, r * 0.94f)
                         drawCircle(Nine.line2, r * 0.94f, style = stroke)
                     } else {
-                        drawRoundRect(if (v.pressed) accent.color else Nine.s2, cornerRadius = CornerRadius(18 * density))
-                        drawRoundRect(Nine.line2, cornerRadius = CornerRadius(18 * density), style = stroke)
+                        val corner = CornerRadius(minOf(r, 28 * density))
+                        drawRoundRect(if (v.pressed) accent.color else Nine.s2, cornerRadius = corner)
+                        drawRoundRect(Nine.line2, cornerRadius = corner, style = stroke)
                     }
                 }
                 ControlKind.STICK -> {

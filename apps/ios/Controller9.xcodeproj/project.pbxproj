@@ -21,6 +21,7 @@
 		98F498BF19C61C88F3F29501 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED49D789CC5DD227CBDA7EB /* Theme.swift */; };
 		998341CD83A7A26E56911FA1 /* Discovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991070B4B95E0E8150F50512 /* Discovery.swift */; };
 		C72B6DAA8AB0DB2B58299AA6 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF5E5FFDBCF6F4D4168FF7B /* ControllerView.swift */; };
+		DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */; };
 		DFC8EF9C13F41641DE942472 /* PadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02E1D269572A6C9EF83AFA3 /* PadViews.swift */; };
 		E0D8CEAEF506854BBE4E3714 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3056C7997E78EB9AB25E03C8 /* Assets.xcassets */; };
 		FD6C4FAA2B2CC719E5781196 /* HomeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691FB4A35569621FF7A0CC63 /* HomeViews.swift */; };
@@ -46,6 +47,7 @@
 		2A4FA6334178DAB5A430D26C /* Controller9.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Controller9.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F51ECA9922754BD22CDB19E /* MotionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionInput.swift; sourceTree = "<group>"; };
 		3056C7997E78EB9AB25E03C8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomiseLayoutUITests.swift; sourceTree = "<group>"; };
 		393E75942FBC27D4F18800E9 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3B63E51667B270BCD98F8D0C /* QRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScanner.swift; sourceTree = "<group>"; };
 		537D7D91D902DB0FF6E7E0AB /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../../protocol/profiles; sourceTree = SOURCE_ROOT; };
@@ -131,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
+				32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -276,6 +279,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
+				DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
