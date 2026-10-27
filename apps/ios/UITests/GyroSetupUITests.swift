@@ -12,4 +12,15 @@ final class GyroSetupUITests: XCTestCase {
         if (toggle.value as? String) != "1" { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap() }
         XCTAssertEqual(toggle.value as? String, "1", "Gyro aim did not turn on")
     }
+
+    /// Back to the default (off) after the hand-held test, so touch-accuracy runs aren't mixed with aim.
+    func testTurnOffGyroAim() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screen", "settings"]
+        app.launch()
+        let toggle = app.switches["Gyro aim"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Gyro aim switch missing")
+        if (toggle.value as? String) == "1" { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap() }
+        XCTAssertEqual(toggle.value as? String, "0", "Gyro aim did not turn off")
+    }
 }

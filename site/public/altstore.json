@@ -27,11 +27,11 @@
       ],
       "versions": [
         {
-          "version": "0.2.2",
-          "buildVersion": "3",
+          "version": "0.3.0",
+          "buildVersion": "4",
           "date": "2026-10-27",
-          "downloadURL": "https://controller-9.vercel.app/downloads/Controller-9-0.2.2-iphone-sideload.ipa",
-          "size": 2030551,
+          "downloadURL": "https://controller-9.vercel.app/downloads/Controller-9-0.3.0-iphone-sideload.ipa",
+          "size": 2041005,
           "minOSVersion": "17.0",
           "localizedDescription": "First release: five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth."
         }
