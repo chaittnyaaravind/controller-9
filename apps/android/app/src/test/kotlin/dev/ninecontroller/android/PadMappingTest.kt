@@ -146,6 +146,28 @@ class PadMappingTest {
         assertEquals("${p.id}: released", InputState.NEUTRAL, last)
     }
 
+    @Test fun chordsHoldTogetherAndReleaseIndependently() = all.forEach { p ->
+        // Reviews of other apps: "when pressing 2 buttons at the same time it wouldn't work sometimes".
+        // Two fingers on two controls, found by the real hit test, both reach the wire; lifting one keeps the other.
+        var last = InputState.NEUTRAL
+        val e = ControllerEngine { s, _ -> last = s }
+        val m = PadMapping.default(p)
+        val boxes = p.elements.filter { m.actionOf(it) != null }.associate { it.id to PadGeometry.place(it, 800f, 360f) }
+        fun finger(id: String): String = boxes.getValue(id).let { b -> PadGeometry.hit(boxes, b.cx, b.cy, 0f)!! }
+        val a = finger("face_s"); val b = finger("face_e")
+        assertEquals("face_s", a); assertEquals("face_e", b)
+        e.setButtons(a, Button.A.mask); e.setButtons(b, Button.B.mask)
+        assertEquals("${p.id}: A+B held together", Button.A.mask or Button.B.mask, last.buttons)
+        e.setButtons(a, 0)
+        assertEquals("${p.id}: B still held after A lifts", Button.B.mask, last.buttons)
+        e.setButtons(b, 0)
+        // Stick + button: the thumb on the stick doesn't cancel the other thumb's button.
+        e.setStick("left", 1.0, 0.0); e.setButtons(finger("face_s"), Button.A.mask)
+        assertEquals(Button.A.mask, last.buttons); assertTrue("${p.id}: stick held with A", last.lx > 30000)
+        e.setButtons("face_s", 0); e.setStick("left", 0.0, 0.0)
+        assertEquals("${p.id}: all released", InputState.NEUTRAL, last)
+    }
+
     @Test fun layoutChangeOrDisconnectReleasesEverything() {
         var last = InputState.NEUTRAL
         val e = ControllerEngine { s, _ -> last = s }

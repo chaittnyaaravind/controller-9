@@ -313,7 +313,8 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                         } else {
                             val c = owner.remove(ch.id) ?: continue
                             origin.remove(ch.id)
-                            release(c, engine, visuals, toggles, feel, turbo.takeIf { c.id in turboIds })
+                            // Two fingers on one control: it stays held until the last of them lifts.
+                            if (owner.values.none { it.id == c.id }) release(c, engine, visuals, toggles, feel, turbo.takeIf { c.id in turboIds })
                         }
                     }
                 }

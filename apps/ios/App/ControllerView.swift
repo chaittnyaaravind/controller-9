@@ -246,7 +246,8 @@ struct TouchSurface: UIViewRepresentable {
             for t in touches {
                 guard let c = owner.removeValue(forKey: ObjectIdentifier(t)) else { continue }
                 origin[ObjectIdentifier(t)] = nil
-                release(c)
+                // Two fingers on one control: it stays held until the last of them lifts.
+                if !owner.values.contains(where: { $0.id == c.id }) { release(c) }
             }
         }
 

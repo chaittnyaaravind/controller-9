@@ -69,3 +69,24 @@ private func overlap(_ a: CGRect, _ ar: Bool, _ b: CGRect, _ br: Bool) -> Bool {
     for p in PadPresets.all { #expect(PadPresets.from(selection: PadPresets.selection(p))?.id == p.id) }
     #expect(PadPresets.from(selection: "racing") == nil)
 }
+
+@Test func chordsHoldTogetherAndReleaseIndependently() {
+    // Reviews of other apps: "when pressing 2 buttons at the same time it wouldn't work sometimes".
+    // Two fingers found by the real hit test reach the engine together; lifting one keeps the other.
+    final class Box: @unchecked Sendable { var last = InputState.neutral }
+    for p in PadPresets.all {
+        let size = CGSize(width: 734, height: 372)
+        let els = p.elements.filter { $0.action != nil }
+        let boxes = els.map { (id: $0.id, rect: PadGeometry.place($0, size)) }
+        let round = Set(els.filter(\.round).map(\.id))
+        func finger(_ id: String) -> String? { let r = boxes.first { $0.id == id }!.rect; return TouchHit.hit(boxes, CGPoint(x: r.midX, y: r.midY), minTarget: 0, round: round) }
+        #expect(finger("face_s") == "face_s" && finger("face_e") == "face_e", "\(p.id)")
+        let box = Box(); let e = ControllerEngine { s, _ in box.last = s }
+        e.setButtons("face_s", NineButton.a.mask); e.setButtons("face_e", NineButton.b.mask)
+        #expect(e.state.buttons == NineButton.a.mask | NineButton.b.mask, "\(p.id): A+B together")
+        e.setButtons("face_s", 0)
+        #expect(e.state.buttons == NineButton.b.mask, "\(p.id): B held after A lifts")
+        e.setButtons("face_e", 0)
+        #expect(e.state == .neutral)
+    }
+}
