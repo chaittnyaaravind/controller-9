@@ -54,6 +54,12 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var sharing: Game?
     @State private var scanning = false
+    @State private var playNow = false
+    private func takePendingPlay() {
+        guard let id = AppDelegate.pendingPlay else { return }
+        AppDelegate.pendingPlay = nil
+        if let g = model.games.first(where: { $0.id == id }) { model.play(g); playNow = true }
+    }
     private var isConnected: Bool { if case .connected = model.connection.state { return true }; return false }
 
     var body: some View {
@@ -128,6 +134,12 @@ struct HomeView: View {
             }.padding(20)
         }.background(Nine.bg).toolbar(.hidden, for: .navigationBar)
         .sheet(item: $sharing) { ShareGameView(game: $0).presentationDetents([.medium, .large]) }
+        // Home Screen quick action "Play <game>": make it current and open its controller.
+        .navigationDestination(isPresented: $playNow) { ControllerView() }
+        .onAppear { model.publishShortcuts(); takePendingPlay() }
+        .onReceive(NotificationCenter.default.publisher(for: .c9Play)) { _ in takePendingPlay() }
+        .onChange(of: model.games) { _, _ in model.publishShortcuts() }
+        .onChange(of: model.game) { _, _ in model.publishShortcuts() }
         .sheet(isPresented: $scanning) { ScanGameView().presentationDetents([.large]) }
     }
 

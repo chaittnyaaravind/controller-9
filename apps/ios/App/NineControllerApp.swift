@@ -19,16 +19,53 @@ struct NineControllerApp: App {
     }
 }
 
-/// Orientation lock used by the controller and editor screens.
+/// Orientation lock used by the controller and editor screens; Home Screen quick actions ("Play Asphalt Legends").
 final class AppDelegate: NSObject, UIApplicationDelegate {
     static var mask: UIInterfaceOrientationMask = .all
+    static let playAction = "dev.ninecontroller.play"
+    /// A game picked from a Home Screen quick action, waiting for Home to open its controller.
+    @MainActor static var pendingPlay: String? { didSet { if pendingPlay != nil { NotificationCenter.default.post(name: .c9Play, object: nil) } } }
+
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask { Self.mask }
+
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        if let item = options.shortcutItem { _ = MainActor.assumeIsolated { Self.take(item) } } // cold start from a quick action
+        let c = UISceneConfiguration(name: nil, sessionRole: session.role)
+        c.delegateClass = SceneDelegate.self
+        return c
+    }
+
+    @MainActor static func take(_ item: UIApplicationShortcutItem) -> Bool {
+        guard item.type == playAction, let id = item.userInfo?["game"] as? String else { return false }
+        pendingPlay = id
+        return true
+    }
 
     @MainActor static func lock(_ m: UIInterfaceOrientationMask) {
         mask = m
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: m)) { _ in }
         scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+    }
+}
+
+/// Quick actions chosen while the app is already running.
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    func windowScene(_ windowScene: UIWindowScene, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(MainActor.assumeIsolated { AppDelegate.take(shortcutItem) })
+    }
+}
+
+extension Notification.Name { static let c9Play = Notification.Name("c9.play") }
+
+extension AppModel {
+    /// Long-press the app icon → "Play <game>": up to four, the current game first (like Android's shortcuts).
+    func publishShortcuts() {
+        let ordered = [game] + games.filter { $0.id != game.id }
+        UIApplication.shared.shortcutItems = ordered.prefix(4).map { g in
+            UIApplicationShortcutItem(type: AppDelegate.playAction, localizedTitle: "Play \(g.name)", localizedSubtitle: nil,
+                                      icon: UIApplicationShortcutIcon(systemImageName: "gamecontroller"), userInfo: ["game": g.id as NSString])
+        }
     }
 }
 

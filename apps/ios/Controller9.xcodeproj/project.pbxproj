@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		01AA99E992CFE6E2EBBC7702 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E75942FBC27D4F18800E9 /* Haptics.swift */; };
 		09DB6CDDBAE5750A6358F5C4 /* GeistMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F030E9B23C45C855D2405253 /* GeistMono.ttf */; };
+		0E33FDF5ED163D514FA5FB7C /* QuickActionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C1D3A9161051E26FC0051 /* QuickActionUITests.swift */; };
 		1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */; };
 		2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */; };
 		39383F0809097A2E6E6A9305 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0389A46C22099564F524D888 /* ProfileViews.swift */; };
@@ -56,6 +57,7 @@
 		393E75942FBC27D4F18800E9 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3B63E51667B270BCD98F8D0C /* QRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScanner.swift; sourceTree = "<group>"; };
 		537D7D91D902DB0FF6E7E0AB /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../../protocol/profiles; sourceTree = SOURCE_ROOT; };
+		5C6C1D3A9161051E26FC0051 /* QuickActionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionUITests.swift; sourceTree = "<group>"; };
 		5E7B55E3766D9FB839118000 /* DoctorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoctorView.swift; sourceTree = "<group>"; };
 		5EF5E5FFDBCF6F4D4168FF7B /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		64DACFF60F661167B996AB8C /* Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Core; path = Core; sourceTree = SOURCE_ROOT; };
@@ -144,6 +146,7 @@
 			children = (
 				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
 				32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */,
+				5C6C1D3A9161051E26FC0051 /* QuickActionUITests.swift */,
 				B39564A75252219D54B2E7F2 /* ShareGameUITests.swift */,
 				6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */,
 			);
@@ -294,6 +297,7 @@
 			files = (
 				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
 				DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */,
+				0E33FDF5ED163D514FA5FB7C /* QuickActionUITests.swift in Sources */,
 				DB6BF3BDCE73E753D929B93E /* ShareGameUITests.swift in Sources */,
 				1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */,
 			);
