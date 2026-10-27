@@ -12,6 +12,7 @@ D device · O OS-input · G game · R release-ready).
 | Links | Wi-Fi/LAN, TCP-only, hotspot, USB tethering, Ethernet, Wi-Fi Direct local network, BLE peripheral | Wi-Fi/LAN, TCP-only, Personal Hotspot (Wi-Fi/USB), BLE peripheral (foreground) |
 | Motion | game rotation vector, 100/200 Hz | Core Motion device motion, 100/200 Hz |
 | Distribution | signed release APK on the website | free sideload (AltStore source / Sideloadly), 7-day re-sign; App Store needs the $99 program |
+| Features | Bluetooth Xbox controller (no computer app), 7 layouts + customise any button, tilt steering, gyro aim, turbo/toggle, rumble, QR game sharing, Quick Settings tile, launcher shortcuts, Controller Lock, connection check | 7 layouts + customise any button, tilt steering, gyro aim, turbo/toggle, rumble, QR game sharing (same codes as Android), Home Screen quick actions, connection check, Guided Access how-to. **Not possible on iOS:** acting as a Bluetooth controller (Apple doesn't allow it), so the iPhone always uses the computer app |
 | Installed on a device | **yes** — realme 12 5G, Android 16 (`tests/results/2026-10-18-*`) | **yes** — iPhone 15, iOS 27.0.1: 20/20 touch-accuracy UI test, ~100 updates/s, RTT p50 7.5 ms (`tests/results/2026-10-19-iphone15-wifi.md`) |
 
 ## Desktop hosts

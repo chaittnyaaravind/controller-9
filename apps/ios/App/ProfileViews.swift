@@ -350,6 +350,11 @@ struct SettingsView: View {
             } header: { Text("Aim") } footer: {
                 Text("Turn the phone to aim: how fast it turns is added to the right stick, like a DualSense or Switch Pro.")
             }
+            Section("Lock the controller") {
+                // iOS doesn't let apps pin themselves; Guided Access is the system's own lock.
+                Text("Keep swipes from leaving the game: turn on Guided Access in Settings → Accessibility → Guided Access, then triple-click the side button on the controller screen. Triple-click again to unlock.")
+                    .font(.footnote).foregroundStyle(Nine.muted)
+            }
             Section("Privacy") {
                 Text("Controller-9 works only on your local network. No account, no cloud service, no analytics. Your controller identity stays in this iPhone’s Keychain and is never synced or backed up.").font(.footnote).foregroundStyle(Nine.muted)
                 Button("Forget all computers", role: .destructive) { confirm = "hosts" }
