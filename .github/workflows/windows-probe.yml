@@ -48,13 +48,14 @@ jobs:
           & $B sim --host 127.0.0.1:47901 --code --pattern wave --duration 4 --json > evidence/warmup.json 2> evidence/warmup.err
           Start-Sleep -Seconds 3
           python -m pip install --quiet pysdl2==0.9.17 pysdl2-dll==2.32.10
-          $x = Start-Process python -ArgumentList "tools/windows-check/xinputcheck.py 16 5" -RedirectStandardOutput evidence/xinput.jsonl -RedirectStandardError evidence/xinput.err -PassThru
+          $x = Start-Process python -ArgumentList "tools/windows-check/xinputcheck.py 20 5" -RedirectStandardOutput evidence/xinput.jsonl -RedirectStandardError evidence/xinput.err -PassThru
           # Windows Server lacks the RawInput/Windows.Gaming.Input game-controller stack SDL prefers;
           # its classic XInput backend is what's left (desktop Windows uses whichever is best).
           $env:SDL_JOYSTICK_RAWINPUT = "0"; $env:SDL_JOYSTICK_WGI = "0"
-          $sd = Start-Process python -ArgumentList "tools/windows-check/sdlcheck.py 16" -RedirectStandardOutput evidence/sdl.jsonl -RedirectStandardError evidence/sdl.err -PassThru
-          Start-Sleep -Milliseconds 500
-          & $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 10.2 --json > evidence/sim.json 2> evidence/sim.err
+          $sd = Start-Process python -ArgumentList "tools/windows-check/sdlcheck.py 20" -RedirectStandardOutput evidence/sdl.jsonl -RedirectStandardError evidence/sdl.err -PassThru
+          # SDL needs a moment to load and open the pad on a cold runner, or it misses the first press.
+          Start-Sleep -Seconds 3
+          & $B sim --host 127.0.0.1:47901 --code --pattern sweep --duration 12 --json > evidence/sim.json 2> evidence/sim.err
           Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -match "Xbox|XUSB|Virtual Gamepad|Game|HID-compliant game" } | Format-List FriendlyName,Status,Problem,Class,InstanceId | Out-File evidence/pnp.txt
           Get-PnpDevice | Where-Object { $_.Status -ne "OK" } | Format-List FriendlyName,Status,Problem,Class,InstanceId | Out-File evidence/pnp-problems.txt
           $x.WaitForExit(); $sd.WaitForExit(); Stop-Process -Id $h.Id -Force

@@ -24,6 +24,15 @@ btn = [r for r in sdl if "button" in r]
 # SDL may attach the pad a moment after the sweep pressed A: its first event is then A's release,
 # which still proves A (SDL reports the button's state). Count that as the press.
 sdl_downs = ([btn[0]["button"]] if btn and btn[0]["down"] == 0 else []) + [r["button"] for r in btn if r["down"] == 1]
+
+
+def once(seq):
+    """A button pressed again right after itself is one press: the host's 250 ms watchdog releases
+    everything when a stalled runner stops sending, and the held button comes back when frames resume."""
+    return [b for i, b in enumerate(seq) if i == 0 or seq[i - 1] != b]
+
+
+sdl_downs = once(sdl_downs)
 sdl_want = ["a", "b", "x", "y", "leftshoulder", "rightshoulder", "back", "start", "leftstick", "rightstick", "dpup", "dpdown", "dpleft", "dpright"]
 assert sdl_downs[:len(sdl_want)] == sdl_want, f"SDL button order {sdl_downs}"
 sdl_axes = {r["axis"] for r in sdl if "axis" in r}
@@ -32,7 +41,7 @@ for a in ["leftx", "lefty", "rightx", "righty", "lefttrigger", "righttrigger"]:
 lines.append(f"SDL {head['sdl']}: '{head['controller']}', rumble={head['rumble']}, buttons in order, guide={'guide' in sdl_downs}, all axes")
 
 if any("connected" in r for r in x):
-    downs = [r["button"] for r in x if r.get("down") == 1]
+    downs = once([r["button"] for r in x if r.get("down") == 1])
     want = ["a", "b", "x", "y", "lb", "rb", "back", "start", "ls", "rs", "up", "down", "left", "right", "guide"]
     assert downs[:len(want)] == want, f"XInput button order {downs}"  # the sweep may wrap around to A
     axes = {(r["axis"], r["v"] > 0) for r in x if "axis" in r}
