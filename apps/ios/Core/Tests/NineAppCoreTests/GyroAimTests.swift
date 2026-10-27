@@ -82,3 +82,22 @@ private let right = GyroAimMath.screenRight(.landscapeRight)
     #expect(presses >= 4 && presses <= 7, "about 12 a second for 0.45 s: \(presses)")
     #expect(v.last == 0, "ends released")
 }
+
+// MARK: game sharing by QR code — the same vector is checked by Android's GameShareTest
+
+private let sharedVector = "c9game:1:QXNwaGFsdCBMZWdlbmRzH0NSSU1TT04fcGFkOnhib3gfMR8wHx9mYWNlX3M9dHVyYm8"
+
+@Test func gameShareMatchesAndroidVector() {
+    let s = GameShare.Shared(name: "Asphalt Legends", accent: "CRIMSON", layout: "pad:xbox", tilt: true, aim: false, mapping: "", modes: "face_s=turbo")
+    #expect(GameShare.encode(s) == sharedVector)
+    #expect(GameShare.decode(sharedVector) == s)
+}
+
+@Test func gameShareRejectsBadCodes() {
+    #expect(GameShare.decode("hello") == nil)
+    #expect(GameShare.decode("c9game:1:!!!") == nil)
+    #expect(GameShare.decode(GameShare.encode(.init(name: "  ", accent: "CRIMSON", layout: "pad:xbox"))) == nil)
+    #expect(GameShare.decode(GameShare.encode(.init(name: "X", accent: "CRIMSON", layout: "../etc"))) == nil)
+    #expect(GameShare.decode(GameShare.encode(.init(name: "X", accent: "<script>", layout: "pad:xbox")))?.accent == "PLATINUM")
+    #expect(GameShare.decode(GameShare.encode(.init(name: String(repeating: "n", count: 80), accent: "CRIMSON", layout: "pad:xbox")))?.name.count == 32)
+}

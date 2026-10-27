@@ -23,6 +23,8 @@
 		98F498BF19C61C88F3F29501 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED49D789CC5DD227CBDA7EB /* Theme.swift */; };
 		998341CD83A7A26E56911FA1 /* Discovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991070B4B95E0E8150F50512 /* Discovery.swift */; };
 		C72B6DAA8AB0DB2B58299AA6 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF5E5FFDBCF6F4D4168FF7B /* ControllerView.swift */; };
+		DB6BF3BDCE73E753D929B93E /* ShareGameUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39564A75252219D54B2E7F2 /* ShareGameUITests.swift */; };
+		DD54743BA182D55D517BF679 /* ShareGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33C47D1B85C4144102D1AA0F /* ShareGame.swift */; };
 		DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */; };
 		DFC8EF9C13F41641DE942472 /* PadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02E1D269572A6C9EF83AFA3 /* PadViews.swift */; };
 		E0D8CEAEF506854BBE4E3714 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3056C7997E78EB9AB25E03C8 /* Assets.xcassets */; };
@@ -50,6 +52,7 @@
 		2F51ECA9922754BD22CDB19E /* MotionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionInput.swift; sourceTree = "<group>"; };
 		3056C7997E78EB9AB25E03C8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomiseLayoutUITests.swift; sourceTree = "<group>"; };
+		33C47D1B85C4144102D1AA0F /* ShareGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareGame.swift; sourceTree = "<group>"; };
 		393E75942FBC27D4F18800E9 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3B63E51667B270BCD98F8D0C /* QRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScanner.swift; sourceTree = "<group>"; };
 		537D7D91D902DB0FF6E7E0AB /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../../protocol/profiles; sourceTree = SOURCE_ROOT; };
@@ -60,6 +63,7 @@
 		6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurboUITests.swift; sourceTree = "<group>"; };
 		7ED49D789CC5DD227CBDA7EB /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		991070B4B95E0E8150F50512 /* Discovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery.swift; sourceTree = "<group>"; };
+		B39564A75252219D54B2E7F2 /* ShareGameUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareGameUITests.swift; sourceTree = "<group>"; };
 		D02E1D269572A6C9EF83AFA3 /* PadViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PadViews.swift; sourceTree = "<group>"; };
 		EC1878DF5A8BC1F7AA4AA6F1 /* NineControllerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NineControllerApp.swift; sourceTree = "<group>"; };
 		F030E9B23C45C855D2405253 /* GeistMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = GeistMono.ttf; sourceTree = "<group>"; };
@@ -119,6 +123,7 @@
 				D02E1D269572A6C9EF83AFA3 /* PadViews.swift */,
 				0389A46C22099564F524D888 /* ProfileViews.swift */,
 				3B63E51667B270BCD98F8D0C /* QRScanner.swift */,
+				33C47D1B85C4144102D1AA0F /* ShareGame.swift */,
 				7ED49D789CC5DD227CBDA7EB /* Theme.swift */,
 				1BF5E4DB649C9BE2CE63E17F /* Fonts */,
 			);
@@ -139,6 +144,7 @@
 			children = (
 				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
 				32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */,
+				B39564A75252219D54B2E7F2 /* ShareGameUITests.swift */,
 				6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */,
 			);
 			path = UITests;
@@ -277,6 +283,7 @@
 				DFC8EF9C13F41641DE942472 /* PadViews.swift in Sources */,
 				39383F0809097A2E6E6A9305 /* ProfileViews.swift in Sources */,
 				5A65BF5599EE8381BA2EE142 /* QRScanner.swift in Sources */,
+				DD54743BA182D55D517BF679 /* ShareGame.swift in Sources */,
 				98F498BF19C61C88F3F29501 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -287,6 +294,7 @@
 			files = (
 				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
 				DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */,
+				DB6BF3BDCE73E753D929B93E /* ShareGameUITests.swift in Sources */,
 				1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

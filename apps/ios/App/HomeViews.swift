@@ -52,6 +52,8 @@ enum ScreenshotRoute {
 
 struct HomeView: View {
     @Environment(AppModel.self) private var model
+    @State private var sharing: Game?
+    @State private var scanning = false
     private var isConnected: Bool { if case .connected = model.connection.state { return true }; return false }
 
     var body: some View {
@@ -66,7 +68,16 @@ struct HomeView: View {
                         ForEach(model.games) { g in
                             Button { model.play(g) } label: { GameCard(game: g, active: g.id == model.game.id) }
                                 .accessibilityLabel("Play \(g.name)").accessibilityAddTraits(g.id == model.game.id ? .isSelected : [])
+                                .contextMenu { Button("Share by QR code") { sharing = g } }
                         }
+                        // A friend's game, from the QR code on their phone (iPhone or Android).
+                        Button { scanning = true } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("⌗").font(.title2).foregroundStyle(Nine.muted)
+                                Text("Scan a game").font(.subheadline).foregroundStyle(Nine.text)
+                            }.frame(width: 120, height: 92, alignment: .leading).padding(12)
+                                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Nine.text.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                        }.accessibilityLabel("Scan a friend's game")
                     }
                 }
                 Micro("Connection").padding(.top, 10)
@@ -116,6 +127,8 @@ struct HomeView: View {
                 }.foregroundStyle(Nine.text).padding(.top, 4)
             }.padding(20)
         }.background(Nine.bg).toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $sharing) { ShareGameView(game: $0).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $scanning) { ScanGameView().presentationDetents([.large]) }
     }
 
     /// The one hero: the game being played, its controller in its light, one big Play.

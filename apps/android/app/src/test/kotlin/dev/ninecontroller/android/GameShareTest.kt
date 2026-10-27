@@ -31,4 +31,13 @@ class GameShareTest {
         val long = GameShare.decode(GameShare.encode(g.copy(name = "x".repeat(200)), null, null)) { it }!!
         assertEquals(Game.MAX_NAME, long.game.name.length)
     }
+
+    @Test fun matchesTheIPhoneVector() {
+        // The same code is checked by the iPhone's gameShareMatchesAndroidVector (apps/ios/Core tests).
+        val v = "c9game:1:QXNwaGFsdCBMZWdlbmRzH0NSSU1TT04fcGFkOnhib3gfMR8wHx9mYWNlX3M9dHVyYm8"
+        val g = dev.ninecontroller.android.data.Game("x", "Asphalt Legends", "CRIMSON", "pad:xbox", tilt = true, aim = false)
+        org.junit.Assert.assertEquals(v, dev.ninecontroller.android.data.GameShare.encode(g, "", "face_s=turbo"))
+        val back = dev.ninecontroller.android.data.GameShare.decode(v) { "new" }!!
+        org.junit.Assert.assertEquals("Asphalt Legends", back.game.name); org.junit.Assert.assertEquals("face_s=turbo", back.modes)
+    }
 }
