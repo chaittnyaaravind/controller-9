@@ -22,29 +22,25 @@ screenshots 1080×2400, the exact tested files from the website + SHA256SUMS).
 ## Listing copy (all stores)
 
 **Name:** Controller-9
-**Short (80):** Your phone is the game controller. Local, private, no account.
+**Short (80):** Your phone pairs as an Xbox controller over Bluetooth. Nothing to install.
 **Category:** Tools / Utilities (itch.io: Tool)
-**Price:** Free
+**Price:** Free — no ads, no subscription, no account
 **Website:** https://controller-9.vercel.app · **Privacy:** https://controller-9.vercel.app/privacy/
 **Content rating:** Everyone / 3+ (no user content, no data collected)
 **Support contact:** _pending — owner to choose (do not use the personal email)_
 
-**Description:**
+**Description:** the linted store text is in `replica/launch/listing.json` (Google Play full description
+for Android, App Store description for iPhone; checked with replica-launch `listing.py`: 0 errors).
+Summary of what it may claim, each with evidence:
 
-Controller-9 turns your phone into a game controller for your computer.
+- Android pairs from the computer's Bluetooth settings as an Xbox controller, nothing installed —
+  Mac game test (Asphalt Legends), Safari/Chrome gamepad, Linux SDL (BT host simulation).
+- Seven layouts plus customise any button; tilt steering from your grip; gyro aim; rumble.
+- Connection check names the cause; every control press tested 20/20 (iOS UI test against a host).
+- iPhone needs the free companion: Windows/Linux games see an Xbox 360 controller; Mac companion is
+  keyboard and mouse.
 
-- Five familiar layouts — Xbox, DualSense, DualShock 4, Switch Pro and 8BitDo Pro 2 styles.
-- Tilt to steer, measured from however you hold the phone. Recenter any time.
-- Accurate touch: each control sends only itself; the D-pad favours straight directions.
-- Rumble from the game, felt on the phone.
-- Wi-Fi and Bluetooth together, so a dropped link doesn't drop your game.
-- Private: pair once with a code, end-to-end encrypted, local network only. No account, no analytics.
-
-Works with games today on **Linux** (games see a standard Xbox 360-style controller).
-The Windows and Mac companions pair and show live diagnostics; games there can't see the
-controller yet. Install the free companion from controller-9.vercel.app.
-
-**itch.io extra:** files are labelled per platform; SHA-256 for each is on the website.
+Never name another controller app in a listing, keyword or ad.
 
 ## Rules
 - Upload only the files in `build/stores/files` (the tested website builds). Never rebuild for a store.

@@ -1,0 +1,26 @@
+{
+ "avoid": [
+  "DroidJoy",
+  "Monect",
+  "PC Remote",
+  "Remote Gamepad",
+  "VGamepad",
+  "GamerPad",
+  "Mobile Joypad",
+  "Steam Link",
+  "Wireless Gamepad for PC"
+ ],
+ "app_store": {
+  "name": "Controller-9",
+  "subtitle": "Your phone is the controller",
+  "promotional_text": "New: move and resize any button, and a connection check that tells you why the computer can't be reached. Free, no ads, no account.",
+  "description": "Controller-9 turns your iPhone into a game controller for your computer.\n\nPair once with the free Controller-9 companion on your computer (Windows, Mac or Linux). On Windows and Linux, games see an Xbox 360 controller; on a Mac the companion plays games as keyboard and mouse.\n\nWhat you get:\n- Seven familiar layouts, plus your own: move and resize any button\n- Tilt steering measured from however you hold the phone\n- Rumble from the game, felt on the phone\n- Every press tested: an automated test presses each control and checks it arrives as itself\n- A connection check that says why the computer can't be reached, and the fix\n\nFree. No ads, no subscription, no account, no analytics. Local network only.",
+  "keywords": "gamepad,joystick,gaming,pc,mac,steering,tilt,racing,rumble,layout,remote,buttons",
+  "whats_new": "Move and resize any button on any layout. A connection check names the cause and the fix. GameCube and arcade stick layouts."
+ },
+ "google_play": {
+  "title": "Controller-9",
+  "short_description": "Your phone pairs as an Xbox controller over Bluetooth. Nothing to install.",
+  "full_description": "Controller-9 turns your Android phone into a game controller.\n\nNothing to install on the computer: turn on Bluetooth controller, then choose \"Xbox Wireless Controller\" in the computer's Bluetooth settings. Games see a standard Xbox controller.\n\nWhat you get:\n- Seven familiar layouts: Xbox, DualSense, DualShock 4, Switch Pro, 8BitDo Pro 2 and GameCube styles, plus an arcade stick\n- Move and resize any button on its own\n- Tilt steering measured from however you hold the phone, and gyro aim\n- Rumble from the game, felt on the phone\n- Turbo and toggle buttons, a layout and colour per game\n- A connection check that says why the computer can't be reached, and the fix\n- Controller Lock: no notification panel or back swipes mid-game\n\nTested on a Mac with a game (Xbox button prompts), in Safari and Chrome as a standard gamepad, and on Linux through SDL. Windows and Linux can also use the free companion app.\n\nFree. No ads, no subscription, no account, no analytics. Local network and Bluetooth only."
+ }
+}
