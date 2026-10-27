@@ -131,6 +131,14 @@ fun HomeScreen(app: NineApp, nav: NavController) {
         if (app.settings.flow.first().hidMode && !app.hid.active && app.hid.unavailableReason() == null) { app.connection.disconnect(); app.hid.start() }
     }
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+    /** Starts the Bluetooth controller and remembers it as on, but only if it could start. */
+    fun startHid() {
+        if (app.hid.unavailableReason() != null) return
+        app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
+    }
+    val enableBt = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == android.app.Activity.RESULT_OK) startHid()
+    }
 
     val connected = state as? ConnState.Connected
     val ackAge = if (connected != null && app.connection.lastAckNs > 0) ((now - app.connection.lastAckNs) / 1_000_000).coerceAtLeast(0) else null
@@ -211,13 +219,17 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (hidState is HidGamepad.State.Off || hidState is HidGamepad.State.Failed) {
                             SecondaryButton("Turn on", {
+                                val adapter = app.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
                                 if (app.hid.unavailableReason()?.contains("permission", ignoreCase = true) == true && Build.VERSION.SDK_INT >= 31)
                                     perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
+                                // Bluetooth off: ask Android to turn it on; the mode starts (and is remembered) only if it does.
+                                else if (adapter != null && runCatching { !adapter.isEnabled }.getOrDefault(false))
+                                    enableBt.launch(android.content.Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
                                 else {
                                     // The ongoing "controller is on" notification needs this on Android 13+; the controller works without it.
                                     if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                                         perms.launch(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS))
-                                    app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
+                                    startHid()
                                 }
                             })
                         } else SecondaryButton("Turn off", { app.hid.stop(); scope.launch { app.settings.update { it.copy(hidMode = false) } } })

@@ -180,9 +180,19 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
     fun restoreNameIfIdle() { if (!active) restoreName() }
 
     private fun restoreName() {
-        val original = names.getString("original", null) ?: return
-        if (runCatching { manager.adapter.setName(original) }.getOrDefault(false)) names.edit().remove("original").apply()
+        // The saved name is lost if the app's data went (reinstall, clear data) while the pad name was set;
+        // then the phone's own device name (Settings → About phone) is the right thing to give back.
+        val original = names.getString("original", null)?.takeIf { it != PAD_NAME } // never "restore" the pad's own name
+            ?: (if (runCatching { manager.adapter.name }.getOrNull() == PAD_NAME) deviceName() else null)
+            ?: return
+        val ok = runCatching { manager.adapter.setName(original) }
+        Log.i(TAG, "restore name: saved=${names.contains("original")} result=${ok.getOrNull()} error=${ok.exceptionOrNull()?.javaClass?.simpleName}")
+        if (ok.getOrDefault(false)) names.edit().remove("original").apply()
     }
+
+    private fun deviceName(): String =
+        runCatching { android.provider.Settings.Global.getString(context.contentResolver, android.provider.Settings.Global.DEVICE_NAME) }.getOrNull()
+            ?.takeIf { it.isNotBlank() && it != PAD_NAME } ?: android.os.Build.MODEL
 
     @Synchronized private fun teardown() {
         running = false
