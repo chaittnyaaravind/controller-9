@@ -1,4 +1,4 @@
-# Acceptance status (2026-10-26)
+# Acceptance status (2026-10-27)
 
 Every "done" points at evidence. Anything not run on the named hardware says so.
 
@@ -10,7 +10,7 @@ Every "done" points at evidence. Anything not run on the named hardware says so.
 | ≥1 local transport works without Internet | **done on devices** — Android Wi-Fi and BLE, iPhone Wi-Fi | `2026-10-18-android-realme-wifi.md`, `2026-10-18-android-realme-bluetooth.md`, `2026-10-19-iphone15-wifi.md` |
 | Verified alternative with Wi-Fi radio off | **done for Android** — BLE link to the host, and the phone as a Bluetooth Xbox controller (no network) | `2026-10-18-android-realme-bluetooth.md`, `2026-10-25-direct-bluetooth-mac.txt` |
 | Android signed APK, install-tested | **done** — 0.2.2 signed (same certificate since 0.1.0), installed over 0.2.1 on a realme 12 5G, A/B/X/Y/D-pad reached macOS GameController | `2026-10-26-android-0.2.0-release.md`, site `releases.json` |
-| iPhone sideload IPA, install-tested | **done** — 0.2.1 re-signed like Sideloadly, installed and running on an iPhone 15; 0.2.2 tested end to end in the iOS Simulator (20/20 controls reach a host) | `2026-10-19-iphone15-wifi.md`, `2026-10-26-ios-simulator/` |
+| iPhone sideload IPA, install-tested | **done — 0.3.0**: this exact IPA re-signed like Sideloadly, installed and running on the iPhone 15; 0.3.0 passed 20/20 touch accuracy on that iPhone; 0.2.2 also 20/20 over Bluetooth only, rumble felt, gyro full travel | `2026-10-27-iphone15-device/` |
 | iOS App Store / TestFlight | **blocked** — needs the $99 Apple Developer Program | — |
 | Mac: controller visible to games | **done via the Android phone** (Bluetooth Xbox controller, no Mac app); Asphalt Legends shows Xbox prompts; Safari and Chrome see a standard gamepad. The Mac **companion** still can't create a gamepad (Apple entitlement) and offers keyboard-and-mouse mode | `2026-10-25-direct-bluetooth-mac.txt`, `2026-10-25-asphalt/`, `2026-10-26-chrome-gamepad-api.png`, `mac-keyboard-mode.txt` |
 | Windows: OS-visible controller | **done in CI** (Windows Server runners): XInput sees every button and axis in order, rumble back to the phone, SDL sees "Xbox 360 Controller". **Not yet run on a desktop Windows 10/11 PC** | `.github/workflows/windows-probe.yml`, `installers.yml` |
@@ -21,6 +21,8 @@ Every "done" points at evidence. Anything not run on the named hardware says so.
 | Download page links only real, tested artifacts | **done** — sizes and SHA-256 computed from the files; the build stops on a missing file | `site/tools/build.py` |
 | Android TV / Google TV | **done in simulation** — Google TV emulator over the emulator's virtual Bluetooth: bonded, Google TV's own HID host made an *Xbox Wireless Controller* gamepad, A/B/X/Y and D-pad arrived. Real TV hardware and its accessory screen not yet tried | `2026-10-26-google-tv-emulator/` |
 | iPhone Bluetooth link to the computer app | **done on the iPhone 15** — with Wi-Fi off the session came back over Bluetooth LE by itself; touch accuracy over Bluetooth only 20/20; rumble felt; gyro aim reaches full stick travel | `2026-10-27-iphone15-device/` |
+
+Versions: both apps are **0.3.0** (Android versionCode 6, iPhone build 4) with the same features except what iOS forbids (acting as a Bluetooth controller, remote keys, Quick Settings tile — the iPhone uses Home Screen quick actions and Guided Access instead). Android 0.3.0 is built and smoke-tested on the emulator; the website lists Android 0.2.3 until 0.3.0 is install-tested on the realme.
 
 Broad public launch criteria: Android and the website are ready; the remaining blockers are a desktop
 Windows run, TV hardware, and the paid store programs (Google Play $25, Apple $99) — owner decisions.
