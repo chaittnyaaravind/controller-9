@@ -19,7 +19,7 @@ struct RootView: View {
 /// Debug builds only: `-screen <name>` opens one screen directly, so CI can capture every screen in the
 /// iOS Simulator (tools/ios-ci/screens.sh). Compiled out of Release builds.
 enum ScreenshotRoute {
-    static let all = ["home", "add", "profiles", "editor", "motion", "connection", "diagnostics", "settings", "controller"]
+    static let all = ["home", "add", "profiles", "editor", "motion", "connection", "diagnostics", "settings", "controller", "doctor"]
     static var requested: String? {
         let a = ProcessInfo.processInfo.arguments
         guard let i = a.firstIndex(of: "-screen"), i + 1 < a.count, all.contains(a[i + 1]) else { return nil }
@@ -34,6 +34,7 @@ enum ScreenshotRoute {
         case "diagnostics": DiagnosticsView()
         case "settings": SettingsView()
         case "controller": ControllerView()
+        case "doctor": DoctorView()
         default: HomeView()
         }
     }
@@ -51,6 +52,7 @@ enum ScreenshotRoute {
 
 struct HomeView: View {
     @Environment(AppModel.self) private var model
+    private var isConnected: Bool { if case .connected = model.connection.state { return true }; return false }
 
     var body: some View {
         ScrollView {
@@ -89,6 +91,8 @@ struct HomeView: View {
                         }.accessibilityLabel("Connect to \(h.name)")
                     }
                     NavigationLink("Add another computer") { AddHostView() }.foregroundStyle(Nine.text)
+                    // Paired but not connected: say why instead of leaving people guessing (replica/fixes.md, F2).
+                    if !isConnected { NavigationLink("Why won’t it connect?") { DoctorView() }.foregroundStyle(Nine.text) }
                 }
                 Micro("Layout")
                 NavigationLink { ProfilesView() } label: {
