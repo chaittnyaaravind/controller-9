@@ -79,6 +79,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var gyroAimOn: Bool { get { gyroAim ?? false } set { gyroAim = newValue } }
     public var aimSensitivityValue: Double { get { aimSensitivity ?? 1.2 } set { aimSensitivity = newValue } }
     public var aimInvert: Bool { get { aimInvertY ?? false } set { aimInvertY = newValue } }
+    /// Turbo / toggle buttons per controller layout: layout id → `elementId=turbo;elementId=toggle` (ButtonModes).
+    public var padModes: [String: String]?
+    public func modes(for pad: PadPreset) -> [String: ButtonModes.Mode] { ButtonModes.decode(padModes?[pad.id]) }
+    public mutating func setMode(_ m: ButtonModes.Mode, for elementId: String, in pad: PadPreset) {
+        var all = modes(for: pad); all[elementId] = m
+        var map = padModes ?? [:]; map[pad.id] = ButtonModes.encode(all); padModes = map
+    }
     public init() {}
 }
 

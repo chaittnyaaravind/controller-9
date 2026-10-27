@@ -28,7 +28,8 @@ struct ControllerView: View {
             GeometryReader { geo in
                 // A controller-style layout is fitted to this screen; a custom layout uses its own boxes.
                 let pad = model.activePad
-                let live = pad?.profile(for: geo.size) ?? profile
+                let modes = pad.map { model.settings.modes(for: $0) } ?? [:]
+                let live = pad.map { ButtonModes.apply(modes, to: $0.profile(for: geo.size)) } ?? profile
                 ZStack(alignment: .top) {
                     // The scene: near-black, the game's tone glowing softly behind the grips.
                     ZStack {
@@ -58,7 +59,8 @@ struct ControllerView: View {
                             .accessibilityAction { press(c) }
                     }
                     if let engine {
-                        TouchSurface(profile: live, engine: engine, visuals: visuals, haptics: model.haptics, pad: pad, onInert: { show($0, for: 2.5) }) { recenter() }
+                        TouchSurface(profile: live, engine: engine, visuals: visuals, haptics: model.haptics, pad: pad,
+                                     turbo: Set(modes.filter { $0.value == .turbo }.keys), onInert: { show($0, for: 2.5) }) { recenter() }
                             .accessibilityHidden(true)
                     }
                     statusStrip(profile)
@@ -219,6 +221,8 @@ struct TouchSurface: UIViewRepresentable {
     let visuals: Visuals
     let haptics: Haptics
     var pad: PadPreset? = nil
+    /// Buttons in turbo mode (ButtonModes): they pulse while held.
+    var turbo: Set<String> = []
     var onInert: ((String) -> Void)? = nil
     let recenter: () -> Void
 
@@ -226,6 +230,7 @@ struct TouchSurface: UIViewRepresentable {
     func updateUIView(_ v: SurfaceView, context: Context) { update(v) }
     private func update(_ v: SurfaceView) {
         v.profile = profile; v.engine = engine; v.visuals = visuals; v.haptics = haptics; v.recenter = recenter; v.onInert = onInert
+        v.turbo = turbo
         v.fullTriggers = pad != nil
         v.round = Set(pad?.elements.filter(\.round).map(\.id) ?? [])
         v.inert = pad.map { p in
@@ -234,7 +239,17 @@ struct TouchSurface: UIViewRepresentable {
     }
 
     final class SurfaceView: UIView {
-        var profile: Profile?; var engine: ControllerEngine?; var visuals: Visuals?; var haptics: Haptics?; var recenter: (() -> Void)?
+        var profile: Profile?; var visuals: Visuals?; var haptics: Haptics?; var recenter: (() -> Void)?
+        var engine: ControllerEngine? {
+            didSet {
+                guard engine !== oldValue else { return }
+                pulser?.stopAll()
+                pulser = engine.map { e in TurboPulser { id, mask in e.setButtons(id, mask) } }
+            }
+        }
+        var turbo: Set<String> = []
+        private var pulser: TurboPulser?
+        override func willMove(toWindow newWindow: UIWindow?) { if newWindow == nil { pulser?.stopAll() } }
         /// Controller-style layouts: thumb-tapped triggers press fully; round parts hit-test as circles;
         /// tapping an element that sends nothing explains why instead of doing nothing silently.
         var fullTriggers = false
@@ -281,7 +296,9 @@ struct TouchSurface: UIViewRepresentable {
             switch c.kind {
             case .button:
                 guard down, let b = NineButton(id: c.bind) else { return }
-                if c.toggle {
+                if turbo.contains(c.id) {
+                    pulser?.start(c.id, b.mask); visuals.pressed[c.id] = true
+                } else if c.toggle {
                     let on = !(visuals.toggles[c.id] ?? false); visuals.toggles[c.id] = on
                     engine.setButtons(c.id, on ? b.mask : 0); visuals.pressed[c.id] = on
                 } else { engine.setButtons(c.id, b.mask); visuals.pressed[c.id] = true }
@@ -311,7 +328,9 @@ struct TouchSurface: UIViewRepresentable {
         private func release(_ c: ControlDef) {
             guard let engine, let visuals else { return }
             switch c.kind {
-            case .button: if !c.toggle { engine.setButtons(c.id, 0); visuals.pressed[c.id] = false }
+            case .button:
+                if turbo.contains(c.id) { pulser?.stop(c.id); visuals.pressed[c.id] = false }
+                else if !c.toggle { engine.setButtons(c.id, 0); visuals.pressed[c.id] = false }
             case .stick: engine.setStick(c.bind, 0, 0); visuals.stick[c.id] = .zero; visuals.pressed[c.id] = false
             case .dpad: engine.setButtons(c.id, 0); visuals.dpad[c.id] = 0
             case .trigger, .pedal: engine.setTrigger(c.id, c.bind, 0); visuals.value[c.id] = 0

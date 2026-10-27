@@ -1,0 +1,1 @@
+PASS: 19 separate A presses during a 1.5 s hold (turbo ~12/s), ends released: True

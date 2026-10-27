@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		01AA99E992CFE6E2EBBC7702 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E75942FBC27D4F18800E9 /* Haptics.swift */; };
 		09DB6CDDBAE5750A6358F5C4 /* GeistMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F030E9B23C45C855D2405253 /* GeistMono.ttf */; };
+		1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */; };
 		2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */; };
 		39383F0809097A2E6E6A9305 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0389A46C22099564F524D888 /* ProfileViews.swift */; };
 		3A216675B137F31B366F6A82 /* NineAppCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D9802B7130CBEB8352E1744 /* NineAppCore */; };
@@ -56,6 +57,7 @@
 		5EF5E5FFDBCF6F4D4168FF7B /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		64DACFF60F661167B996AB8C /* Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Core; path = Core; sourceTree = SOURCE_ROOT; };
 		691FB4A35569621FF7A0CC63 /* HomeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViews.swift; sourceTree = "<group>"; };
+		6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurboUITests.swift; sourceTree = "<group>"; };
 		7ED49D789CC5DD227CBDA7EB /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		991070B4B95E0E8150F50512 /* Discovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery.swift; sourceTree = "<group>"; };
 		D02E1D269572A6C9EF83AFA3 /* PadViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PadViews.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 			children = (
 				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
 				32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */,
+				6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -284,6 +287,7 @@
 			files = (
 				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
 				DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */,
+				1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

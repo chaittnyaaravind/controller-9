@@ -38,6 +38,8 @@ struct ProfilesView: View {
                         // Move and resize each button on its own: an editable copy fitted to this screen.
                         Button("Customise positions and sizes") { customise(pad) }
                             .buttonStyle(.borderless).font(.subheadline).foregroundStyle(Nine.text)
+                        NavigationLink("Turbo and toggle buttons") { ButtonModesView(pad: pad) }
+                            .font(.subheadline).foregroundStyle(Nine.text)
                         DisclosureGroup("How it maps") {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(pad.notes, id: \.self) { Text($0).font(.footnote).foregroundStyle(Nine.muted) }
@@ -367,5 +369,29 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) { confirm = nil }
         }
+    }
+}
+
+/// Turbo and toggle per button of a controller layout (ButtonModes), the same choices as Android.
+struct ButtonModesView: View {
+    @Environment(AppModel.self) private var model
+    let pad: PadPreset
+
+    var body: some View {
+        let modes = model.settings.modes(for: pad)
+        let buttons = pad.elements.filter { $0.action?.kind == .button && [.face, .bumper, .center, .stickPress].contains($0.part) }
+        Form {
+            Section {
+                ForEach(buttons) { e in
+                    Picker(e.label, selection: Binding(get: { modes[e.id] ?? .normal },
+                                                       set: { model.settings.setMode($0, for: e.id, in: pad) })) {
+                        ForEach(ButtonModes.Mode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                }
+            } footer: {
+                Text("Turbo fires about 12 times a second while you hold the button. Toggle latches: tap to hold, tap again to let go.")
+            }
+        }
+        .scrollContentBackground(.hidden).background(Nine.bg).navigationTitle("\(pad.name) buttons")
     }
 }
