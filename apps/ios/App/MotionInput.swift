@@ -10,7 +10,13 @@ final class MotionInput {
     private(set) var measuredHz = 0.0
     var available: Bool { manager.isDeviceMotionAvailable }
     /// Gyro aim: rotation rate (rad/s) and gravity (g, pointing down), device coordinates, every sample.
-    var onRate: (((Double, Double, Double), (Double, Double, Double)) -> Void)?
+    /// Set on the main thread, read on the motion queue: guarded so leaving the screen can't race a sample.
+    var onRate: (((Double, Double, Double), (Double, Double, Double)) -> Void)? {
+        get { rateLock.withLock { _onRate } }
+        set { rateLock.withLock { _onRate = newValue } }
+    }
+    private var _onRate: (((Double, Double, Double), (Double, Double, Double)) -> Void)?
+    private let rateLock = NSLock()
 
     /// The sink runs on a background queue with the pose and the sample time in seconds.
     func start(hz: Int, sink: @escaping (Pose, Double) -> Void) {

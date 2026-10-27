@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import dev.ninecontroller.android.data.PairedHost
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.InetSocketAddress
@@ -46,8 +47,6 @@ object ConnectionDoctor {
         if (f.probe == Probe.REFUSED) return Finding(Cause.NOT_RUNNING, "Controller-9 isn't running on $name",
             "The computer answered, but nothing is listening for controllers on port ${f.hostPort}.",
             listOf("Open Controller-9 on $name and leave it running.", "If it is open, quit and reopen it."))
-        if (f.vpn) return Finding(Cause.VPN, "A VPN is on",
-            "A VPN can hide the computers on your own network from this phone.", listOf("Turn the VPN off while you play, or allow local network access in the VPN app."))
         if (f.phone.isEmpty() || !f.onWifi && f.phone.none { sameNet(it, f.hostAddr) }) return Finding(Cause.NO_NETWORK, "This phone isn't on the computer's Wi-Fi",
             "$name is at ${f.hostAddr}, and this phone has no Wi-Fi connection to that network.",
             listOf("Join the same Wi-Fi as $name.", "No Wi-Fi? Turn on this phone's hotspot and join it from the computer.", "Or use Bluetooth controller mode — no network needed."))
@@ -56,6 +55,9 @@ object ConnectionDoctor {
         if (f.phone.none { sameNet(it, f.hostAddr) }) return Finding(Cause.OTHER_NETWORK, "Phone and computer may be on different networks",
             "No answer from ${f.hostAddr}, and this phone is on ${f.phone.joinToString { "${it.addr}/${it.prefix}" }}. Guest Wi-Fi, separate 5 GHz and 2.4 GHz networks, or a mesh extender can cause this.",
             listOf("Check Controller-9 is open on $name.", "Join the same Wi-Fi network on both.", "If $name moved networks, pair again from the computer's QR code."))
+        // A VPN can hide the local network; checked after the network checks (same order as the iPhone app).
+        if (f.vpn) return Finding(Cause.VPN, "A VPN is on",
+            "A VPN can hide the computers on your own network from this phone.", listOf("Turn the VPN off while you play, or allow local network access in the VPN app."))
         return Finding(Cause.BLOCKED, "$name doesn't answer",
             "Both are on the same network, but nothing came back from ${f.hostAddr}. Usually the computer's firewall, or a Wi-Fi that keeps devices apart (guest, office, school and hotel networks often do).",
             listOf("Check Controller-9 is open on $name (a firewall can make a closed app look like silence).",
@@ -96,7 +98,8 @@ object ConnectionDoctor {
             }
         }
         val addrs = host.allAddrs()
-        val results = addrs.map { probe(it, host.port, timeoutMs) }
+        // All addresses at once: four silent addresses take one timeout, not four.
+        val results = kotlinx.coroutines.coroutineScope { addrs.map { a -> async { probe(a, host.port, timeoutMs) } }.map { it.await() } }
         val best = results.minByOrNull { it.ordinal } ?: Probe.NO_ROUTE
         val shown = addrs.getOrNull(results.indexOf(best)) ?: host.addr
         Facts(host.name, shown, host.port, wifi, vpn, nets, best)

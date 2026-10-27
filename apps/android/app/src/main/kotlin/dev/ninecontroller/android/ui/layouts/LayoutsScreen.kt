@@ -148,10 +148,16 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
         SecondaryButton("Customise positions and sizes", {
             val w = maxOf(conf.screenWidthDp, conf.screenHeightDp).toFloat(); val h = minOf(conf.screenWidthDp, conf.screenHeightDp).toFloat()
             runCatching {
-                val prof = mapping.toProfile(w, h, app.profiles.uniqueId("${p.id}-custom"), "${p.name} · custom",
-                    stickDeadzone = s.stickDeadzone)
+                // Keep everything the layout had: tilt steering, toggle and turbo buttons (modes move to the new id).
+                val base = mapping.toProfile(w, h, app.profiles.uniqueId("${p.id}-custom"), "${p.name} · custom",
+                    motion = s.padMotion(), stickDeadzone = s.stickDeadzone)
+                val prof = base.copy(controls = base.controls.map { c -> if (modes[c.id] == dev.ninecontroller.android.pad.ButtonModes.Mode.TOGGLE) c.copy(toggle = true) else c })
                 app.profiles.save(prof)
-                scope.launch { app.settings.update { it.copy(activeProfile = prof.id) } }
+                scope.launch {
+                    app.settings.update { it.copy(activeProfile = prof.id, padModes = it.padModes + (prof.id to (it.padModes[p.id] ?: ""))) }
+                    // The game being played now uses the customised layout, so Play doesn't switch back to the stock one.
+                    app.games.get(s.activeGame)?.let { g -> app.games.save(g.copy(layout = prof.id)) }
+                }
                 nav.navigate("edit/${prof.id}")
             }.onFailure { error = it.message ?: "Couldn't copy this layout" }
         })

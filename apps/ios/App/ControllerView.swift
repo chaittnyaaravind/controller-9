@@ -18,6 +18,7 @@ struct ControllerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var visuals = Visuals()
     @State private var motion = MotionInput()
+    @State private var orientationObserver: NSObjectProtocol?
     @State private var engine: ControllerEngine?
     @State private var steering: SteeringSession?
     /// Short, non-blocking steering status ("Hold still…", "Center set"); never a modal during play.
@@ -28,8 +29,9 @@ struct ControllerView: View {
             GeometryReader { geo in
                 // A controller-style layout is fitted to this screen; a custom layout uses its own boxes.
                 let pad = model.activePad
-                let modes = pad.map { model.settings.modes(for: $0) } ?? [:]
-                let live = pad.map { ButtonModes.apply(modes, to: $0.profile(for: geo.size)) } ?? profile
+                // Turbo/toggle by layout id: a controller layout or a customised one keep their own.
+                let modes = model.settings.modes(forKey: pad?.id ?? profile.id)
+                let live = pad.map { ButtonModes.apply(modes, to: $0.profile(for: geo.size)) } ?? ButtonModes.apply(modes, to: profile)
                 ZStack(alignment: .top) {
                     // The scene: near-black, the game's tone glowing softly behind the grips.
                     ZStack {
@@ -150,10 +152,14 @@ struct ControllerView: View {
         }
         // Gyro aim: turning the phone moves the right stick (same maths as Android, GyroAimMath).
         if model.settings.gyroAimOn {
-            let right = GyroAimMath.screenRight(Self.screen())
+            // The landscape lock allows both landscape sides: follow the screen when the phone is flipped.
+            let axis = AimAxis(GyroAimMath.screenRight(Self.screen()))
+            orientationObserver = NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { axis.set(GyroAimMath.screenRight(Self.screen())) }
+            }
             let sens = model.settings.aimSensitivityValue, invert = model.settings.aimInvert
             motion.onRate = { w, g in
-                let (x, y) = GyroAimMath.stick(rate: w, up: (-g.0, -g.1, -g.2), right: right, sensitivity: sens, invertY: invert)
+                let (x, y) = GyroAimMath.stick(rate: w, up: (-g.0, -g.1, -g.2), right: axis.get(), sensitivity: sens, invertY: invert)
                 e.setAim(x, y)
             }
         }
@@ -181,6 +187,7 @@ struct ControllerView: View {
     }
 
     private func stop() {
+        if let o = orientationObserver { NotificationCenter.default.removeObserver(o); orientationObserver = nil }
         motion.stop()
         steering = nil
         engine?.releaseAll()
@@ -400,4 +407,13 @@ struct ControlShape: View {
         }
         .opacity(c.opacity)
     }
+}
+
+/// Gyro aim's "screen right" axis: written on the main thread when the phone flips, read on the motion queue.
+final class AimAxis: @unchecked Sendable {
+    private let lock = NSLock()
+    private var v: (Double, Double, Double)
+    init(_ v: (Double, Double, Double)) { self.v = v }
+    func get() -> (Double, Double, Double) { lock.withLock { v } }
+    func set(_ n: (Double, Double, Double)) { lock.withLock { v = n } }
 }

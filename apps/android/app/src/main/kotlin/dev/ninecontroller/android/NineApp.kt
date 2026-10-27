@@ -1,6 +1,7 @@
 package dev.ninecontroller.android
 
 import android.app.Application
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import dev.ninecontroller.android.data.GameStore
@@ -58,6 +59,7 @@ class NineApp : Application() {
         // Launcher shortcuts follow the game list and the game being played.
         scope.launch {
             kotlinx.coroutines.flow.combine(games.games, settings.flow) { g, s -> g to s.activeGame }
+                .distinctUntilChanged() // not on every settings change: the shortcut service rate-limits updates
                 .collect { (g, active) -> dev.ninecontroller.android.data.GameShortcuts.publish(this@NineApp, g, active) }
         }
     }

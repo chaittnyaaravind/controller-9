@@ -157,7 +157,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         onDispose { ControllerQuiet.restore(context) }
     }
 
-    val turboIds = remember(s.padModes, spec.key) { s.padPreset?.let { pr -> dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[pr.id]).filterValues { it == dev.ninecontroller.android.pad.ButtonModes.Mode.TURBO }.keys } ?: emptySet() }
+    val turboIds = remember(s.padModes, spec.key) { dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[s.padPreset?.id ?: s.activeProfile]).filterValues { it == dev.ninecontroller.android.pad.ButtonModes.Mode.TURBO }.keys } // custom layouts keep their own modes
     val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }

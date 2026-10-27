@@ -84,7 +84,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var glowOn: Bool { get { glow ?? true } set { glow = newValue } }
     /// Turbo / toggle buttons per controller layout: layout id → `elementId=turbo;elementId=toggle` (ButtonModes).
     public var padModes: [String: String]?
-    public func modes(for pad: PadPreset) -> [String: ButtonModes.Mode] { ButtonModes.decode(padModes?[pad.id]) }
+    public func modes(for pad: PadPreset) -> [String: ButtonModes.Mode] { modes(forKey: pad.id) }
+    /// Modes by layout id: a controller layout's id, or a customised layout's profile id.
+    public func modes(forKey key: String) -> [String: ButtonModes.Mode] { ButtonModes.decode(padModes?[key]) }
+    public mutating func copyModes(from: String, to: String) {
+        guard let m = padModes?[from] else { return }
+        var map = padModes ?? [:]; map[to] = m; padModes = map
+    }
     public mutating func setMode(_ m: ButtonModes.Mode, for elementId: String, in pad: PadPreset) {
         var all = modes(for: pad); all[elementId] = m
         var map = padModes ?? [:]; map[pad.id] = ButtonModes.encode(all); padModes = map

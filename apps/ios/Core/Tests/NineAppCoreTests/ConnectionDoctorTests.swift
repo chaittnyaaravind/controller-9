@@ -18,6 +18,8 @@ private func facts(_ p: D.Probe, phone: [D.Net] = home, wifi: Bool = true, vpn: 
     #expect(D.diagnose(facts(.timeout, addr: "10.0.0.5")).cause == .otherNetwork)
     #expect(D.diagnose(facts(.timeout, phone: [D.Net("10.250.244.195", 16)], addr: "10.250.187.182")).cause == .blocked)
     #expect(D.diagnose(facts(.noRoute, addr: "")).cause == .noAddress)
+    #expect(D.diagnose(facts(.denied)).cause == .localNetworkDenied)
+    #expect(D.diagnose(facts(.timeout, vpn: true, addr: "10.0.0.5")).cause == .otherNetwork) // network checks come before VPN
     for p in [D.Probe.reachable, .refused, .timeout, .noRoute] { #expect(!D.diagnose(facts(p)).fixes.isEmpty) }
 }
 

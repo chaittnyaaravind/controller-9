@@ -133,7 +133,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
     /** Starts the Bluetooth controller and remembers it as on, but only if it could start. */
     fun startHid() {
-        if (app.hid.unavailableReason() != null) return
+        // Can't start: still try, so the card shows the reason (start() sets Failed), but don't remember it as on.
+        if (app.hid.unavailableReason() != null) { app.hid.start(); return }
         app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
     }
     val enableBt = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->

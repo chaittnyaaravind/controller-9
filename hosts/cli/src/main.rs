@@ -295,11 +295,16 @@ async fn run_sim(host: Option<String>, uri: Option<String>, code: bool, rate: f6
     let mut last_ping = Instant::now() - Duration::from_secs(1);
     let mut rng = 0x9E37_79B9_7F4A_7C15u64;
     let mut last_label = String::new();
+    // The sweep runs on its own clock that advances at most 50 ms per pass: if the machine stalls (shared CI
+    // runners do, by 300 ms+), the sweep pauses instead of skipping a step's press (LB was lost that way).
+    let (mut sweep_t, mut last_t) = (0.0f64, 0.0f64);
     while start.elapsed().as_secs_f64() < duration {
         let t = start.elapsed().as_secs_f64();
+        sweep_t += (t - last_t).min(0.05);
+        last_t = t;
         let state = if pattern == "sweep" {
-            let (s, label) = sweep_state(t);
-            if label != last_label { eprintln!("sweep {t:6.2}s {label}"); last_label = label; }
+            let (s, label) = sweep_state(sweep_t);
+            if label != last_label { eprintln!("sweep {sweep_t:6.2}s {label}"); last_label = label; }
             s
         } else {
             InputState {

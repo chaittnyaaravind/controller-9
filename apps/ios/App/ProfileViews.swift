@@ -110,10 +110,17 @@ struct ProfilesView: View {
         let fitted = pad.profile(for: CGSize(width: max(b.width, b.height), height: min(b.width, b.height)))
         let ids = Set(model.profiles.map(\.id))
         let id = (1...).lazy.map { n in n == 1 ? "\(pad.id)-custom" : "\(pad.id)-custom-\(n)" }.first { !ids.contains($0) }!
-        var p = Profile(id: id, name: "\(pad.name) · custom", controls: fitted.controls)
+        // Keep the layout's toggle and turbo buttons (modes move to the new id).
+        var p = ButtonModes.apply(model.settings.modes(for: pad), to: Profile(id: id, name: "\(pad.name) · custom", controls: fitted.controls))
         p.orientation = .landscape
-        do { try model.save(p); model.settings.activeProfile = id; customised = id }
-        catch { message = "Couldn’t copy the layout: \(error.localizedDescription)" }
+        do {
+            try model.save(p)
+            model.settings.copyModes(from: pad.id, to: id)
+            model.settings.activeProfile = id
+            // The game being played now uses the customised layout, so Play doesn't switch back to the stock one.
+            if let i = model.games.firstIndex(where: { $0.id == model.game.id }) { model.games[i].layout = id; model.game = model.games[i] }
+            customised = id
+        } catch { message = "Couldn’t copy the layout: \(error.localizedDescription)" }
     }
 }
 
