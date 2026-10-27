@@ -1,0 +1,6 @@
+2026-10-27T22:10:18.783848Z  INFO nine_host_core::host: controller handshake complete peer=10.250.132.248:61285 (stream) name=iPhone platform=ios
+event: {"type":"slot_disconnected","slot":0,"name":"iPhone","graceS":30}
+2026-10-27T22:13:21.593359Z  INFO nine_host_core::host: controller handshake complete peer=C9-da72fd4d (Bluetooth LE) name=iPhone platform=ios
+event: {"type":"slot_disconnected","slot":0,"name":"iPhone","graceS":30}
+2026-10-27T22:14:11.093250Z  INFO nine_host_core::host: controller handshake complete peer=C9-da72fd4d (Bluetooth LE) name=iPhone platform=ios
+event: {"type":"slot_disconnected","slot":0,"name":"iPhone","graceS":30}

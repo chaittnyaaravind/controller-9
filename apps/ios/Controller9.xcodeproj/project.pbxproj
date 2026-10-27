@@ -29,6 +29,7 @@
 		DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */; };
 		DFC8EF9C13F41641DE942472 /* PadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02E1D269572A6C9EF83AFA3 /* PadViews.swift */; };
 		E0D8CEAEF506854BBE4E3714 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3056C7997E78EB9AB25E03C8 /* Assets.xcassets */; };
+		E680B3948CC35CE0A4D70F01 /* GyroSetupUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1454C0C51BEC44AE10D23FBB /* GyroSetupUITests.swift */; };
 		FD6C4FAA2B2CC719E5781196 /* HomeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691FB4A35569621FF7A0CC63 /* HomeViews.swift */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +47,7 @@
 		0389A46C22099564F524D888 /* ProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViews.swift; sourceTree = "<group>"; };
 		05A4C5E48E0240D83522F577 /* Geist.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Geist.ttf; sourceTree = "<group>"; };
 		07135696CD2C6DF44983A16B /* Games.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Games.swift; sourceTree = "<group>"; };
+		1454C0C51BEC44AE10D23FBB /* GyroSetupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GyroSetupUITests.swift; sourceTree = "<group>"; };
 		1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerAccuracyUITests.swift; sourceTree = "<group>"; };
 		1DC57FA9F1614812A3C44B72 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24B714CD7F522A2ADD59DB4D /* Controller9UITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = Controller9UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -146,6 +148,7 @@
 			children = (
 				1BAAC06A88308200AA345921 /* ControllerAccuracyUITests.swift */,
 				32B397FDA6FE86253B665A7D /* CustomiseLayoutUITests.swift */,
+				1454C0C51BEC44AE10D23FBB /* GyroSetupUITests.swift */,
 				5C6C1D3A9161051E26FC0051 /* QuickActionUITests.swift */,
 				B39564A75252219D54B2E7F2 /* ShareGameUITests.swift */,
 				6A1F6721F7CFEE06C2E2444E /* TurboUITests.swift */,
@@ -297,6 +300,7 @@
 			files = (
 				2E3327E6F0943EC397DC96AC /* ControllerAccuracyUITests.swift in Sources */,
 				DF58E55F10E14A63233CF610 /* CustomiseLayoutUITests.swift in Sources */,
+				E680B3948CC35CE0A4D70F01 /* GyroSetupUITests.swift in Sources */,
 				0E33FDF5ED163D514FA5FB7C /* QuickActionUITests.swift in Sources */,
 				DB6BF3BDCE73E753D929B93E /* ShareGameUITests.swift in Sources */,
 				1917C6FC58C7E4C6AFC3F6B3 /* TurboUITests.swift in Sources */,

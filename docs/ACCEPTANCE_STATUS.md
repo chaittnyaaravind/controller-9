@@ -20,7 +20,7 @@ Every "done" points at evidence. Anything not run on the named hardware says so.
 | Connection problems explained to the user | **done** — connection check on Android and iPhone, checked against a real host up and down | `2026-10-26-connection-doctor/` |
 | Download page links only real, tested artifacts | **done** — sizes and SHA-256 computed from the files; the build stops on a missing file | `site/tools/build.py` |
 | Android TV / Google TV | **done in simulation** — Google TV emulator over the emulator's virtual Bluetooth: bonded, Google TV's own HID host made an *Xbox Wireless Controller* gamepad, A/B/X/Y and D-pad arrived. Real TV hardware and its accessory screen not yet tried | `2026-10-26-google-tv-emulator/` |
-| iPhone Bluetooth link to the computer app | **not tested** — code compiles; needs the iPhone and a host side by side | — |
+| iPhone Bluetooth link to the computer app | **done on the iPhone 15** — with Wi-Fi off the session came back over Bluetooth LE by itself; touch accuracy over Bluetooth only 20/20; rumble felt; gyro aim reaches full stick travel | `2026-10-27-iphone15-device/` |
 
 Broad public launch criteria: Android and the website are ready; the remaining blockers are a desktop
 Windows run, TV hardware, and the paid store programs (Google Play $25, Apple $99) — owner decisions.
