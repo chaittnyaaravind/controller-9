@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
                     composable("edit/{id}") { LayoutEditorScreen(app, nav, it.arguments?.getString("id") ?: "") }
                     composable("motion/{id}") { MotionScreen(app, nav, it.arguments?.getString("id") ?: "") }
                     composable("diagnostics") { DiagnosticsScreen(app, nav) }
+                    composable("doctor") { dev.ninecontroller.android.ui.diagnostics.DoctorScreen(app, nav) }
                     composable("connection") { ConnectionScreen(app, nav) }
                     composable("settings") { SettingsScreen(app, nav) }
                     composable("layouts") { dev.ninecontroller.android.ui.layouts.LayoutsScreen(app, nav) }

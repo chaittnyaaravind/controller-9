@@ -130,6 +130,8 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
         }
 
         Section("Advanced") {
+            ListRow("Connection check", detail = "Why won’t it connect? Finds the cause and the fix", onClick = { nav.navigate("doctor") })
+            Divider()
             ListRow("Diagnostics", detail = "Latency, freshness, reconnects, disconnect reasons", onClick = { nav.navigate("diagnostics") })
             Divider()
             ListRow("Links", detail = "Which links are usable and why", onClick = { nav.navigate("connection") })

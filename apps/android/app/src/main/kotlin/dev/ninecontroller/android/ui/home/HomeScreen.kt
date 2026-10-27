@@ -256,6 +256,9 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                             HomeLogic.Act.PLAY_DISCONNECT -> SecondaryButton("Disconnect", { app.connection.disconnect() })
                         }
                     }
+                    // Paired but not connected: say why instead of leaving people guessing (replica/fixes.md, F2).
+                    if (hosts.isNotEmpty() && sum.act in setOf(HomeLogic.Act.CONNECT, HomeLogic.Act.RECONNECT))
+                        SecondaryButton("Why won’t it connect?", { nav.navigate("doctor") })
                     if (blePerm != null && Build.VERSION.SDK_INT >= 31) SecondaryButton("Allow Bluetooth fallback", {
                         perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
                     })
