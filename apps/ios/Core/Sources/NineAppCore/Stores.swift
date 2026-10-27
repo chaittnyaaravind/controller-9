@@ -72,6 +72,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var showStats = true
     /// "auto" or a LinkKind raw value.
     public var linkOverride: String? = "auto"
+    /// Gyro aim (turn the phone to move the right stick). Optional so settings saved by older versions still decode.
+    public var gyroAim: Bool?
+    public var aimSensitivity: Double?
+    public var aimInvertY: Bool?
+    public var gyroAimOn: Bool { get { gyroAim ?? false } set { gyroAim = newValue } }
+    public var aimSensitivityValue: Double { get { aimSensitivity ?? 1.2 } set { aimSensitivity = newValue } }
+    public var aimInvert: Bool { get { aimInvertY ?? false } set { aimInvertY = newValue } }
     public init() {}
 }
 

@@ -337,6 +337,17 @@ struct SettingsView: View {
                 Toggle("Show latency on the controller", isOn: $model.settings.showStats)
                 Picker("Motion sensor rate", selection: $model.settings.sensorHz) { Text("100 Hz").tag(100); Text("200 Hz").tag(200) }
             }
+            Section {
+                Toggle("Gyro aim", isOn: $model.settings.gyroAimOn)
+                if model.settings.gyroAimOn {
+                    Picker("Sensitivity", selection: $model.settings.aimSensitivityValue) {
+                        Text("Low").tag(0.7); Text("Medium").tag(1.2); Text("High").tag(2.0); Text("Max").tag(3.0)
+                    }.pickerStyle(.segmented)
+                    Toggle("Invert up and down", isOn: $model.settings.aimInvert)
+                }
+            } header: { Text("Aim") } footer: {
+                Text("Turn the phone to aim: how fast it turns is added to the right stick, like a DualSense or Switch Pro.")
+            }
             Section("Privacy") {
                 Text("Controller-9 works only on your local network. No account, no cloud service, no analytics. Your controller identity stays in this iPhone’s Keychain and is never synced or backed up.").font(.footnote).foregroundStyle(Nine.muted)
                 Button("Forget all computers", role: .destructive) { confirm = "hosts" }

@@ -138,19 +138,43 @@ struct ControllerView: View {
         let e = ControllerEngine { s, f in conn.submit(s, f) }
         e.configure(p.motion)
         engine = e
+        var session: SteeringSession?
         if p.motion.enabled {
             let s = SteeringSession(calibration: model.settings.steering, motion: p.motion) { event in
                 Task { @MainActor in steeringEvent(event) }
             }
-            steering = s
+            steering = s; session = s
             if s.capturing { banner = model.settings.calibrationDeg != 0 ? "Steering now follows your grip · hold still" : "Hold your grip still" }
+        }
+        // Gyro aim: turning the phone moves the right stick (same maths as Android, GyroAimMath).
+        if model.settings.gyroAimOn {
+            let right = GyroAimMath.screenRight(Self.screen())
+            let sens = model.settings.aimSensitivityValue, invert = model.settings.aimInvert
+            motion.onRate = { w, g in
+                let (x, y) = GyroAimMath.stick(rate: w, up: (-g.0, -g.1, -g.2), right: right, sensitivity: sens, invertY: invert)
+                e.setAim(x, y)
+            }
+        }
+        if p.motion.enabled || model.settings.gyroAimOn {
             let vis = visuals
+            let s = session
             motion.start(hz: model.settings.sensorHz) { pose, t in
+                guard let s else { return }
                 let v = s.update(pose, t: t)
                 e.setMotion(v)
                 Task { @MainActor in vis.steering = v }
             }
             Task { while engine != nil { model.connection.sensorHz = motion.measuredHz; try? await Task.sleep(nanoseconds: 1_000_000_000) } }
+        }
+    }
+
+    /// The interface orientation, for which way "screen right" points in device coordinates.
+    private static func screen() -> GyroAimMath.Screen {
+        switch (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.interfaceOrientation {
+        case .landscapeLeft: return .landscapeLeft
+        case .portraitUpsideDown: return .portraitUpsideDown
+        case .portrait: return .portrait
+        default: return .landscapeRight
         }
     }
 

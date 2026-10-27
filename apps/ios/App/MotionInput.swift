@@ -9,6 +9,8 @@ final class MotionInput {
     private let queue: OperationQueue = { let q = OperationQueue(); q.qualityOfService = .userInteractive; q.maxConcurrentOperationCount = 1; return q }()
     private(set) var measuredHz = 0.0
     var available: Bool { manager.isDeviceMotionAvailable }
+    /// Gyro aim: rotation rate (rad/s) and gravity (g, pointing down), device coordinates, every sample.
+    var onRate: (((Double, Double, Double), (Double, Double, Double)) -> Void)?
 
     /// The sink runs on a background queue with the pose and the sample time in seconds.
     func start(hz: Int, sink: @escaping (Pose, Double) -> Void) {
@@ -19,11 +21,12 @@ final class MotionInput {
             guard let self, let m else { return }
             let a = m.attitude.quaternion, g = m.gravity
             if let pose = MotionPose.make(attitude: Quat(a.w, a.x, a.y, a.z), gravity: Vec3(g.x, g.y, g.z)) { sink(pose, m.timestamp) }
+            if let onRate = self.onRate { let r = m.rotationRate; onRate((r.x, r.y, r.z), (g.x, g.y, g.z)) }
             count += 1
             if windowStart == 0 { windowStart = m.timestamp }
             if m.timestamp - windowStart >= 1 { self.measuredHz = Double(count) / (m.timestamp - windowStart); windowStart = m.timestamp; count = 0 }
         }
     }
 
-    func stop() { manager.stopDeviceMotionUpdates(); measuredHz = 0 }
+    func stop() { manager.stopDeviceMotionUpdates(); measuredHz = 0; onRate = nil }
 }
