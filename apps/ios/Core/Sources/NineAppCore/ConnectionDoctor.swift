@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import NineKit
 
 /// "Why won't it connect?" — same causes and wording as Android's net/ConnectionDoctor.kt (replica/fixes.md, F2).
 /// Gathers what the phone can see (Wi-Fi address, VPN) and tries the computer's addresses once, then names the
@@ -124,6 +125,17 @@ public enum ConnectionDoctor {
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { once.resume(.timeout) }
         }
     }
+
+    /// True when a connect got no answer at all (timeout, no route) rather than a refusal. That is what a Wi-Fi
+    /// which keeps devices apart looks like, so Bluetooth may still reach the computer. Same rule as Android.
+    public static func noAnswer(_ e: Error) -> Bool {
+        if let c = e as? ClientError { return c == .timeout }
+        if let n = e as? NWError { return classify(n) != .refused }
+        return false
+    }
+
+    /// A finding as one message: what's wrong, why, then each fix on its own line.
+    public static func explain(_ f: Finding) -> String { ([f.title, f.detail] + f.fixes.map { "• \($0)" }).joined(separator: "\n") }
 
     static func classify(_ e: NWError) -> Probe {
         if case let .posix(code) = e {

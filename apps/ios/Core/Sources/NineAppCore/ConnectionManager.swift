@@ -29,6 +29,8 @@ public struct LinkReport: Equatable, Sendable, Identifiable {
 @MainActor @Observable
 public final class ConnectionManager {
     public private(set) var state: ConnState = .idle
+    /// Why the current pairing attempt is happening, when it isn't the one the user started (a Bluetooth fallback).
+    public private(set) var pairNote: String?
     public private(set) var stats = LinkStatsUi()
     public private(set) var links: [LinkReport] = []
     public var sensorHz = 0.0
@@ -96,21 +98,21 @@ public final class ConnectionManager {
 
     public func pair(qr: PairURI) {
         Task {
-            state = .connecting(qr.name.isEmpty ? qr.addr : qr.name)
+            state = .connecting(qr.name.isEmpty ? qr.addr : qr.name); pairNote = nil
             do {
                 let tmp = PairedHost(id: Pairing.hostId(qr.hostStatic), name: qr.name, pub: "", addr: qr.addr, port: qr.port, pairedAt: "", addrs: qr.extra)
                 let c = try await Transports.ip(tmp, id: IdentityStore.keyPair(), hello: hello, timeout: 2)
                 defer { c.close() }
                 try await c.pairQr(qr)
                 connect(remember(c, port: qr.port, extra: qr.extra))
-            } catch { state = .failed(error.localizedDescription) }
+            } catch { await pairFailed(error, addr: qr.addr, port: qr.port, name: qr.name.isEmpty ? qr.addr : qr.name, extra: qr.extra) }
         }
     }
 
     /// Numeric comparison over IP (`endpoint`) or, with `endpoint == nil`, over Bluetooth (no network).
-    public func pairWithCode(endpoint: NWEndpoint?, name: String) {
+    public func pairWithCode(endpoint: NWEndpoint?, name: String, note: String? = nil) {
         Task {
-            state = .connecting(name)
+            state = .connecting(name); pairNote = note
             do {
                 let c: ControlConnection
                 if let endpoint {
@@ -127,8 +129,26 @@ public final class ConnectionManager {
                     }
                 }
                 connect(remember(c, port: endpoint.map(Self.port(of:)) ?? defaultTCPPort, extra: []))
-            } catch { state = .failed(error.localizedDescription) }
+            } catch {
+                if let endpoint, case let .hostPort(h, p) = endpoint { await pairFailed(error, addr: "\(h)", port: p.rawValue, name: name, extra: []) }
+                else { state = .failed(error.localizedDescription) }
+            }
         }
+    }
+
+    public static let noAnswerTryingBluetooth = "No answer over Wi-Fi — this network may keep devices apart. Trying Bluetooth instead…"
+
+    /// Pairing over the network failed. No answer at all usually means a Wi-Fi that keeps devices apart (guest,
+    /// school, office, hotel): the computer's pairing window is already open, so try Bluetooth next. Without
+    /// Bluetooth, the connection check names the cause and the fixes. Same rule as Android.
+    private func pairFailed(_ error: Error, addr: String, port: UInt16, name: String, extra: [String]) async {
+        guard ConnectionDoctor.noAnswer(error) else { state = .failed(error.localizedDescription); return }
+        let bt = ble.unavailableReason()
+        if bt == nil { pairWithCode(endpoint: nil, name: "computer over Bluetooth", note: Self.noAnswerTryingBluetooth); return }
+        let f = ConnectionDoctor.diagnose(await ConnectionDoctor.check(host: PairedHost(id: "00000000", name: name, pub: "", addr: addr, port: port, pairedAt: "", addrs: extra)))
+        if f.cause == .reachable { state = .failed(error.localizedDescription); return }
+        let hint = bt == "Bluetooth is off" || bt == "Bluetooth permission not granted" ? "\n• Or turn Bluetooth on and tap “Pair over Bluetooth”." : ""
+        state = .failed(ConnectionDoctor.explain(f) + hint)
     }
 
     public func confirmCode(_ matches: Bool) { codeContinuation?.resume(returning: matches); codeContinuation = nil }

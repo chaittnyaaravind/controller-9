@@ -122,6 +122,25 @@ async fn ble_gatt_binding_simulated_mtu_23_and_185() {
     }
 }
 
+/// Pairing by code over Bluetooth waits for a person to compare codes; the link must survive the quiet
+/// (seen on the realme 12 5G: the host closed it 2 s after showing the code, so Bluetooth pairing failed).
+#[tokio::test]
+async fn ble_link_survives_quiet_before_the_session_opens() {
+    let (h, mock) = host().await;
+    let (pipes, rd, wr, path) = simulated_gatt(185);
+    let h2 = h.clone();
+    tokio::spawn(async move { let _ = h2.serve_gatt(pipes, "sim-ble".into()).await; });
+    let mut c = Connection::connect_over(rd, wr, &KeyPair::generate(), &hello()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(2500)).await; // a person reading the code
+    c.pair_qr(&qr(&h)).await.unwrap();
+    let info = c.open(None, Some("BLE")).await.unwrap();
+    let mut tx = InputSender::over(path, info);
+    let st = InputState { buttons: Button::A.mask(), ..Default::default() };
+    tx.send_input(st, 0).await.unwrap();
+    settle().await;
+    assert!(mock.log.lock().contains(&(0, st)));
+}
+
 #[tokio::test]
 async fn failover_ip_to_stream_neutralizes_keeps_slot_and_rejects_old_session() {
     let (h, mock) = host().await;

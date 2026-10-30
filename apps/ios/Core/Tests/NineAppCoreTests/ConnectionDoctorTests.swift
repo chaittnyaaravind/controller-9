@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Testing
 @testable import NineAppCore
+import NineKit
 
 private typealias D = ConnectionDoctor
 private let home = [D.Net("192.168.1.23", 24)]
@@ -43,4 +44,21 @@ private func facts(_ p: D.Probe, phone: [D.Net] = home, wifi: Bool = true, vpn: 
     #expect(await D.probe("127.0.0.1", port, 2) == .reachable)
     close(fd)
     #expect(await D.probe("127.0.0.1", port, 2) == .refused)
+}
+
+@Test func onlySilenceTriesBluetooth() {
+    // A Wi-Fi that keeps devices apart drops packets: timeouts and no-route are "no answer"; a refusal is an answer.
+    #expect(D.noAnswer(ClientError.timeout))
+    #expect(D.noAnswer(NWError.posix(.ETIMEDOUT)))
+    #expect(D.noAnswer(NWError.posix(.EHOSTUNREACH)))
+    #expect(!D.noAnswer(NWError.posix(.ECONNREFUSED)))
+    #expect(!D.noAnswer(ClientError.refused("pairing_closed")))
+}
+
+@Test func explanationListsEveryFix() {
+    let f = D.diagnose(facts(.timeout, phone: [D.Net("10.251.46.25", 16)], addr: "10.251.54.244"))
+    let lines = D.explain(f).components(separatedBy: "\n")
+    #expect(lines.first == f.title)
+    #expect(lines[1] == f.detail)
+    #expect(Array(lines.dropFirst(2)) == f.fixes.map { "• \($0)" })
 }

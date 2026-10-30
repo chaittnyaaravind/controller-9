@@ -4,6 +4,7 @@
 |---|---|---|
 | Phone doesn't list the computer | router blocks multicast (client isolation), or host discovery off | scan the QR code or enter the address from the desktop app |
 | "Can't reach the computer" | firewall | allow TCP 47901 + UDP 47900 (Windows Defender prompt, macOS firewall, `ufw`) |
+| Pairing: "No answer over Wi-Fi … Trying Bluetooth instead" | the Wi-Fi keeps devices apart (guest, school, office, hotel) | nothing to do: with Bluetooth on, the phone pairs over Bluetooth by itself; compare the codes. With Bluetooth off, the phone shows the connection check's cause and fixes |
 | Pairing "closed" | pairing window not open | desktop app → *Pair a phone* (2 min window) |
 | "rate limited" | 5 attempts/min or 3 rejected codes | wait 60 s |
 | QR "expired or used" | tokens are one-time, 5 min | press *New code* |

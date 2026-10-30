@@ -48,7 +48,8 @@ import kotlin.concurrent.withLock
 
 sealed interface ConnState {
     data object Idle : ConnState
-    data class Connecting(val hostName: String, val via: String = "") : ConnState
+    /** [note]: why this attempt is happening, when it isn't the one the user started (a Bluetooth fallback). */
+    data class Connecting(val hostName: String, val via: String = "", val note: String? = null) : ConnState
     /** Numeric comparison: show [code]; the user confirms here and on the computer. */
     data class ConfirmCode(val hostName: String, val code: String) : ConnState
     /** [link] is the fastest link right now; [also] the other links carrying the same input (SPEC §8.5). */
@@ -279,14 +280,14 @@ class ConnectionManager(
                 connect(host)
             } catch (e: WrongHostException) {
                 _state.value = ConnState.Failed("This QR code belongs to a different computer than the one that answered. Pairing stopped.")
-            } catch (e: Exception) { _state.value = ConnState.Failed(describe(e)) }
+            } catch (e: Exception) { pairFailed(e, uri.addr, uri.port, uri.name.ifEmpty { uri.addr }, uri.extra) }
         }
     }
 
     /** Numeric-comparison pairing over IP (address known) or Bluetooth (no network at all). */
-    fun pairWithCode(addr: String?, port: Int, name: String) {
+    fun pairWithCode(addr: String?, port: Int, name: String, note: String? = null) {
         scope.launch {
-            _state.value = ConnState.Connecting(name, if (addr == null) "Bluetooth" else addr)
+            _state.value = ConnState.Connecting(name, if (addr == null) "Bluetooth" else addr, note)
             try {
                 val id = identity.keyPair()
                 val (c, viaAddr) = if (addr != null) {
@@ -305,8 +306,28 @@ class ConnectionManager(
                     remember(conn, viaAddr, port, emptyList())
                 }
                 connect(host)
-            } catch (e: Exception) { _state.value = ConnState.Failed(describe(e)) } finally { codeDecision = null }
+            } catch (e: Exception) {
+                if (addr != null) pairFailed(e, addr, port, name, emptyList()) else _state.value = ConnState.Failed(describe(e))
+            } finally { codeDecision = null }
         }
+    }
+
+    /**
+     * Pairing over the network failed. No answer at all usually means a Wi-Fi that keeps devices apart (guest,
+     * school, office, hotel): the computer's pairing window is already open, so try Bluetooth next. Without
+     * Bluetooth, the connection check names the cause and the fixes instead of a one-line error.
+     */
+    private suspend fun pairFailed(e: Exception, addr: String, port: Int, name: String, extra: List<String>) {
+        if (!ConnectionDoctor.noAnswer(e)) { _state.value = ConnState.Failed(describe(e)); return }
+        val bt = ble.unavailableReason()
+        if (bt == null) {
+            Log.i(TAG, "pairing: no answer over the network; trying Bluetooth")
+            pairWithCode(null, port, "computer over Bluetooth", NO_ANSWER_TRYING_BLUETOOTH); return
+        }
+        val f = ConnectionDoctor.diagnose(ConnectionDoctor.check(context, PairedHost("00000000", name, "", addr, port, "", addrs = extra)))
+        if (f.cause == ConnectionDoctor.Cause.REACHABLE) { _state.value = ConnState.Failed(describe(e)); return }
+        val hint = if (bt == "Bluetooth is off" || bt == "Bluetooth permission not granted") "\n• Or turn Bluetooth on and tap “Pair over Bluetooth”." else ""
+        _state.value = ConnState.Failed(ConnectionDoctor.explain(f) + hint)
     }
 
     fun confirmCode(matches: Boolean) { codeDecision?.complete(matches) }
@@ -704,6 +725,7 @@ class ConnectionManager(
         private const val TAG = "C9Conn"
         /** Minimum time between attempts at an unmeasured IP link while on BLE. */
         private const val PROBE_MS = 30_000L
+        const val NO_ANSWER_TRYING_BLUETOOTH = "No answer over Wi-Fi — this network may keep devices apart. Trying Bluetooth instead…"
         fun describe(e: Throwable): String = when (e) {
             is RefusedException -> when (e.code) {
                 "pairing_closed" -> "Pairing isn’t open on the computer. Open “Pair a phone” there first."

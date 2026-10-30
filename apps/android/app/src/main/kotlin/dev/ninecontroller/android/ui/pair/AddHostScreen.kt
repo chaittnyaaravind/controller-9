@@ -141,7 +141,10 @@ fun AddHostScreen(app: NineApp, nav: NavController) {
         }) { Text("Pair with code") }
 
         when (val s = state) {
-            is ConnState.Connecting -> Text("Connecting to ${s.hostName}…", color = Nine.muted)
+            is ConnState.Connecting -> {
+                s.note?.let { Text(it, color = Nine.text, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                Text("Connecting to ${s.hostName}…", color = Nine.muted)
+            }
             is ConnState.Failed -> Text(s.message, color = Nine.bad, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             else -> Unit
         }

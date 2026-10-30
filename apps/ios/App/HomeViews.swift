@@ -251,7 +251,10 @@ struct AddHostView: View {
                     model.connection.pairWithCode(endpoint: .hostPort(host: .init(String(a)), port: .init(rawValue: port)!), name: String(a))
                 }.buttonStyle(SecondaryButton())
                 if case let .failed(m) = model.connection.state { Text(m).foregroundStyle(Nine.bad) }
-                if case let .connecting(h) = model.connection.state { Text("Connecting to \(h)…").foregroundStyle(Nine.muted) }
+                if case let .connecting(h) = model.connection.state {
+                    if let note = model.connection.pairNote { Text(note).foregroundStyle(Nine.text) }
+                    Text("Connecting to \(h)…").foregroundStyle(Nine.muted)
+                }
                 if let error { Text(error).foregroundStyle(Nine.bad) }
             }.padding(20)
         }

@@ -85,10 +85,11 @@ object ConnectionDoctor {
         val cm = context.getSystemService(ConnectivityManager::class.java)
         var wifi = false; var vpn = false
         val nets = ArrayList<Net>()
+        val addrs = host.allAddrs()
         @Suppress("DEPRECATION") // allNetworks: the only way to see Wi-Fi, USB and VPN at once
         for (n in cm.allNetworks) {
             val caps = cm.getNetworkCapabilities(n) ?: continue
-            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) vpn = true
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && vpnCarries(cm.getLinkProperties(n), addrs)) vpn = true
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) wifi = true
             val local = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_USB)
@@ -97,7 +98,6 @@ object ConnectionDoctor {
                 (la.address as? Inet4Address)?.hostAddress?.let { nets += Net(it, la.prefixLength) }
             }
         }
-        val addrs = host.allAddrs()
         // All addresses at once: four silent addresses take one timeout, not four.
         val results = kotlinx.coroutines.coroutineScope { addrs.map { a -> async { probe(a, host.port, timeoutMs) } }.map { it.await() } }
         val best = results.minByOrNull { it.ordinal } ?: Probe.NO_ROUTE
@@ -105,10 +105,37 @@ object ConnectionDoctor {
         Facts(host.name, shown, host.port, wifi, vpn, nets, best)
     }
 
+    /**
+     * A VPN only hides the computer if it carries the traffic to it. Many (1.1.1.1, most work VPNs) leave the
+     * local network out with "throw" routes; then the VPN is not the cause. Before Android 10 the route type
+     * can't be read, so any VPN counts, as before.
+     */
+    private fun vpnCarries(lp: android.net.LinkProperties?, addrs: List<String>): Boolean {
+        if (lp == null || android.os.Build.VERSION.SDK_INT < 29) return true
+        return addrs.any { a ->
+            val ip = runCatching { java.net.InetAddress.getByName(a) }.getOrNull() ?: return@any true
+            val route = lp.routes.filter { it.matches(ip) }.maxByOrNull { it.destination.prefixLength } ?: return@any false
+            route.type != android.net.RouteInfo.RTN_THROW
+        }
+    }
+
     private fun probe(addr: String, port: Int, timeoutMs: Int): Probe = try {
         Socket().use { it.connect(InetSocketAddress(addr, port), timeoutMs) }; Probe.REACHABLE
     } catch (_: SocketTimeoutException) { Probe.TIMEOUT
     } catch (e: Exception) { classify(e.toString() + " " + (e.cause?.toString() ?: "")) }
+
+    /**
+     * True when a connect got no answer at all (timeout, no route) rather than a refusal. That is what a Wi-Fi
+     * which keeps devices apart looks like, so Bluetooth may still reach the computer.
+     */
+    fun noAnswer(e: Throwable): Boolean = when (e) {
+        is SocketTimeoutException, is java.net.NoRouteToHostException -> true
+        is java.net.ConnectException -> classify(e.toString() + " " + (e.cause?.toString() ?: "")) != Probe.REFUSED
+        else -> false
+    }
+
+    /** A finding as one message: what's wrong, why, then each fix on its own line. */
+    fun explain(f: Finding): String = (listOf(f.title, f.detail) + f.fixes.map { "• $it" }).joinToString("\n")
 
     /** Android reports refused, unreachable and timed-out connects all as ConnectException; the errno tells them apart. */
     fun classify(error: String): Probe = when {

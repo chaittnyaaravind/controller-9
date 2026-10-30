@@ -88,19 +88,24 @@ pub(crate) async fn serve_gatt(sh: &Arc<Shared>, p: GattPipes, peer: String) -> 
     let up = tokio::spawn(async move {
         let mut rc = Reassembler::new(65535);
         let mut ri = Reassembler::new(nine_proto::frame::MAX_DATAGRAM);
-        // A phone sends input at least every 200 ms; 2 s of total silence means the radio link is gone
-        // even if the OS has not reported a disconnect yet (observed: the old connection lingered ~5 s
-        // and blocked the phone's reconnect). Ending here closes the session and frees the peripheral.
+        // Once input flows, a phone sends it at least every 200 ms; 2 s of total silence means the radio
+        // link is gone even if the OS has not reported a disconnect yet (observed: the old connection
+        // lingered ~5 s and blocked the phone's reconnect). Ending here closes the session and frees the
+        // peripheral. Before the first input the phone can be quiet for as long as a person takes to
+        // compare pairing codes (it waits up to 120 s), so only a setup limit applies then.
         const SILENCE: std::time::Duration = std::time::Duration::from_secs(2);
+        const SETUP: std::time::Duration = std::time::Duration::from_secs(130);
+        let mut live = false;
         loop {
+            let limit = if live { SILENCE } else { SETUP };
             tokio::select! {
                 v = control_up.recv() => match v {
                     Some(v) => if let Some(m) = rc.push(&v) { if m.is_empty() { continue; } ctl_in_w.write_all(&control::frame(&m)).await? },
                     None => return Ok::<_, std::io::Error>(()),
                 },
-                Some(v) = input_up.recv() => if let Some(d) = ri.push(&v) { handle_datagram(&sh2, &d, Reply::Link(conn_id, dg_tx.clone()), Instant::now()) },
-                _ = tokio::time::sleep(SILENCE) => {
-                    tracing::info!("BLE session silent for {SILENCE:?}; closing it");
+                Some(v) = input_up.recv() => if let Some(d) = ri.push(&v) { live = true; handle_datagram(&sh2, &d, Reply::Link(conn_id, dg_tx.clone()), Instant::now()) },
+                _ = tokio::time::sleep(limit) => {
+                    tracing::info!("BLE link silent for {limit:?}; closing it");
                     return Ok(());
                 }
             }

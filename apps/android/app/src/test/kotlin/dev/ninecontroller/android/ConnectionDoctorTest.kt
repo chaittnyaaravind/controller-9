@@ -52,4 +52,22 @@ class ConnectionDoctorTest {
         assertEquals(Probe.NO_ROUTE, ConnectionDoctor.classify("java.net.ConnectException: failed to connect to /10.0.0.5 (port 47901) after 1500ms: isConnected failed: EHOSTUNREACH (No route to host)"))
         assertEquals(Probe.TIMEOUT, ConnectionDoctor.classify("java.net.ConnectException: failed to connect: ETIMEDOUT (Connection timed out)"))
     }
+
+    @Test fun onlySilenceTriesBluetooth() {
+        // A Wi-Fi that keeps devices apart drops packets: timeouts and no-route are "no answer"; a refusal is an answer.
+        assertTrue(ConnectionDoctor.noAnswer(java.net.SocketTimeoutException("no address answered")))
+        assertTrue(ConnectionDoctor.noAnswer(java.net.NoRouteToHostException()))
+        assertTrue(ConnectionDoctor.noAnswer(java.net.ConnectException("failed to connect to /10.251.54.244 (port 47901) after 10000ms: isConnected failed: EHOSTUNREACH (No route to host)")))
+        assertTrue(ConnectionDoctor.noAnswer(java.net.ConnectException("failed to connect: ETIMEDOUT (Connection timed out)")))
+        assertFalse(ConnectionDoctor.noAnswer(java.net.ConnectException("failed to connect to /127.0.0.1 (port 47901): ECONNREFUSED (Connection refused)")))
+        assertFalse(ConnectionDoctor.noAnswer(IllegalStateException("pairing_closed")))
+    }
+
+    @Test fun explanationListsEveryFix() {
+        val f = ConnectionDoctor.diagnose(facts(Probe.TIMEOUT, phone = listOf(Net("10.251.46.25", 16)), addr = "10.251.54.244"))
+        val text = ConnectionDoctor.explain(f).lines()
+        assertEquals(f.title, text[0])
+        assertEquals(f.detail, text[1])
+        assertEquals(f.fixes.map { "• $it" }, text.drop(2))
+    }
 }
