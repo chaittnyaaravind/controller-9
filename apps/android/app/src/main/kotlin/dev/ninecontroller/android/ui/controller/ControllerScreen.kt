@@ -66,7 +66,9 @@ import dev.ninecontroller.android.data.AppSettings
 import dev.ninecontroller.android.input.ControllerEngine
 import dev.ninecontroller.android.input.MotionSensor
 import dev.ninecontroller.android.net.ConnState
+import dev.ninecontroller.android.pad.Action
 import dev.ninecontroller.android.pad.PadGeometry
+import dev.ninecontroller.android.pad.PadLook
 import dev.ninecontroller.android.pad.PadMapping
 import dev.ninecontroller.android.pad.PadPresets
 import dev.ninecontroller.android.ui.Pill
@@ -321,11 +323,18 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             }
         }) {
             val pad = spec.pad
-            if (pad != null) {
-                // Frosted glass: the same light, blurred, seen only through the controls.
-                val glass = remember(spec.key, wPx, hPx) {
-                    dev.ninecontroller.android.ui.pad.glassPath(pad.preset.elements.flatMap { e ->
-                        val b = boxes[e.id] ?: inert.getValue(e.id)
+            // What is drawn: a controller layout's parts, or a custom layout's controls as the same glass
+            // parts (PadLook), so a customised layout looks like the one it came from.
+            val parts = remember(spec.key, wPx, hPx, spec.controls) {
+                if (pad != null) pad.preset.elements.map { e -> Triple(e, pad.actionOf(e), boxes[e.id] ?: inert.getValue(e.id)) }
+                else spec.controls.mapNotNull { c -> val b = boxes.getValue(c.id); PadLook.element(c, b.width, b.height, spec.profileId)?.let { (e, a) -> Triple(e, a as Action?, b) } }
+            }
+            val opacity = remember(spec.controls) { spec.controls.associate { it.id to it.opacity.toFloat() } }
+            val glassIds = remember(parts) { parts.map { it.first.id }.toSet() }
+            if (parts.isNotEmpty()) {
+                // Frosted glass: the same light, blurred, seen only through the controls (not faded ones).
+                val glass = remember(parts) {
+                    dev.ninecontroller.android.ui.pad.glassPath(parts.filter { (opacity[it.first.id] ?: 1f) > 0.99f }.flatMap { (e, _, b) ->
                         val r = Rect(b.left, b.top, b.right, b.bottom)
                         when (e.part) {
                             dev.ninecontroller.android.pad.Part.DPAD -> { val arm = minOf(r.width, r.height) / 3f
@@ -345,11 +354,13 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                 val tm = rememberTextMeasurer()
                 val u = minOf(wPx / 200f, hPx / 100f)
                 Canvas(Modifier.fillMaxSize()) {
-                    for (e in pad.preset.elements) {
-                        val b = boxes[e.id] ?: inert.getValue(e.id)
+                    for ((e, a, b) in parts) {
                         val v = visuals[e.id] ?: Visual(pressed = toggles[e.id] == true)
-                        drawElement(e, Rect(b.left, b.top, b.right, b.bottom), pad.actionOf(e),
+                        val op = opacity[e.id] ?: 1f
+                        if (op < 0.99f) drawContext.canvas.saveLayer(Rect(Offset.Zero, size), androidx.compose.ui.graphics.Paint().apply { alpha = op })
+                        drawElement(e, Rect(b.left, b.top, b.right, b.bottom), a,
                             Look(v.pressed, v.value.toFloat(), v.x.toFloat(), v.y.toFloat(), v.mask), tm, u, accent = accent, frosted = true)
+                        if (op < 0.99f) drawContext.canvas.restore()
                     }
                 }
             }
@@ -368,14 +379,17 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                                 engine.setButtons(c.id, m); scope.launch { delay(120); engine.setButtons(c.id, 0) }; true
                             }
                         }) {
-                        if (pad == null) ControlVisual(c, v, steeringValue, accent)
+                        if (c.id !in glassIds) ControlVisual(c, v, steeringValue, accent) // pedals, steering
                     }
                 }
             }
         }
 
         // ---------------------------------------------------------------- top bar (between the shoulders)
-        val barMax = with(density) { (wPx * if (spec.pad != null) 0.47f else 0.64f).toDp() }
+        // As wide as the gap between whatever sits along the top edge (triggers, on any layout), never over it.
+        val barMax = remember(boxes, inert, wPx) {
+            with(density) { (PadLook.topGap(boxes.values + inert.values, wPx, (6 + 36 + 6).dp.toPx(), 8.dp.toPx())?.coerceAtLeast(200.dp.toPx()) ?: (wPx * 0.64f)).toDp() }
+        }
         // Connection state lives in the layout pill's dot (full text for screen readers): the bar stays one line.
         val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
             is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "BT" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
@@ -391,7 +405,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Box {
+            Box(Modifier.weight(1f, fill = false)) { // a tight bar shortens the layout name first, never a button
                 Row(Modifier.heightIn(min = 36.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.04f))), Nine.pill)
                     .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.06f))), Nine.pill)
                     .clickable(enabled = !locked, role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -401,6 +415,10 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim)
                 }
                 DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
+                    spec.profileId?.let { id ->
+                        DropdownMenuItem(text = { Text("Edit this layout", color = Nine.text) }, onClick = { switcher = false; nav.navigate("edit/$id") })
+                        HorizontalDivider(color = Nine.line)
+                    }
                     Micro("Controller layouts", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     PadPresets.all.forEach { p ->
                         val sel = PadPresets.selection(p)
@@ -420,7 +438,6 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
             else {
                 BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
-                if (spec.profileId != null) BarButton("Edit") { nav.navigate("edit/${spec.profileId}") }
                 BarButton("Lock") { ControllerLock.lock(activity); hint = "Lock: confirm \u201cPin\u201d once. Hold LOCKED to unlock." }
                 BarButton("Exit") { nav.popBackStack() }
             }

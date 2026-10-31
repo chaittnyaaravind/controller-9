@@ -51,7 +51,10 @@ struct ControllerView: View {
                     }
                     ForEach(live.controls) { c in
                         Group {
-                            if let e = pad?.element(c.id) { PadElementView(e: e, visuals: visuals) } else { ControlShape(c: c, visuals: visuals) }
+                            // A custom layout's controls are drawn as the same glass parts (PadLook); pedals and steering keep their own.
+                            if let e = pad?.element(c.id) ?? PadLook.element(c, size: CGSize(width: c.w * geo.size.width, height: c.h * geo.size.height), profileId: profile.id) {
+                                PadElementView(e: e, visuals: visuals).opacity(c.opacity)
+                            } else { ControlShape(c: c, visuals: visuals) }
                         }
                             .frame(width: c.w * geo.size.width, height: c.h * geo.size.height)
                             .position(x: (c.x + c.w / 2) * geo.size.width, y: (c.y + c.h / 2) * geo.size.height)
@@ -65,7 +68,10 @@ struct ControllerView: View {
                                      turbo: Set(modes.filter { $0.value == .turbo }.keys), onInert: { show($0, for: 2.5) }) { recenter() }
                             .accessibilityHidden(true)
                     }
-                    statusStrip(profile)
+                    // As wide as the gap between the controls along the top edge (triggers), never over them.
+                    let top = live.controls.map { CGRect(x: $0.x * geo.size.width, y: $0.y * geo.size.height, width: $0.w * geo.size.width, height: $0.h * geo.size.height) }
+                        + (pad?.elements.filter { $0.action == nil }.map { PadGeometry.place($0, geo.size) } ?? [])
+                    statusStrip(profile).frame(maxWidth: max(PadLook.topGap(top, width: geo.size.width, band: 8 + 30 + 6, margin: 8) ?? geo.size.width * 0.64, 200))
                 }
             }
             // Controls live inside the safe area: nothing under the Dynamic Island/camera housing (dead
@@ -113,9 +119,9 @@ struct ControllerView: View {
         }()
         return HStack(spacing: 12) {
             Circle().fill(color).frame(width: 7, height: 7)
-            Micro(text, color: Nine.text).accessibilityLabel(spoken ?? text)
+            Micro(text, color: Nine.text).lineLimit(1).layoutPriority(-1).accessibilityLabel(spoken ?? text) // a tight bar shortens this, never a button
             if model.settings.showStats, case .connected = model.connection.state { Micro("\(fmt(model.connection.stats.rttP50)) ms", color: Nine.dim) }
-            if let banner { Micro(banner, color: Nine.accent).accessibilityAddTraits(.updatesFrequently) }
+            if let banner { Micro(banner, color: Nine.accent).lineLimit(1).layoutPriority(-1).accessibilityAddTraits(.updatesFrequently) }
             if p.motion.enabled { Button { recenter() } label: { Micro("Center", color: Nine.text) }.accessibilityHint("Hold your normal grip still for a second") }
             if model.activePad == nil { NavigationLink { LayoutEditorView(profileId: p.id) } label: { Micro("Edit", color: Nine.text) } }
             Button { dismiss() } label: { Micro("Exit", color: Nine.text) }
