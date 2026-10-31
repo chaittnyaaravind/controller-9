@@ -20,6 +20,8 @@ enum Nine {
     static let bad = Color(red: 0xF2 / 255, green: 0x67 / 255, blue: 0x5A / 255)
 
     /// Geist does 90 % of the work; Geist Mono is for live numbers (both SIL OFL, bundled in App/Fonts).
+    /// Press timing shared with Android (ui/theme/Motion.kt): 100 ms down, 180 ms back, same curve.
+    static func press(_ down: Bool) -> Animation { .timingCurve(0.25, 0.46, 0.45, 0.94, duration: down ? 0.10 : 0.18) }
     static func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .custom("Geist", size: size).weight(weight) }
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .custom("Geist Mono", size: size).weight(weight) }
 }
@@ -65,7 +67,7 @@ struct PrimaryButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(Nine.sans(16, .medium)).padding(.horizontal, 22).padding(.vertical, 13)
             .background(Nine.accent, in: Capsule()).foregroundStyle(Nine.accentInk)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1).animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1).animation(Nine.press(configuration.isPressed), value: configuration.isPressed)
     }
 }
 
@@ -76,7 +78,7 @@ struct SecondaryButton: ButtonStyle {
             .background(Nine.text.opacity(configuration.isPressed ? 0.1 : 0.05), in: Capsule())
             .overlay(Capsule().strokeBorder(Nine.line2, lineWidth: 1))
             .foregroundStyle(Nine.text)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1).animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1).animation(Nine.press(configuration.isPressed), value: configuration.isPressed)
     }
 }
 

@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,26 +150,30 @@ fun Card(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> U
 
 // ---------------------------------------------------------------- controls
 
+/** Solid pill in the game's colour: the one primary action on a screen. */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    Button(onClick, modifier.heightIn(min = Nine.target), enabled = enabled, shape = Nine.pill,
-        colors = ButtonDefaults.buttonColors(containerColor = LocalAccent.current.color, contentColor = LocalAccent.current.ink, disabledContainerColor = Nine.s3, disabledContentColor = Nine.dim),
-        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) { Text(text, style = NineType.body) }
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val a = LocalAccent.current
+    // Clickable before the fill: the press dip moves the whole pill, not just its label.
+    Box(modifier.heightIn(min = Nine.target).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .background(if (enabled) a.color else Nine.s3, Nine.pill).padding(horizontal = 22.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center) { Text(text, style = NineType.body, color = if (enabled) a.ink else Nine.dim, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+}
 
+/** Hairline pill: secondary actions. */
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, color: Color = Nine.text) =
-    OutlinedButton(onClick, modifier.heightIn(min = Nine.target), enabled = enabled, shape = Nine.pill,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Nine.line2),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) { Text(text, style = NineType.body) }
+    Box(modifier.heightIn(min = Nine.target).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .border(1.dp, Nine.line2, Nine.pill).padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center) { Text(text, style = NineType.body, color = if (enabled) color else Nine.dim, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
 
 /** Single-choice chip (link preference, sensor rate). Selected = hairline accent + soft fill. */
 @Composable
 fun Choice(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) =
-    Box(modifier.heightIn(min = 40.dp).semantics { this.selected = selected }
+    Box(modifier.heightIn(min = 40.dp).semantics { this.selected = selected }.clickable(role = Role.RadioButton, onClick = onClick)
         .background(if (selected) LocalAccent.current.soft else Color.Transparent, Nine.pill)
         .border(1.dp, if (selected) LocalAccent.current.color.copy(alpha = 0.6f) else Nine.line2, Nine.pill)
-        .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center) { Text(text, style = NineType.small, color = if (selected) Nine.text else Nine.muted) }
 
 enum class Tone { OK, WARN, BAD, IDLE }
@@ -176,7 +181,11 @@ enum class Tone { OK, WARN, BAD, IDLE }
 fun Tone.color(accent: Color = Nine.accent) = when (this) { Tone.OK -> accent; Tone.WARN -> Nine.warn; Tone.BAD -> Nine.bad; Tone.IDLE -> Nine.dim }
 
 @Composable
-fun StatusDot(color: Color, size: Dp = 7.dp) = Box(Modifier.size(size).background(color, CircleShape))
+fun StatusDot(color: Color, size: Dp = 7.dp) {
+    // State changes (connecting → live) cross-fade instead of jumping.
+    val c by androidx.compose.animation.animateColorAsState(color, androidx.compose.animation.core.tween(dev.ninecontroller.android.ui.theme.NineMotion.UI, easing = dev.ninecontroller.android.ui.theme.NineMotion.hover), label = "dot")
+    Box(Modifier.size(size).background(c, CircleShape))
+}
 
 /** Small status capsule: dot + uppercase label. */
 @Composable

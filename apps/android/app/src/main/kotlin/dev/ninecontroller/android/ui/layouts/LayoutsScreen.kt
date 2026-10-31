@@ -137,7 +137,7 @@ fun LayoutDetailScreen(app: NineApp, nav: NavController, presetId: String) {
 
     Page(p.name, if (active) "Active layout" else "Layout", nav) {
         PadDiagram(mapping, Modifier.fillMaxWidth().aspectRatio(2f).background(Nine.bg), highlight = focus, accent = LocalAccent.current)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (active) Text("This is the layout on your controller screen.", style = NineType.small, color = LocalAccent.current.color, modifier = Modifier.weight(1f).padding(top = 12.dp))
             else PrimaryButton("Use this layout", { scope.launch { app.settings.update { it.copy(activeProfile = PadPresets.selection(p)) } } })
             SecondaryButton("Restore defaults", { save(mapping.reset()); error = null }, enabled = !mapping.isDefault)

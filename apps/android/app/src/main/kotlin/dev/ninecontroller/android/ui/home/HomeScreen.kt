@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -195,7 +196,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
 
             // ---------------------------------------------------------------- games
             Micro("Games", Modifier.padding(start = 4.dp, top = 14.dp).semantics { heading() })
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // The rail runs to the screen edges (cards scroll out of view, not into a margin); it starts on the gutter.
+            Row(Modifier.bleed(Nine.gutter).horizontalScroll(rememberScrollState()).padding(horizontal = Nine.gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 games.forEach { g -> GameCard(g.name, Accent.of(g.accent), g.id == game?.id) { scope.launch { app.play(g) } } }
                 NewGameCard("+", "New game") { nav.navigate("game/new") }
                 NewGameCard("⌗", "Scan a game") { nav.navigate("games/scan") }
@@ -210,8 +212,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                         is HidGamepad.State.Connected -> Triple("Connected to ${h.host}", if (h.subscribed) "Games see an Xbox Wireless Controller." else "Finishing setup…", if (h.subscribed) Tone.OK else Tone.WARN)
                         is HidGamepad.State.Failed -> Triple("Bluetooth controller unavailable", h.reason, Tone.BAD)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatusDot(tone.color(accent.color), 8.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { // dot sits on the title's first line, however many it wraps to
+                        Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) { StatusDot(tone.color(accent.color), 8.dp) }
                         Text(title, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
                     if (hidState is HidGamepad.State.Advertising) PairingSteps(accent)
@@ -241,9 +243,11 @@ fun HomeScreen(app: NineApp, nav: NavController) {
             // ---------------------------------------------------------------- computer app connection
             Section("Computer app") {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (sum.busy && !reduced) CircularProgressIndicator(Modifier.size(14.dp), color = Nine.warn, strokeWidth = 2.dp, trackColor = Nine.line)
-                        else StatusDot(sum.tone.color(accent.color), 8.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
+                            if (sum.busy && !reduced) CircularProgressIndicator(Modifier.size(14.dp), color = Nine.warn, strokeWidth = 2.dp, trackColor = Nine.line)
+                            else StatusDot(sum.tone.color(accent.color), 8.dp)
+                        }
                         Text(sum.headline, style = NineType.title, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
                     sum.detail?.let { Text(it, style = NineType.small, color = Nine.muted) }
@@ -259,7 +263,8 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                         Metric(fmt(stats.rttP95, 0), "p95 ms", Modifier.weight(1f))
                         Metric(fmt(stats.sendHz, 0), "Updates/s", Modifier.weight(1f))
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // The action and its "why" sit side by side, wrapping only when the screen is too narrow.
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         when (sum.act) {
                             HomeLogic.Act.PAIR -> SecondaryButton("Pair a computer", { nav.navigate("add") })
                             HomeLogic.Act.CONNECT -> SecondaryButton("Connect", { lastHost?.let { app.connection.connect(it) } }, enabled = lastHost != null)
@@ -268,10 +273,10 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                             HomeLogic.Act.CONFIRM -> SecondaryButton("Open pairing", { nav.navigate("add") })
                             HomeLogic.Act.PLAY_DISCONNECT -> SecondaryButton("Disconnect", { app.connection.disconnect() })
                         }
+                        // Paired but not connected: say why instead of leaving people guessing (replica/fixes.md, F2).
+                        if (hosts.isNotEmpty() && sum.act in setOf(HomeLogic.Act.CONNECT, HomeLogic.Act.RECONNECT))
+                            SecondaryButton("Why won’t it connect?", { nav.navigate("doctor") })
                     }
-                    // Paired but not connected: say why instead of leaving people guessing (replica/fixes.md, F2).
-                    if (hosts.isNotEmpty() && sum.act in setOf(HomeLogic.Act.CONNECT, HomeLogic.Act.RECONNECT))
-                        SecondaryButton("Why won’t it connect?", { nav.navigate("doctor") })
                     if (blePerm != null && Build.VERSION.SDK_INT >= 31) SecondaryButton("Allow Bluetooth fallback", {
                         perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
                     })
@@ -308,7 +313,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                 },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = { friends = false }) { Text("Done", color = Nine.text) } })
 
-            Section(null) {
+            Section("More") {
                 ListRow("Remote", detail = "Trackpad, keyboard and media keys for the computer — no app needed", onClick = { nav.navigate("remote") })
                 Divider()
                 ListRow("Controller layouts", detail = "Xbox, DualSense, Switch Pro, GameCube, arcade stick and your own", onClick = { nav.navigate("layouts") })
@@ -324,14 +329,20 @@ fun HomeScreen(app: NineApp, nav: NavController) {
     }
 }
 
+/** Widens a child of a padded column by [by] on each side, so it reaches the screen edges. */
+private fun Modifier.bleed(by: androidx.compose.ui.unit.Dp) = layout { m, c ->
+    val extra = (by * 2).roundToPx()
+    val p = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
+    layout(c.maxWidth, p.height) { p.place(-extra / 2, 0) }
+}
+
 /** One game in the rail: its colour as a lit dot, its name; the chosen one carries its colour's rim. */
 @Composable
 private fun GameCard(name: String, a: Accent, active: Boolean, onClick: () -> Unit) =
-    Column(Modifier.width(140.dp).height(96.dp)
+    Column(Modifier.width(140.dp).height(96.dp).clickable(role = Role.Button, onClickLabel = "Play $name", onClick = onClick) // before the fill: the whole card dips
         .background(if (active) Brush.verticalGradient(listOf(a.surface, Nine.s1)) else Brush.verticalGradient(listOf(Nine.s1, Nine.s1)), Nine.card)
         .border(1.dp, if (active) a.color.copy(alpha = 0.7f) else Nine.line, Nine.card)
-        .semantics { selected = active }
-        .clickable(role = Role.Button, onClickLabel = "Play $name", onClick = onClick).padding(14.dp),
+        .semantics { selected = active }.padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween) {
         Box(Modifier.size(14.dp).drawBehind {
             drawCircle(Brush.radialGradient(listOf(a.color.copy(alpha = 0.5f), Color.Transparent), center, size.width * 1.4f), size.width * 1.4f, center)
@@ -342,8 +353,7 @@ private fun GameCard(name: String, a: Accent, active: Boolean, onClick: () -> Un
 
 @Composable
 private fun NewGameCard(mark: String, label: String, onClick: () -> Unit) =
-    Column(Modifier.width(140.dp).height(96.dp).border(1.dp, Nine.line2, Nine.card)
-        .clickable(role = Role.Button, onClick = onClick).padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+    Column(Modifier.width(140.dp).height(96.dp).clickable(role = Role.Button, onClick = onClick).border(1.dp, Nine.line2, Nine.card).padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
         Text(mark, style = NineType.title, color = Nine.muted)
         Text(label, style = NineType.small, color = Nine.muted)
     }

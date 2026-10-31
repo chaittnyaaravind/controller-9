@@ -81,9 +81,9 @@ fun ProfilesScreen(app: NineApp, nav: NavController) {
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = { importer.launch(arrayOf("application/json", "text/plain", "*/*")) }, colors = primaryButtonColors()) { Text("Import") }
-            OutlinedButton(onClick = { app.profiles.installPresets(); message = "Presets restored." }) { Text("Restore presets") }
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            dev.ninecontroller.android.ui.PrimaryButton("Import", { importer.launch(arrayOf("application/json", "text/plain", "*/*")) })
+            dev.ninecontroller.android.ui.SecondaryButton("Restore presets", { app.profiles.installPresets(); message = "Presets restored." })
         }
         message?.let { Text(it, color = Nine.muted) }
     }

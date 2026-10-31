@@ -168,7 +168,7 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
         }
         message?.let { Text(it, style = NineType.small, color = if (busy) Nine.text else Nine.warn) }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when (step) {
                 Step.NEUTRAL -> PrimaryButton(if (busy) "Measuring…" else "Measure neutral", {
                     hold { h ->

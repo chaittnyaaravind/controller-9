@@ -44,7 +44,7 @@ fun DoctorScreen(app: NineApp, nav: NavController) {
             return@Page
         }
         hosts.forEach { h -> HostCheck(app, h, round) }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SecondaryButton("Check again", { round++ })
             SecondaryButton("Enter the address by hand", { nav.navigate("add") })
         }

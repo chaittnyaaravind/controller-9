@@ -158,6 +158,7 @@ fun NineTheme(content: @Composable () -> Unit) {
             androidx.compose.material3.LocalContentColor provides Nine.text,
             androidx.compose.material3.LocalTextStyle provides NineType.body,
             LocalReducedMotion provides reduced,
+            androidx.compose.foundation.LocalIndication provides PressIndication, // press = a 3 % dip, not a ripple
             content = content,
         )
     }

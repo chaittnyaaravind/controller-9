@@ -94,6 +94,17 @@ joins; no idle animation. Controller presses are instant state changes (no anima
 reads "Remove animations" (`LocalReducedMotion`) and drops the spinner; the desktop app honours
 `prefers-reduced-motion`.
 
+Phone apps (tokens in Android `ui/theme/Motion.kt`, iOS `Nine.press`):
+- **Press:** every button, card and row dips to 97 % — 100 ms down, 180 ms back,
+  `cubic-bezier(0.25, 0.46, 0.45, 0.94)`. It replaces the Material ripple. The click handler comes before
+  the fill and border in the modifier chain, so the whole shape dips, not just the label.
+- **Screens (Android):** the new screen fades in and rises 2 % of its height over 320 ms
+  (`cubic-bezier(0.32, 0.72, 0, 1)`), and the old one fades out over 160 ms. Going back, and with
+  "Remove animations", screens only fade. The controller screen only fades, because it rotates.
+  iOS keeps the native push.
+- **Status dots** cross-fade between states over 180 ms.
+- **The controller surface never animates input.** Controls are drawn from touch state on the next frame.
+
 ## Accessibility
 
 Contrast as above; every controller control has a content description ("Cross, sends Face

@@ -51,7 +51,10 @@ class MainActivity : ComponentActivity() {
                     shortcutDone = true
                     app.play(g); nav.navigate("play")
                 }
-                NavHost(nav, startDestination = "home") {
+                val reduced = dev.ninecontroller.android.ui.theme.LocalReducedMotion.current
+                NavHost(nav, startDestination = "home",
+                    enterTransition = dev.ninecontroller.android.ui.theme.NineTransitions.enter(reduced), exitTransition = dev.ninecontroller.android.ui.theme.NineTransitions.exit(),
+                    popEnterTransition = dev.ninecontroller.android.ui.theme.NineTransitions.enter(true), popExitTransition = dev.ninecontroller.android.ui.theme.NineTransitions.exit()) {
                     composable("home") { HomeScreen(app, nav) }
                     composable("add") { AddHostScreen(app, nav) }
                     composable("play") { ControllerScreen(app, nav) }
