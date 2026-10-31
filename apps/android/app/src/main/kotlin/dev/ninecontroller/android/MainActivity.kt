@@ -49,10 +49,10 @@ class MainActivity : ComponentActivity() {
                     if (shortcutDone) return@LaunchedEffect // not again after the activity is restored
                     val g = shortcutGame?.let { app.games.get(it) } ?: return@LaunchedEffect
                     shortcutDone = true
-                    app.play(g); nav.navigate("play")
+                    app.play(g); if (!nav.popBackStack("play", false)) nav.navigate("play")
                 }
                 val reduced = dev.ninecontroller.android.ui.theme.LocalReducedMotion.current
-                NavHost(nav, startDestination = "home",
+                NavHost(nav, startDestination = "play", // the app opens as the controller; Settings (home) is one tap away
                     enterTransition = dev.ninecontroller.android.ui.theme.NineTransitions.enter(reduced), exitTransition = dev.ninecontroller.android.ui.theme.NineTransitions.exit(),
                     popEnterTransition = dev.ninecontroller.android.ui.theme.NineTransitions.enter(true), popExitTransition = dev.ninecontroller.android.ui.theme.NineTransitions.exit()) {
                     composable("home") { HomeScreen(app, nav) }

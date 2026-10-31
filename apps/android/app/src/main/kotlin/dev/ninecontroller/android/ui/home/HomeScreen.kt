@@ -189,7 +189,7 @@ fun HomeScreen(app: NineApp, nav: NavController) {
                     Text(linkLine, style = NineType.small, color = Nine.muted, maxLines = 1)
                 }
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PrimaryButton("Play", { nav.navigate("play") }, Modifier.weight(1f))
+                    PrimaryButton("Play", { if (!nav.popBackStack("play", false)) nav.navigate("play") }, Modifier.weight(1f))
                     game?.let { g -> SecondaryButton("Edit game", { nav.navigate("game/${g.id}") }) }
                 }
             }

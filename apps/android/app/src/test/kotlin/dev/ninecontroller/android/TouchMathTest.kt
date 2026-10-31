@@ -67,4 +67,18 @@ class TouchMathTest {
         // Point is 12 px from "tall"'s edge and 18 px from "small"'s; both grown targets contain it.
         assertEquals("tall", PadGeometry.hit(boxes, 122f, 20f, 60f))
     }
+
+    @Test fun thumbJustOffACapStillPressesIt() {
+        val e = dev.ninecontroller.android.pad.PadPresets.XBOX
+        val n = PadGeometry.place(e.element("face_n"), 2400f, 1080f); val east = PadGeometry.place(e.element("face_e"), 2400f, 1080f)
+        val boxes = mapOf("face_n" to n, "face_e" to east)
+        val slop = 55f // 20 dp at 2.75x
+        // 30 px above Y's top edge: outside the cap, but Y is the only cap near.
+        assertEquals("face_n", PadGeometry.hit(boxes, n.cx, n.top - 30f, 0f, slop))
+        assertEquals(null, PadGeometry.hit(boxes, n.cx, n.top - 30f, 0f)) // without the margin: nothing
+        // Too far off: still nothing.
+        assertEquals(null, PadGeometry.hit(boxes, n.cx, n.top - 80f, 0f, slop))
+        // Exactly between Y and B: ambiguous, presses neither.
+        assertEquals(null, PadGeometry.hit(boxes, (n.cx + east.cx) / 2, (n.cy + east.cy) / 2, 0f, slop))
+    }
 }

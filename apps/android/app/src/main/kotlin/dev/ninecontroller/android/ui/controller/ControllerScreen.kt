@@ -193,12 +193,13 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
     }
 
-    // Connect to the last computer automatically (not while playing as a Bluetooth controller).
+    // The phone is an Xbox controller: Bluetooth controller mode comes on with this screen (the computer
+    // pairs with "Xbox Wireless Controller", nothing to install). A session the player started with the
+    // computer app (Settings → Connect) is left alone.
+    val xboxStart = rememberXboxStart(app)
     LaunchedEffect(Unit) {
-        if (!app.hid.active && (app.connection.state.value is ConnState.Idle || app.connection.state.value is ConnState.Failed)) {
-            val last = app.settings.flow.first().lastHost ?: app.hosts.hosts.value.firstOrNull()?.id
-            last?.let { app.hosts.byId(it) }?.let { app.connection.connect(it) }
-        }
+        val c = app.connection.state.value
+        if (c !is ConnState.Connected && c !is ConnState.Connecting && c !is ConnState.Reconnecting) xboxStart()
     }
     LaunchedEffect(spec.name) { app.connection.setProfileName(spec.name) }
 
@@ -259,21 +260,17 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     LaunchedEffect(spec.key, spec.motion.enabled) { if (spec.motion.enabled && s.steering == null) { delay(800); recenter(auto = true) } }
 
     CompositionLocalProvider(LocalAccent provides accent) {
-    // The scene: black pulled toward the game colour, two pools of its light under the grips, grain.
-    // Edge swipes belong to the game here, not to Android's back gesture.
+    // The scene: a matte black shell (no coloured light, nothing moving). Edge swipes belong to the
+    // game here, not to Android's back gesture.
     val rgb = dev.ninecontroller.android.ui.pad.Rgb.of(s.rgb)
-    val reducedMotion = dev.ninecontroller.android.ui.theme.LocalReducedMotion.current
-    // The RGB light drifts on a slow 24 s loop (frozen when animations are off).
-    val glow = androidx.compose.animation.core.rememberInfiniteTransition(label = "rgb")
-    val t by if (reducedMotion || rgb == dev.ninecontroller.android.ui.pad.Rgb.OFF) remember { mutableStateOf(0.15f) }
-        else glow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(24_000, easing = androidx.compose.animation.core.LinearEasing)), label = "t")
     BoxWithConstraints(Modifier.fillMaxSize().drawBehind {
-        drawAurora(t, accent, rgb)
+        drawAurora(0f, accent, rgb)
         drawRect(Grain.brush, alpha = Grain.ALPHA)
     }.systemGestureExclusion().windowInsetsPadding(WindowInsets.displayCutout)) { // no control under the camera cutout (dead to touch); same area in editor and controller
         val wPx = constraints.maxWidth.toFloat(); val hPx = constraints.maxHeight.toFloat()
         val density = LocalDensity.current
         val minTarget = with(density) { Nine.target.toPx() }
+        val slop = with(density) { 20.dp.toPx() }
         // Screen boxes for every control: presets use uniform sizing, profiles their own rects.
         val boxes: Map<String, PadGeometry.Box> = remember(spec.key, wPx, hPx, spec.controls) {
             spec.pad?.active?.associate { (e, _) -> e.id to PadGeometry.place(e, wPx, hPx) }
@@ -296,7 +293,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     for (ch in ev.changes) {
                         val p = ch.position
                         if (ch.pressed && !ch.previousPressed) {
-                            val id = PadGeometry.hit(boxes, p.x, p.y, if (spec.pad != null) minTarget else 0f)
+                            val id = PadGeometry.hit(boxes, p.x, p.y, if (spec.pad != null) minTarget else 0f, slop) // a thumb just off a cap still presses it
                             val hit = id?.let { byId[it] }
                             if (hit == null) {
                                 // Tapping a control this protocol can't carry explains why instead of doing nothing silently.
@@ -316,7 +313,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                             val c = owner.remove(ch.id) ?: continue
                             origin.remove(ch.id)
                             // Two fingers on one control: it stays held until the last of them lifts.
-                            if (owner.values.none { it.id == c.id }) release(c, engine, visuals, toggles, feel, turbo.takeIf { c.id in turboIds })
+                            if (owner.values.none { it.id == c.id }) release(c, engine, visuals, toggles, feel, turbo.takeIf { c.id in turboIds }, app)
                         }
                     }
                 }
@@ -332,25 +329,6 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             val opacity = remember(spec.controls) { spec.controls.associate { it.id to it.opacity.toFloat() } }
             val glassIds = remember(parts) { parts.map { it.first.id }.toSet() }
             if (parts.isNotEmpty()) {
-                // Frosted glass: the same light, blurred, seen only through the controls (not faded ones).
-                val glass = remember(parts) {
-                    dev.ninecontroller.android.ui.pad.glassPath(parts.filter { (opacity[it.first.id] ?: 1f) > 0.99f }.flatMap { (e, _, b) ->
-                        val r = Rect(b.left, b.top, b.right, b.bottom)
-                        when (e.part) {
-                            dev.ninecontroller.android.pad.Part.DPAD -> { val arm = minOf(r.width, r.height) / 3f
-                                listOf(Rect(r.center.x - arm / 2, r.center.y - arm * 1.5f, r.center.x + arm / 2, r.center.y + arm * 1.5f) to false,
-                                    Rect(r.center.x - arm * 1.5f, r.center.y - arm / 2, r.center.x + arm * 1.5f, r.center.y + arm / 2) to false) }
-                            dev.ninecontroller.android.pad.Part.STICK -> listOf(r to true)
-                            else -> listOf(r to e.round)
-                        }
-                    })
-                }
-                Box(Modifier.fillMaxSize().drawWithContent { clipPath(glass) { this@drawWithContent.drawContent() } }) {
-                    Canvas(Modifier.fillMaxSize().blur(26.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded)) {
-                        drawAurora(t, accent, rgb, vivid = 1.5f) // glass gathers the light: brighter inside
-                        drawRect(Color.White, alpha = 0.05f)
-                    }
-                }
                 val tm = rememberTextMeasurer()
                 val u = minOf(wPx / 200f, hPx / 100f)
                 Canvas(Modifier.fillMaxSize()) {
@@ -434,13 +412,30 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     }
                 }
             }
+            // Only what matters mid-game: Lock, and Settings for everything else (gyro, layouts, computer app…).
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
-            if (gyro.available) BarButton("Gyro", active = s.gyroAim) { scope.launch { app.settings.update { it.copy(gyroAim = !it.gyroAim) } } }
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
             else {
-                BarButton("Inputs", active = showInputs) { showInputs = !showInputs }
                 BarButton("Lock") { ControllerLock.lock(activity); hint = "Lock: confirm \u201cPin\u201d once. Hold LOCKED to unlock." }
-                BarButton("Exit") { nav.popBackStack() }
+                BarButton("Settings") { nav.navigate("home") }
+            }
+        }
+
+        // ---------------------------------------------------------------- first pairing (until a computer is connected)
+        val pairing: Pair<String, String>? = when (val h = hid) {
+            is dev.ninecontroller.android.net.HidGamepad.State.Advertising -> "Pair once" to "On the computer: Bluetooth \u2192 connect \u201cXbox Wireless Controller\u201d. It reconnects by itself after that."
+            is dev.ninecontroller.android.net.HidGamepad.State.Connected -> if (h.subscribed) null else "Pairing\u2026" to "Accept the request on the computer and on this phone if asked."
+            is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth controller is off" to h.reason
+            else -> null
+        }
+        if (pairing != null && conn !is ConnState.Connected) {
+            // In the empty band under the bar, between the shoulders: never over a button, and touches pass through it.
+            androidx.compose.foundation.layout.Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp).widthIn(max = barMax)
+                .background(Color(0xF0121214), Nine.small).border(1.dp, Color.White.copy(alpha = 0.10f), Nine.small).padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(pairing.first, style = NineType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), color = Nine.text, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                Text(pairing.second, style = NineType.small, color = Nine.muted)
+                if (hid is dev.ninecontroller.android.net.HidGamepad.State.Failed) dev.ninecontroller.android.ui.SecondaryButton("Turn on", { xboxStart() })
             }
         }
 
@@ -596,7 +591,8 @@ private fun onTouch(
     }
 }
 
-private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>, feel: dev.ninecontroller.android.input.FeelEffects, turbo: dev.ninecontroller.android.pad.TurboPulser? = null) {
+private fun release(c: ControlDef, engine: ControllerEngine, visuals: MutableMap<String, Visual>, toggles: Map<String, Boolean>, feel: dev.ninecontroller.android.input.FeelEffects, turbo: dev.ninecontroller.android.pad.TurboPulser? = null, app: NineApp? = null) {
+    if (c.haptic && (c.kind == ControlKind.BUTTON || c.kind == ControlKind.TRIGGER)) app?.haptics?.release()
     when (c.kind) {
         ControlKind.BUTTON -> if (turbo != null) { turbo.stop(c.id); visuals.remove(c.id) } else if (!c.toggle) { engine.setButtons(c.id, 0); visuals.remove(c.id) }
         ControlKind.STICK -> { engine.setStick(c.bind, 0.0, 0.0); visuals.remove(c.id) }

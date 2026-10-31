@@ -204,8 +204,18 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         server = null; host = null; subscribed = false
     }
 
-    /** Latest controller state; sent as soon as the previous notification has gone out. */
-    fun submit(s: InputState) { if (s != latest) { latest = s; dirty = true; wake.release() } }
+    /** Latest controller state; sent as soon as the previous notification has gone out. A button (or
+     *  trigger) that goes down is reported at least once even if it is released before the next
+     *  notification can leave — a fast tap is never lost to the radio's pace (HidTapTest). */
+    fun submit(s: InputState) {
+        synchronized(taps) {
+            if (s == latest) return
+            taps.down(latest, s)
+            latest = s; dirty = true
+        }
+        wake.release()
+    }
+    private val taps = dev.ninecontroller.android.input.TapLatch()
 
     private fun advertise() {
         val settings = AdvertiseSettings.Builder().setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -243,7 +253,8 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
 
     private fun pumpLoop() {
         while (running) {
-            wake.tryAcquire(100, TimeUnit.MILLISECONDS)
+            if (!dirty) wake.tryAcquire(100, TimeUnit.MILLISECONDS) // a tap's release goes out right after its press
+            else wake.tryAcquire()
             val d = host ?: continue
             if (!subscribed || System.nanoTime() < quietUntilNs) continue
             // Remote key events first, in order: a key-down and its key-up must both arrive.
@@ -252,8 +263,8 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
                 if (!notify(d, ch, v)) { Thread.sleep(5); notify(d, ch, v) }
             }
             if (!dirty) continue
-            dirty = false
-            if (!notify(d, inputReport, XboxHidReport.input(latest))) dirty = true
+            val report = synchronized(taps) { dirty = false; taps.take(latest).also { if (it != latest) dirty = true } }
+            if (!notify(d, inputReport, XboxHidReport.input(report))) synchronized(taps) { taps.restore(report, latest); dirty = true }
         }
     }
 

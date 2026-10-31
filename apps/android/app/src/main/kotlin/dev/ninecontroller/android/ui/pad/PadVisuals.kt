@@ -94,13 +94,6 @@ private fun DrawScope.drawBody(f: Family, ox: Float, oy: Float, s: Float, accent
 
 // ---------------------------------------------------------------- materials
 
-/** The scene's shadow: never neutral black, always the game's hue pushed dark. */
-private fun shade(a: Accent, alpha: Float) = lerp(Color(0xFF020203), a.color, 0.06f).copy(alpha = alpha)
-
-/** A soft pool of the game's light under a pressed control. */
-private fun DrawScope.glow(a: Accent, c: Offset, r: Float, strength: Float = 1f) =
-    drawCircle(Brush.radialGradient(listOf(a.color.copy(alpha = 0.42f * strength), a.color.copy(alpha = 0.10f * strength), Color.Transparent), c, r), r, c)
-
 // ---------------------------------------------------------------- one control
 
 private val labelStyle = TextStyle(fontFamily = Nine.sans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp)
@@ -113,7 +106,8 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
     val off = action == null
     val sw = (0.5f * u).coerceIn(1f, 1.6f * density)
     val c = r.center
-    val ink = when { off -> Nine.faint; look.pressed -> lerp(accent.color, Color.White, 0.25f); else -> Nine.text.copy(alpha = 0.92f) }
+    // Letters are off-white, brightening when pressed; A/B/X/Y in their Xbox positions carry the pad's colours.
+    val ink = when { off -> Nine.faint; look.pressed -> Color.White; else -> faceColour(e, action) ?: Nine.text.copy(alpha = 0.88f) }
     if (off) { drawUnavailable(e, r, u, sw); return }
     when (e.part) {
         Part.STICK -> {
@@ -122,11 +116,9 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
             glassWell(accent, c, rad, live, sw)
             val k = Offset(c.x + look.knobX * rad * 0.56f, c.y - look.knobY * rad * 0.56f)
             val kr = rad * 0.42f
-            if (live && hypot(look.knobX, look.knobY) > 0.05f)
-                drawLine(Brush.linearGradient(listOf(accent.color.copy(alpha = 0f), accent.color.copy(alpha = 0.7f)), c, k), c, k, sw * 2.4f, StrokeCap.Round)
             glassRound(accent, k, kr, live, sw, frosted)
             // Concave thumb grip.
-            drawCircle(Color.White.copy(alpha = if (live) 0.18f else 0.08f), kr * 0.62f, k, style = Stroke(sw))
+            drawCircle(Color.White.copy(alpha = if (live) 0.12f else 0.07f), kr * 0.62f, k, style = Stroke(sw))
         }
         Part.DPAD -> {
             val sz = min(r.width, r.height); val arm = sz / 3f
@@ -136,24 +128,22 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
             val solid = Path.combine(PathOperation.Union,
                 Path().apply { addRoundRect(RoundRect(Rect(o.x + arm, o.y, o.x + 2 * arm, o.y + sz), cr)) },
                 Path().apply { addRoundRect(RoundRect(Rect(o.x, o.y + arm, o.x + sz, o.y + 2 * arm), cr)) })
-            drawPath(Path().apply { addPath(solid, Offset(0f, arm * 0.16f)) }, shade(accent, 0.40f))
-            for ((b, at) in arms) if (look.dpad and b.mask != 0) glow(accent, o + at + Offset(arm / 2, arm / 2), arm * 1.5f)
-            // Glass cross: clear body, colour poured into the pressed arm, specular rim and a shine.
-            drawPath(solid, Brush.radialGradient(listOf(Color(0xFF15161A), Color(0xFF07080A)), o + Offset(sz * 0.3f, sz * 0.25f), sz))
+            // Matte moulded cross: soft shadow on the shell, lit upper faces, the pressed arm pushed in (darker).
+            drawPath(Path().apply { addPath(solid, Offset(0f, arm * 0.14f)) }, Color.Black.copy(alpha = 0.6f))
+            drawPath(solid, Brush.verticalGradient(listOf(Color(0xFF2A2B2F), Color(0xFF151619)), o.y, o.y + sz))
             for ((b, at) in arms) if (look.dpad and b.mask != 0)
-                drawRoundRect(Brush.radialGradient(listOf(accent.color.copy(alpha = 0.40f), accent.color.copy(alpha = 0.12f)), o + at + Offset(arm / 2, arm / 2), arm * 0.8f), o + at, Size(arm, arm), cr)
-            drawPath(solid, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.42f), Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.16f)), o, o + Offset(sz, sz)), style = Stroke(sw))
-            drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), o.y, o.y + arm * 0.6f), Offset(o.x + arm * 1.15f, o.y + arm * 0.08f), Size(arm * 0.7f, arm * 0.45f), CornerRadius(arm * 0.2f))
-            drawCircle(Color.Black.copy(alpha = 0.4f), arm * 0.2f, c) // centre pivot
+                drawRoundRect(Color.Black.copy(alpha = 0.38f), o + at, Size(arm, arm), cr)
+            drawPath(solid, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.5f)), o.y, o.y + sz), style = Stroke(sw))
+            drawCircle(Color.Black.copy(alpha = 0.35f), arm * 0.2f, c) // centre pivot
             for ((b, at) in arms) {
                 val on = look.dpad and b.mask != 0
-                chevron(o + at + Offset(arm / 2, arm / 2), arm * 0.16f, b, if (on) lerp(accent.color, Color.White, 0.25f) else Nine.muted, sw * 1.2f)
+                chevron(o + at + Offset(arm / 2, arm / 2), arm * 0.16f, b, if (on) Color.White else Nine.muted, sw * 1.2f)
             }
         }
         Part.TRIGGER -> {
             val cr = CornerRadius(r.height * 0.42f)
             glassPill(accent, r, cr, false, sw, frosted, fill = look.value)
-            if (labels) text(tm, e.short, Offset(r.left + r.height * 0.6f, c.y), u, if (look.value > 0.45f) lerp(accent.color, Color.White, 0.25f) else ink, start = true)
+            if (labels) text(tm, e.short, Offset(r.left + r.height * 0.6f, c.y), u, if (look.value > 0.45f) Color.White else ink, start = true)
         }
         Part.BUMPER, Part.PADDLE, Part.TOUCHPAD -> {
             val cr = CornerRadius(if (e.part == Part.TOUCHPAD) 3.5f * u else r.height / 2)
@@ -168,6 +158,16 @@ fun DrawScope.drawElement(e: PadElement, r: Rect, action: Action?, look: Look, t
         }
     }
     if (highlight) drawRoundRect(accent.color, r.topLeft - Offset(2 * sw, 2 * sw), Size(r.width + 4 * sw, r.height + 4 * sw), CornerRadius(min(r.width, r.height) / 2), style = Stroke(sw * 1.6f))
+}
+
+/** Xbox face colours, only on A/B/X/Y letters in their Xbox positions (south A, east B, west X, north Y). */
+private fun faceColour(e: PadElement, action: Action?): Color? {
+    if (e.part != Part.FACE || e.glyph != Glyph.TEXT) return null
+    return when (e.short to action) {
+        "A" to Action.SOUTH -> Color(0xFF7BC75A); "B" to Action.EAST -> Color(0xFFE5574B)
+        "X" to Action.WEST -> Color(0xFF4F8FEA); "Y" to Action.NORTH -> Color(0xFFEFC24A)
+        else -> null
+    }
 }
 
 /** A control this protocol can't carry: drawn as an outline only, so it never looks pressable. */

@@ -184,15 +184,19 @@ object PadGeometry {
 
     /**
      * Touch hit test. A control the finger is actually on always wins (if drawn boxes overlap, the one
-     * whose centre is closest). Only a finger that misses every control falls back to the targets grown
-     * to [minTarget] (48dp), and then to the control whose *edge* is nearest — a near-miss goes to the
-     * control it nearly touched, never to a bigger neighbour whose centre happens to be closer.
+     * whose centre is closest). A finger that misses every control goes to the control whose *edge* is
+     * nearest, if it is within [slop] of it or inside the target grown to [minTarget] (48dp) — a thumb
+     * that lands just off a cap still presses it, and a near-miss goes to the control it nearly touched,
+     * never to a bigger neighbour whose centre happens to be closer.
      */
-    fun hit(boxes: Map<String, Box>, x: Float, y: Float, minTarget: Float): String? {
+    fun hit(boxes: Map<String, Box>, x: Float, y: Float, minTarget: Float, slop: Float = 0f): String? {
         boxes.entries.filter { it.value.contains(x, y) }
             .minByOrNull { val b = it.value; (b.cx - x) * (b.cx - x) + (b.cy - y) * (b.cy - y) }
             ?.let { return it.key }
-        return boxes.entries.filter { it.value.inflateTo(minTarget).contains(x, y) }
-            .minByOrNull { it.value.distance(x, y) }?.key
+        val near = boxes.entries.filter { it.value.distance(x, y) <= slop || it.value.inflateTo(minTarget).contains(x, y) }
+            .sortedBy { it.value.distance(x, y) }
+        // Halfway between two caps belongs to neither: a press there is ambiguous, so it presses nothing.
+        if (slop > 0f && near.size > 1 && near[1].value.distance(x, y) - near[0].value.distance(x, y) < slop * 0.3f) return null
+        return near.firstOrNull()?.key
     }
 }

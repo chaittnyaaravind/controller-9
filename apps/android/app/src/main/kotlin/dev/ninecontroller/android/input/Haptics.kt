@@ -31,11 +31,22 @@ class Haptics(context: Context) {
     @Volatile var lastRumble: Triple<Int, Int, Int>? = null; private set
     @Volatile private var rumbleUntilNs = 0L
 
-    fun click() {
+    /** A button going down: a crisp, short click like a real switch (not the soft UI tick). */
+    fun click() = press(down = true)
+
+    /** The same button coming back up: a lighter click, so a press feels like a switch with travel. */
+    fun release() = press(down = false)
+
+    private fun press(down: Boolean) {
         val v = vibrator ?: return
-        if (!enabled || strength <= 0) return
-        if (Build.VERSION.SDK_INT >= 29 && strength >= 0.5) v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-        else v.vibrate(VibrationEffect.createOneShot(10, amp(0.6)))
+        if (!enabled || strength <= 0 || System.nanoTime() < rumbleUntilNs) return
+        val prim = if (down) VibrationEffect.Composition.PRIMITIVE_CLICK else VibrationEffect.Composition.PRIMITIVE_TICK
+        val scale = ((if (down) 1.0 else 0.55) * strength / 0.7).toFloat().coerceIn(0.1f, 1f)
+        when {
+            Build.VERSION.SDK_INT >= 31 && v.areAllPrimitivesSupported(prim) -> v.vibrate(VibrationEffect.startComposition().addPrimitive(prim, scale).compose())
+            Build.VERSION.SDK_INT >= 29 -> v.vibrate(VibrationEffect.createPredefined(if (down) VibrationEffect.EFFECT_CLICK else VibrationEffect.EFFECT_TICK))
+            else -> v.vibrate(VibrationEffect.createOneShot(if (down) 12 else 6, amp(if (down) 0.9 else 0.5)))
+        }
     }
 
     /** Game rumble from the host. `low`/`high` are motor magnitudes 0..65535; ms 0 (or both 0) stops. */
