@@ -411,8 +411,9 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     .clickable(enabled = !locked, role = Role.Button, onClickLabel = "Switch layout") { switcher = true }.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).background(tone.color(accent.color), androidx.compose.foundation.shape.CircleShape).semantics { contentDescription = label })
-                    Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 92.dp))
-                    if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim)
+                    // The name gives way first (ellipsis); the caret never wraps onto a second line.
+                    Text("  " + spec.name, style = NineType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).widthIn(max = 92.dp))
+                    if (!locked) Text("  ▾", style = NineType.small, color = Nine.dim, maxLines = 1, softWrap = false)
                 }
                 DropdownMenu(switcher, { switcher = false }, containerColor = Nine.s2) {
                     spec.profileId?.let { id ->
