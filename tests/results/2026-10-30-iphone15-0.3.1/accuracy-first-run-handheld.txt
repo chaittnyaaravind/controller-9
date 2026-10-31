@@ -1,0 +1,21 @@
+FAIL  B                  expected B        got ['B', 'Y', 'lx-', 'ly-']
+FAIL  X                  expected X        got ['X', 'lx+', 'lx-', 'ly+']
+PASS  Y                  expected Y        got ['Y']
+PASS  LB                 expected LB       got ['LB']
+PASS  RB                 expected RB       got ['RB']
+PASS  View               expected View     got ['View']
+PASS  Menu               expected Menu     got ['Menu']
+FAIL  Guide              expected Guide    got ['Guide', 'rx+', 'ry+']
+PASS  LS                 expected LS       got ['LS']
+FAIL  RS                 expected RS       got ['LB', 'RS']
+PASS  LT                 expected lt       got ['lt']
+PASS  RT                 expected rt       got ['rt']
+PASS  dpad-left-high     expected left     got ['left']
+PASS  dpad-up            expected up       got ['up']
+PASS  dpad-right         expected right    got ['right']
+PASS  dpad-down          expected down     got ['down']
+PASS  face-gap           expected nothing  got nothing
+PASS  stick-left-right   expected lx+      got ['lx+']
+PASS  stick-right-right  expected rx+      got ['rx+']
+
+16/20 steps PASS
