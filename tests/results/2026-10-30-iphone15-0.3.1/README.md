@@ -14,4 +14,11 @@ evening.
 | Gyro aim turned off again afterwards | `testTurnOffGyroAim` passed |
 
 Not tested on the iPhone: the Bluetooth pairing fallback (Wi-Fi worked, so nothing needed it), and the glass custom-layout
-look on the device (only the stock layout was played). The sideload IPA for 0.3.1 has not been built or re-sign-tested.
+look on the device (only the stock layout was played). 
+## Sideload IPA (released)
+
+`site/public/downloads/Controller-9-0.3.1-iphone-sideload.ipa`: an unsigned Release build made like CI
+(`.github/workflows/ios.yml`), 2,054,205 bytes, SHA-256 `ce7d6a7f4ccc050043c7fe37f9f15bdf0cd959276e6d6d0741f4290ea3046c51`.
+`tools/ios-ci/sideload-test.sh` re-signed this exact file with the free Apple ID, installed it on the iPhone 15 and launched it.
+It was still running 8 s later, and the phone reports `dev.ninecontroller.ios 0.3.1 (5)`. The AltStore source (`altstore.json`)
+lists 0.3.1 build 5, dated 2026-10-30.

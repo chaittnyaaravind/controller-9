@@ -24,11 +24,12 @@
       "id": "iphone",
       "name": "iPhone",
       "status": "preview",
-      "meta": "iOS 17 or newer · sideload · version 0.3.0",
-      "text": "Free with your own Apple ID. New in 0.3.0: gyro aim, turbo and toggle buttons, move any button, share games by QR code with Android, Home Screen \"Play\" shortcuts, and a connection check. Add it to AltStore and it refreshes and updates itself; or install the file once with Sideloadly. Step-by-step in the guide.",
-      "file": "downloads/Controller-9-0.3.0-iphone-sideload.ipa",
+      "meta": "iOS 17 or newer · sideload · version 0.3.1",
+      "text": "Free with your own Apple ID. New in 0.3.1: when the Wi-Fi keeps your iPhone and computer apart, pairing switches to Bluetooth by itself; customised layouts keep the black-glass look of the layout they came from, and the in-game bar never covers the triggers. Also in 0.3: gyro aim, turbo and toggle buttons, move any button, share games by QR code with Android, Home Screen \"Play\" shortcuts, and a connection check. Add it to AltStore and it refreshes and updates itself; or install the file once with Sideloadly. Step-by-step in the guide.",
+      "file": "downloads/Controller-9-0.3.1-iphone-sideload.ipa",
       "guide": "/iphone/",
-      "tested": "This exact file (0.3.0) was re-signed with a regular Apple ID the way Sideloadly does, installed and launched on an iPhone 15 running iOS 27.0.1, and stayed running. On that iPhone, version 0.3.0 passed the 20-of-20 touch-accuracy test against a computer; version 0.2.2 also passed it over Bluetooth only (Wi-Fi off), with game rumble felt and gyro aim reaching full stick travel."
+      "tested": "This exact file (0.3.1) was re-signed with a regular Apple ID the way Sideloadly does, installed and launched on an iPhone 15 running iOS 27.0.1, and stayed running. On that iPhone, the same 0.3.1 build passed the 20-of-20 touch-accuracy test against a computer, and gyro aim held by hand moved the aim stick through its full range in every direction with no stray buttons. The Bluetooth pairing fallback was not needed there (the Wi-Fi worked), so it is tested on Android and in unit tests only.",
+      "whatsNew": "Pairing falls back to Bluetooth when the Wi-Fi keeps devices apart; customised layouts drawn in black glass; the in-game bar fits between the triggers."
     },
     {
       "id": "windows",

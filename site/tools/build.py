@@ -87,7 +87,7 @@ def write_altstore(ip, ipa_bytes):
                 "version": info["CFBundleShortVersionString"], "buildVersion": info["CFBundleVersion"],
                 "date": datetime.date.today().isoformat(), "downloadURL": f"{SITE_URL}/{ip['file']}", "size": len(ipa_bytes),
                 "minOSVersion": info.get("MinimumOSVersion", "17.0"),
-                "localizedDescription": "First release: five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth.",
+                "localizedDescription": ip.get("whatsNew", "Five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth."),
             }],
             "appPermissions": {"entitlements": [], "privacy": privacy},
         }],

@@ -27,13 +27,13 @@
       ],
       "versions": [
         {
-          "version": "0.3.0",
-          "buildVersion": "4",
-          "date": "2026-10-27",
-          "downloadURL": "https://controller-9.vercel.app/downloads/Controller-9-0.3.0-iphone-sideload.ipa",
-          "size": 2041005,
+          "version": "0.3.1",
+          "buildVersion": "5",
+          "date": "2026-10-30",
+          "downloadURL": "https://controller-9.vercel.app/downloads/Controller-9-0.3.1-iphone-sideload.ipa",
+          "size": 2054205,
           "minOSVersion": "17.0",
-          "localizedDescription": "First release: five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth."
+          "localizedDescription": "Pairing falls back to Bluetooth when the Wi-Fi keeps devices apart; customised layouts drawn in black glass; the in-game bar fits between the triggers."
         }
       ],
       "appPermissions": {
