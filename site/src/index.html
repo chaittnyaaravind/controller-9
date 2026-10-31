@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Controller-9 · Your phone is the controller</title>
-<meta name="description" content="Turn your phone into a game controller for your computer. Real controller layouts, grip-relative tilt steering and rumble. Local network only, no account.">
+<meta name="description" content="Your Android phone becomes an Xbox Wireless Controller for your computer over Bluetooth. Nothing to install on the computer, no account, no ads.">
 <meta name="theme-color" content="#0B0C0D">
 <meta property="og:title" content="Controller-9 · Your phone is the controller">
-<meta property="og:description" content="Real controller layouts, tilt steering and rumble — over your own Wi-Fi or Bluetooth. No account.">
+<meta property="og:description" content="Your Android phone is an Xbox controller over Bluetooth. Nothing to install on the computer. No account.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="/brand/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -157,6 +157,7 @@ section.block { padding: clamp(88px, 11vw, 168px) 0; background: var(--bg); }
 .dl h3 { font-size: 24px; letter-spacing: -0.02em; }
 .dl .meta { color: var(--dim); font-size: 13.5px; margin-top: 4px; }
 .dl p { color: var(--muted); font-size: 15px; }
+.dl .card p { max-width: 68ch; }
 .dl .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: auto; }
 .chip { font: 500 11px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase; padding: 7px 10px; border-radius: 99px; white-space: nowrap; }
 .chip.ok { color: var(--accent); background: rgb(217 185 121 / .1); }
@@ -248,14 +249,14 @@ footer img { height: 24px; width: auto; }
         <div class="poster" aria-hidden="true"><div><img src="/assets/pad-xbox.svg" alt=""></div></div>
         <div class="cue micro"><i></i>Scroll</div>
       </div>
-      <div class="corner br fadein"><div class="idx">v0.4.0 · Android · iPhone · Mac · Windows · Linux</div></div>
+      <div class="corner br fadein"><div class="idx">v0.5.0 · Android</div></div>
     </section>
 
     <svg id="leaders" aria-hidden="true"><path/><path/><path/><path/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/><circle r="3.5"/></svg>
-    <div class="callout" aria-hidden="true"><span>Glass<em>Round buttons touched as circles · 20/20 accurate</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Touch<em>Round buttons touched as circles · 20/20 accurate</em></span></div>
     <div class="callout" aria-hidden="true"><span>Controller screen<em>Seven layouts, drawn to fit your phone</em></span></div>
-    <div class="callout" aria-hidden="true"><span>Sensors &amp; radios<em>Grip-relative steering · Wi-Fi + Bluetooth together</em></span></div>
-    <div class="callout" aria-hidden="true"><span>Link<em>Encrypted end to end · ~100 updates/s</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Sensors<em>Grip-relative steering · gyro aim</em></span></div>
+    <div class="callout" aria-hidden="true"><span>Bluetooth<em>A standard Xbox Wireless Controller</em></span></div>
     <section class="story" id="story" aria-label="How Controller-9 works, in three moves">
       <div class="stage">
         <div class="wrap">
@@ -267,17 +268,17 @@ footer img { height: 24px; width: auto; }
           <div class="panel" data-at="0.12,0.14,0.18,0.195">
             <div class="micro accent">01 · Fusion</div>
             <h2>Now they're one.</h2>
-            <p>Controller-9 puts a full controller on your phone's screen, with grip-relative steering and rumble you can feel.</p>
+            <p>Controller-9 puts a full Xbox controller on your phone's screen, with a real click under every button and rumble you can feel.</p>
           </div>
           <div class="panel" data-at="0.205,0.225,0.30,0.32">
             <div class="micro accent">02 · Launch</div>
             <h2>Pair once. Launch any game.</h2>
-            <p>Encrypted, local, about a hundred updates a second. No account, no cloud — just play.</p>
+            <p>Your computer sees an Xbox Wireless Controller over Bluetooth. Nothing to install there, no account, no cloud — just play.</p>
           </div>
           <div class="panel inside" data-at="0.38,0.43,0.54,0.60">
             <div class="micro accent">03 · Inside</div>
             <h2>Every layer does one job well.</h2>
-            <p>Glass that knows which control your thumb is on. A screen with the layout you choose. Sensors that read your grip, and two radios that carry every press.</p>
+            <p>A touch layer that knows which control your thumb is on. A screen with the layout you choose. Sensors that read your grip, and Bluetooth that speaks Xbox.</p>
           </div>
           <div class="panel" data-at="0.61,0.65,0.72,0.75">
             <div class="micro accent">04 · Tilt to steer</div>
@@ -297,10 +298,10 @@ footer img { height: 24px; width: auto; }
 
   <section class="proof" aria-label="Measured on real devices">
     <div class="wrap">
-      <div class="stat reveal"><b>100<small>/s</small></b><span class="micro">Updates while you play</span></div>
-      <div class="stat reveal"><b>7.5<small>ms</small></b><span class="micro">Median round trip, Wi-Fi</span></div>
       <div class="stat reveal"><b>20/20</b><span class="micro">Controls, each sends only itself</span></div>
-      <div class="stat reveal"><b>0</b><span class="micro">Frames lost in testing</span></div>
+      <div class="stat reveal"><b>0</b><span class="micro">Apps to install on the computer</span></div>
+      <div class="stat reveal"><b>7</b><span class="micro">Controller layouts</span></div>
+      <div class="stat reveal"><b>1</b><span class="micro">Pairing, then it reconnects itself</span></div>
     </div>
   </section>
 
@@ -320,17 +321,17 @@ footer img { height: 24px; width: auto; }
       <div class="head reveal">
         <div class="micro">Why Controller-9</div>
         <h2>No program to fight with. No ads.</h2>
-        <p>We read 454 public reviews of phone-controller apps. The same complaints come up everywhere: a computer program that won't connect, ads in the middle of a game, and subscriptions for basic buttons. Controller-9 is built the other way.</p>
+        <p>We read 454 public reviews of phone-controller apps. The same complaints come up everywhere: a computer program that won't connect, ads in the middle of a game, and subscriptions for basic buttons. Controller-9 has no computer program at all.</p>
       </div>
       <div class="feel">
-        <div class="card reveal"><div class="micro">Android</div><h3>Nothing to install.</h3><p>Your phone pairs as an Xbox Wireless Controller from the computer's own Bluetooth settings. Tested with a game on a Mac; Linux's controller layer (SDL) sees it too.</p></div>
+        <div class="card reveal"><div class="micro">Bluetooth</div><h3>Nothing to install.</h3><p>Your phone pairs as an Xbox Wireless Controller from the computer's own Bluetooth settings. Games read it the way they read the real thing.</p></div>
         <div class="card reveal"><div class="micro">Always</div><h3>Free means free.</h3><p>No ads, no subscription, no account, no analytics. Every feature for everyone.</p></div>
-        <div class="card reveal"><div class="micro">New</div><h3>It tells you why.</h3><p>When the computer can't be reached, the connection check names the cause — app closed, firewall, VPN, a different Wi-Fi — and the fix.</p></div>
+        <div class="card reveal"><div class="micro">Feel</div><h3>Buttons that click.</h3><p>A crisp click when a button goes down and a lighter one when it comes up. A tap is never lost, however fast, and a thumb just off a button still presses it.</p></div>
       </div>
       <div class="feel" style="margin-top:16px">
-        <div class="card reveal"><div class="micro">New</div><h3>Move any button.</h3><p>Customise any layout: drag and resize each button on its own, from Xbox to arcade stick.</p></div>
-        <div class="card reveal"><div class="micro">Tested</div><h3>Every press, exactly.</h3><p>An automated test presses every control: 20 of 20 arrive as themselves, and two buttons held at once stay held together.</p></div>
-        <div class="card reveal"><div class="micro">Mac</div><h3>Not Windows-only.</h3><p>Mac games see the Android phone through Apple's own controller support, and Safari and Chrome see a standard gamepad.</p></div>
+        <div class="card reveal"><div class="micro">Layouts</div><h3>Move any button.</h3><p>Customise any layout: drag and resize each button on its own, from Xbox to arcade stick.</p></div>
+        <div class="card reveal"><div class="micro">Tested</div><h3>Every press, exactly.</h3><p>An automated test presses every control and reads what the computer's own controller system receives: 20 of 20 arrive as themselves.</p></div>
+        <div class="card reveal"><div class="micro">Mac</div><h3>Not Windows-only.</h3><p>Mac games see the phone through Apple's own controller support, and Safari and Chrome see a standard gamepad — what browser cloud gaming uses.</p></div>
       </div>
     </div>
   </section>
@@ -340,12 +341,12 @@ footer img { height: 24px; width: auto; }
       <div class="head reveal">
         <div class="micro">How it works</div>
         <h2>Three steps. About a minute.</h2>
-        <p>On Android there is nothing to install on the computer. iPhone uses a small free companion app, because iOS doesn't let phones act as Bluetooth controllers.</p>
+        <p>Nothing to install on the computer. The app opens as the controller.</p>
       </div>
       <div class="steps">
-        <div class="card step reveal"><div class="n">01</div><h3>Pair once</h3><p>Android: turn on Bluetooth controller, then choose “Xbox Wireless Controller” in the computer's Bluetooth settings. iPhone: scan the companion's code.</p></div>
-        <div class="card step reveal"><div class="n">02</div><h3>Pick a layout</h3><p>Seven familiar controller faces, each lit in your game's colour.</p></div>
-        <div class="card step reveal"><div class="n">03</div><h3>Play</h3><p>It reconnects on its own next time. If it can't, the app tells you why and what to do.</p></div>
+        <div class="card step reveal"><div class="n">01</div><h3>Pair once</h3><p>Open the app, then choose “Xbox Wireless Controller” in the computer's Bluetooth settings.</p></div>
+        <div class="card step reveal"><div class="n">02</div><h3>Pick a layout</h3><p>Seven familiar controller faces. Move and resize any button.</p></div>
+        <div class="card step reveal"><div class="n">03</div><h3>Play</h3><p>It reconnects on its own next time. Open the app and play.</p></div>
       </div>
     </div>
   </section>
@@ -353,24 +354,24 @@ footer img { height: 24px; width: auto; }
   <section class="block" style="padding-top:0">
     <div class="wrap">
       <div class="feel">
-        <div class="card reveal"><div class="micro accent">Touch</div><h3>One press, one control.</h3><p>Verified on an iPhone 15: twenty controls pressed one by one, each sent only itself. A thumb resting between buttons presses nothing.</p></div>
+        <div class="card reveal"><div class="micro accent">Touch</div><h3>One press, one control.</h3><p>Verified on a realme 12 with a MacBook: twenty controls pressed one by one, each arrived as itself. A thumb exactly between two buttons presses neither.</p></div>
         <div class="card reveal"><div class="micro accent">Rumble</div><h3>Games can shake your hands.</h3><p>Two-motor rumble from the game, rendered on the phone's own haptics — heavy hits pulse, light ones hum.</p></div>
-        <div class="card reveal"><div class="micro accent">Links</div><h3>Two links, one session.</h3><p>Wi-Fi and Bluetooth carry the same input side by side. Lose one and the other keeps you playing.</p></div>
+        <div class="card reveal"><div class="micro accent">Design</div><h3>Matte black hardware.</h3><p>Moulded caps with a soft shadow that sink when pressed. A, B, X and Y in their colours. No glow, no blur, nothing in the way.</p></div>
       </div>
       <div class="feel" style="margin-top:16px">
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>No app on the computer.</h3><p>Your phone pairs as an Xbox Wireless Controller from the Mac's own Bluetooth settings. Tested: Asphalt Legends on a Mac shows Xbox prompts and is played from the phone.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Locked in the game.</h3><p>Controller Lock pins the pad: no notification panel, home or back swipe mid-race. Hold to unlock. Notifications stay quiet until you leave.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Black glass, your colour.</h3><p>Smoked-glass controls that light in each game's tone — platinum, champagne, crimson, sapphire, emerald, copper. Turbo on any button.</p></div>
+        <div class="card reveal"><div class="micro accent">Games</div><h3>Xbox prompts in your game.</h3><p>Tested: Asphalt Legends on a Mac switches to Xbox button prompts and is played from the phone.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>Locked in the game.</h3><p>Controller Lock pins the pad: no notification panel, home or back swipe mid-race. Hold to unlock. Notifications stay quiet until you leave.</p></div>
+        <div class="card reveal"><div class="micro accent">Turbo</div><h3>Turbo and toggle.</h3><p>Make any button fire repeatedly while held, or stay pressed until tapped again — per game.</p></div>
       </div>
       <div class="feel" style="margin-top:16px">
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Aim by turning.</h3><p>Gyro aim moves the right stick as you turn the phone, like a DualSense. Tested by hand: full stick travel left, right, up and down.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Cloud gaming, in the browser.</h3><p>Safari and Chrome on a Mac read the phone as a standard gamepad — what browser cloud-gaming services use.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Share your setup.</h3><p>A game's layout, colour, steering and turbo buttons travel phone to phone as a QR code. Friends join from the Home screen.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>Aim by turning.</h3><p>Gyro aim moves the right stick as you turn the phone, like a DualSense. Tested by hand: full stick travel left, right, up and down.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>Cloud gaming, in the browser.</h3><p>Safari and Chrome on a Mac read the phone as a standard gamepad — what browser cloud-gaming services use.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>Share your setup.</h3><p>A game's layout, steering and turbo buttons travel phone to phone as a QR code.</p></div>
       </div>
       <div class="feel" style="margin-top:16px">
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>One tap from anywhere.</h3><p>A Controller tile in Quick Settings turns the Bluetooth controller on or off without opening the app.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>Straight into the game.</h3><p>Long-press the app icon: "Play Asphalt Legends" opens that game's controller, lit in its colour.</p></div>
-        <div class="card reveal"><div class="micro accent">New · Android</div><h3>GameCube and arcade.</h3><p>A big-A GameCube-style pad with C-stick, and an arcade stick in the standard fight-stick button order.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>One tap from anywhere.</h3><p>A Controller tile in Quick Settings turns the Bluetooth controller on or off without opening the app.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>Straight into the game.</h3><p>Long-press the app icon: "Play Asphalt Legends" opens that game's controller, lit in its colour.</p></div>
+        <div class="card reveal"><div class="micro accent">Android</div><h3>GameCube and arcade.</h3><p>A big-A GameCube-style pad with C-stick, and an arcade stick in the standard fight-stick button order.</p></div>
       </div>
     </div>
   </section>
@@ -380,10 +381,10 @@ footer img { height: 24px; width: auto; }
       <div class="head reveal">
         <div class="micro">Download</div>
         <h2>Get Controller-9.</h2>
-        <p>The app for your phone and the companion for the computer you play on. Every file is listed with its SHA-256 checksum.</p>
+        <p>One app for your Android phone, listed with its SHA-256 checksum. Nothing to install on the computer.</p>
       </div>
       <div class="dl">{{DOWNLOADS}}</div>
-      <p class="note">Status is stated plainly: "Available" and "Preview" builds were installed and launched on their platform before being listed here; "Preview" means it runs, with the limitation shown.</p>
+      <p class="note">Every build listed here was installed on a real phone and tested with a computer before being published.</p>
     </div>
   </section>
 
@@ -391,8 +392,8 @@ footer img { height: 24px; width: auto; }
     <div class="wrap">
       <div class="card reveal">
         <div><div class="micro accent">No account</div><h3>Nothing to sign up for.</h3><p>Install, pair, play. There is no Controller-9 account.</p></div>
-        <div><div class="micro accent">Local only</div><h3>Your network, not ours.</h3><p>Phone and computer talk directly over your Wi-Fi or Bluetooth. No cloud, no relay.</p></div>
-        <div><div class="micro accent">No tracking</div><h3>No analytics.</h3><p>No telemetry in the apps and no trackers on this site.</p></div>
+        <div><div class="micro accent">Local only</div><h3>Your Bluetooth, not ours.</h3><p>Phone and computer talk directly over Bluetooth. No cloud, no relay, no internet permission.</p></div>
+        <div><div class="micro accent">No tracking</div><h3>No analytics.</h3><p>No telemetry in the app and no trackers on this site.</p></div>
       </div>
     </div>
   </section>

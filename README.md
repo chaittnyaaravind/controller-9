@@ -1,27 +1,24 @@
 # Controller-9
 
-Use your phone as a low-latency game controller for your computer — touch controls, motion
-steering, up to four players — over local Wi-Fi, a hotspot, a USB cable or Bluetooth LE, with
-automatic failover. End-to-end encrypted, no Internet, no account, no cloud.
+Your Android phone is an Xbox controller. Open the app and the phone pairs with your computer from the
+computer's own Bluetooth settings as **"Xbox Wireless Controller"**. Nothing is installed on the
+computer, and games read it the way they read the real thing: buttons, sticks, analog-reported triggers,
+D-pad, Guide, and rumble back to the phone. No account, no internet permission, no ads.
 
 | Part | Path | Tech |
 |---|---|---|
-| Android controller | `apps/android` | Kotlin, Jetpack Compose |
-| iPhone controller | `apps/ios` | Swift, SwiftUI, Core Motion, Core Haptics |
-| Desktop companion (macOS / Windows / Linux) | `hosts/app` | Tauri v2 + Rust host core |
-| Headless host + controller simulator | `hosts/cli` (`ninectl`) | Rust |
-| Host core (sessions, pairing, slots, diagnostics) | `hosts/core` | Rust |
-| Virtual controllers | `hosts/linux` (uinput), `hosts/windows` (KMDF VHF driver), `hosts/macos` (IOHIDUserDevice) | Rust, C |
-| Protocol v1 + vectors | `protocol/` (spec, Rust reference, Kotlin, Swift) | Noise XX, ChaCha20-Poly1305 |
+| Android app | `apps/android` | Kotlin, Jetpack Compose |
+| Input and profile model (+ frozen vectors) | `protocol/kotlin`, `protocol/vectors` | Kotlin |
+| Xbox Bluetooth HID report and its vectors | `apps/android/.../input/XboxHidReport.kt`, `tests/vectors/hid-xbox-ble.json` | Kotlin |
+| Website | `site/` | static HTML, built by `site/tools/build.py` |
 
-**Status:** see [`docs/PLATFORM_SUPPORT.md`](docs/PLATFORM_SUPPORT.md), [`docs/TRANSPORT_MATRIX.md`](docs/TRANSPORT_MATRIX.md),
-[`docs/ACCEPTANCE_STATUS.md`](docs/ACCEPTANCE_STATUS.md) and the requirement map
-[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md). Nothing is marked working until it ran.
+**Status and evidence:** [`docs/ACCEPTANCE_STATUS.md`](docs/ACCEPTANCE_STATUS.md), [`docs/DIRECT_BLUETOOTH.md`](docs/DIRECT_BLUETOOTH.md),
+[`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). Nothing is marked working until it ran on a real phone.
 
 ```sh
-tests/run_all.sh                                   # every check that runs without devices
-cargo run --release -p ninectl --bin controller9 -- host --pair      # headless host; prints a pairing QR
-cargo run --release -p ninectl --bin controller9 -- sim --uri '…' [--link stream]   # simulated controller
+tests/run_all.sh                                        # unit tests + debug APK
+cd apps/android && ./gradlew :app:assembleRelease      # release APK (signing: docs/BUILD.md)
 ```
-Build details: [`docs/BUILD.md`](docs/BUILD.md) · security: [`docs/SECURITY.md`](docs/SECURITY.md) ·
-tests and metric definitions: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
+
+The earlier multiplatform project (iPhone app, Mac/Windows/Linux companion, Rust host and protocol) is
+kept on the `archive/multiplatform` branch.

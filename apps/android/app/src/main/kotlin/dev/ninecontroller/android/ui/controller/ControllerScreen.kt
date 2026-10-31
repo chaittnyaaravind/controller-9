@@ -65,7 +65,6 @@ import dev.ninecontroller.android.NineApp
 import dev.ninecontroller.android.data.AppSettings
 import dev.ninecontroller.android.input.ControllerEngine
 import dev.ninecontroller.android.input.MotionSensor
-import dev.ninecontroller.android.net.ConnState
 import dev.ninecontroller.android.pad.Action
 import dev.ninecontroller.android.pad.PadGeometry
 import dev.ninecontroller.android.pad.PadLook
@@ -140,9 +139,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     val scope = rememberCoroutineScope()
     val settings by app.settings.flow.collectAsState(null)
     val profiles by app.profiles.profiles.collectAsState()
-    val conn by app.connection.state.collectAsState()
     val hid by app.hid.state.collectAsState()
-    val stats by app.connection.stats.collectAsState()
     val s = settings ?: return // wait for stored settings: never flash the wrong layout
 
     val spec = remember(s.activeProfile, s.padMappings, s.padTilt, s.tiltSensitivity, s.tiltDeadzone, s.tiltLockDeg, s.stickDeadzone, profiles) { surfaceFor(s, profiles) } ?: return
@@ -160,14 +157,12 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     }
 
     val turboIds = remember(s.padModes, spec.key) { dev.ninecontroller.android.pad.ButtonModes.decode(s.padModes[s.padPreset?.id ?: s.activeProfile]).filterValues { it == dev.ninecontroller.android.pad.ButtonModes.Mode.TURBO }.keys } // custom layouts keep their own modes
-    val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, f -> app.connection.submit(st, f); app.hid.submit(st) } }
+    val engine = remember { ControllerEngine(minPressMs = MIN_PRESS_MS) { st, _ -> app.hid.submit(st) } }
     val visuals = remember { mutableStateMapOf<String, Visual>() }
     val toggles = remember { mutableStateMapOf<String, Boolean>() }
-    var sent by remember { mutableStateOf(InputState.NEUTRAL) }
     var steeringValue by remember { mutableDoubleStateOf(0.0) }
     var recentering by remember { mutableStateOf(false) }
     var recenterMsg by remember { mutableStateOf<Pair<String, Tone>?>(null) }
-    var showInputs by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf<String?>(null) }
     var switcher by remember { mutableStateOf(false) }
     val runner = remember { dev.ninecontroller.android.input.SteeringRunner(MotionSensor(context)) }
@@ -194,14 +189,10 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     }
 
     // The phone is an Xbox controller: Bluetooth controller mode comes on with this screen (the computer
-    // pairs with "Xbox Wireless Controller", nothing to install). A session the player started with the
-    // computer app (Settings → Connect) is left alone.
+    // pairs with "Xbox Wireless Controller", nothing to install). The first time, the phone asks for
+    // Bluetooth permission or to turn Bluetooth on.
     val xboxStart = rememberXboxStart(app)
-    LaunchedEffect(Unit) {
-        val c = app.connection.state.value
-        if (c !is ConnState.Connected && c !is ConnState.Connecting && c !is ConnState.Reconnecting) xboxStart()
-    }
-    LaunchedEffect(spec.name) { app.connection.setProfileName(spec.name) }
+    LaunchedEffect(Unit) { xboxStart() }
 
     // Motion steering, relative to the player's own grip (docs/STEERING.md). Only while this screen is
     // visible and the layout enables it. A recenter changes the reference inside the runner (blended, no
@@ -211,7 +202,6 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         if (spec.motion.enabled) runner.start(s.sensorHz, s.steering, spec.motion) { v -> engine.setMotion(v); feel.steering(v); steeringValue = v }
         onDispose { runner.stop(); engine.releaseAll(); feel.reset() }
     }
-    LaunchedEffect(Unit) { while (true) { app.connection.sensorHz = runner.hz; delay(1000) } }
     // Gyro aim: the phone's turn speed is added to the right stick while this screen is visible.
     DisposableEffect(s.gyroAim, s.aimSensitivity, s.aimInvertY) {
         @Suppress("DEPRECATION") val rotation = activity.windowManager.defaultDisplay.rotation
@@ -221,8 +211,6 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
     val turbo = remember { dev.ninecontroller.android.pad.TurboPulser { id, mask -> engine.setButtons(id, mask) } }
     // Any layout change releases every control first (nothing stays held across a switch).
     DisposableEffect(spec.key) { visuals.clear(); toggles.clear(); turbo.stopAll(); engine.releaseAll(); onDispose { turbo.stopAll() } }
-    // Inspector shows what is actually sent, not what the screen thinks is pressed.
-    LaunchedEffect(showInputs) { while (showInputs) { sent = engine.state; delay(50) } }
     LaunchedEffect(hint) { if (hint != null) { delay(2400); hint = null } }
 
     /**
@@ -368,18 +356,12 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         val barMax = remember(boxes, inert, wPx) {
             with(density) { (PadLook.topGap(boxes.values + inert.values, wPx, (6 + 36 + 6).dp.toPx(), 8.dp.toPx())?.coerceAtLeast(200.dp.toPx()) ?: (wPx * 0.64f)).toDp() }
         }
-        // Connection state lives in the layout pill's dot (full text for screen readers): the bar stays one line.
-        val (label, tone) = if (hid != dev.ninecontroller.android.net.HidGamepad.State.Off) when (val h = hid) {
-            is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "BT" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
-            is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth off" to Tone.BAD
-            else -> "Waiting" to Tone.WARN
-        } else when (val c = conn) {
-            is ConnState.Connected -> "P${c.slot + 1} · ${(listOf(c.link) + c.also).joinToString("+") { shortLink(it) }}" + (if (s.showStats) " · ${fmt(stats.rttP50, 0)} ms" else "") to (if (c.backendWarning == null) Tone.OK else Tone.WARN)
-            is ConnState.Reconnecting -> "Reconnecting" to Tone.WARN
-            is ConnState.Connecting -> "Connecting" to Tone.WARN
-            is ConnState.ConfirmCode -> "Confirm code" to Tone.WARN
-            is ConnState.Failed -> "Offline" to Tone.BAD
-            ConnState.Idle -> "Offline" to Tone.BAD
+        // Controller state lives in the layout pill's dot (full text for screen readers): the bar stays one line.
+        val (label, tone) = when (val h = hid) {
+            is dev.ninecontroller.android.net.HidGamepad.State.Connected -> (if (h.subscribed) "Connected to ${h.host}" else "Pairing") to (if (h.subscribed) Tone.OK else Tone.WARN)
+            is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Controller off: ${h.reason}" to Tone.BAD
+            dev.ninecontroller.android.net.HidGamepad.State.Advertising -> "Waiting for a computer" to Tone.WARN
+            dev.ninecontroller.android.net.HidGamepad.State.Off -> "Controller off" to Tone.BAD
         }
         Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).widthIn(max = barMax),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -412,7 +394,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
                     }
                 }
             }
-            // Only what matters mid-game: Lock, and Settings for everything else (gyro, layouts, computer app…).
+            // Only what matters mid-game: Lock, and Settings for everything else (gyro, layouts, feel…).
             if (spec.motion.enabled) BarButton("Recenter", active = recentering) { recenter() }
             if (locked) LockPill { ControllerLock.unlock(activity); locked = false }
             else {
@@ -428,7 +410,7 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
             is dev.ninecontroller.android.net.HidGamepad.State.Failed -> "Bluetooth controller is off" to h.reason
             else -> null
         }
-        if (pairing != null && conn !is ConnState.Connected) {
+        if (pairing != null) {
             // In the empty band under the bar, between the shoulders: never over a button, and touches pass through it.
             androidx.compose.foundation.layout.Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp).widthIn(max = barMax)
                 .background(Color(0xF0121214), Nine.small).border(1.dp, Color.White.copy(alpha = 0.10f), Nine.small).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -440,19 +422,12 @@ fun ControllerScreen(app: NineApp, nav: NavController) {
         }
 
         // ---------------------------------------------------------------- inspector / hints (non-interactive)
-        val inspector = if (showInputs) describeSent(sent, spec.pad) else null
-        val warn = (conn as? ConnState.Connected)?.backendWarning
-        if (inspector != null || hint != null || recenterMsg != null) {
+        if (hint != null || recenterMsg != null) {
             Box(Modifier.align(Alignment.TopCenter).padding(top = 50.dp).widthIn(max = with(density) { (wPx * 0.44f).toDp() })
                 .background(Nine.s1.copy(alpha = 0.94f), Nine.small).border(1.dp, Nine.line, Nine.small).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 androidx.compose.foundation.layout.Column {
                     recenterMsg?.let { (m, tone) -> Text(m, style = NineType.small, color = tone.color(), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     if (hint != null) Text(hint!!, style = NineType.small, color = Nine.warn)
-                    if (inspector != null) {
-                        Micro("Sending now", color = Nine.dim)
-                        Text(inspector, style = NineType.mono, color = Nine.text)
-                        if (warn != null) Text("Computer receives input; games can’t see a controller there yet.", style = NineType.small, color = Nine.warn)
-                    }
                 }
             }
         }
@@ -494,12 +469,6 @@ private fun LockPill(onUnlock: () -> Unit) {
     }
 }
 
-/** Compact link names for the in-game bar; the full label is on Home and Diagnostics. */
-internal fun shortLink(k: dev.ninecontroller.protocol.LinkKind) = when (k) {
-    dev.ninecontroller.protocol.LinkKind.LAN -> "Wi-Fi"; dev.ninecontroller.protocol.LinkKind.BLE -> "BLE"
-    dev.ninecontroller.protocol.LinkKind.USB -> "USB"; dev.ninecontroller.protocol.LinkKind.STREAM -> "TCP"
-    else -> k.label
-}
 
 private fun surfaceFor(s: AppSettings, profiles: List<Profile>): SurfaceSpec? {
     s.padPreset?.let { preset ->

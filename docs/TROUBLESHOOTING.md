@@ -2,15 +2,12 @@
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Phone doesn't list the computer | router blocks multicast (client isolation), or host discovery off | scan the QR code or enter the address from the desktop app |
-| "Can't reach the computer" | firewall | allow TCP 47901 + UDP 47900 (Windows Defender prompt, macOS firewall, `ufw`) |
-| Pairing: "No answer over Wi-Fi … Trying Bluetooth instead" | the Wi-Fi keeps devices apart (guest, school, office, hotel) | nothing to do: with Bluetooth on, the phone pairs over Bluetooth by itself; compare the codes. With Bluetooth off, the phone shows the connection check's cause and fixes |
-| Pairing "closed" | pairing window not open | desktop app → *Pair a phone* (2 min window) |
-| "rate limited" | 5 attempts/min or 3 rejected codes | wait 60 s |
-| QR "expired or used" | tokens are one-time, 5 min | press *New code* |
-| "identity key changed" | host reinstalled / different computer at that address | forget the computer on the phone and pair again — only if you trust it |
-| Connected, but games see nothing | backend Blocked (macOS) / driver missing (Windows) / uinput permission (Linux) | see the banner's fix text and `docs/platforms/*` |
-| Windows game ignores pad | XInput-only title | enable Steam Input for the game |
-| Stutter | Wi-Fi congestion | check Lost/Jitter in Diagnostics; use 5 GHz; move closer |
-| Steering off-centre | not calibrated | *Center* on the controller screen, hold still 1.5 s |
-| Swift tests: "plugin for module 'TestingMacros' not found" | Command Line Tools-only toolchain | use `tools/swift-test.sh <package>` |
+| "Xbox Wireless Controller" doesn't appear on the computer | the app isn't open, or Bluetooth is off on the phone | open Controller-9 (it turns the controller on and asks for Bluetooth if needed); keep the phone's own Bluetooth settings screen closed |
+| The computer lists the phone twice | the phone's Bluetooth settings screen is open (it shows the phone under its own name), or an old pairing is left | close the phone's Bluetooth settings; remove older "Xbox Wireless Controller" / phone entries on the computer, then pair again |
+| Connected, but games see nothing — after an app update, a phone restart or turning the phone's Bluetooth off and on | macOS keeps the link but drops the gamepad when the phone's controller restarts (`docs/DIRECT_BLUETOOTH.md`, lesson 11) | turn the **computer's** Bluetooth off and on; it's back in about 5 seconds |
+| A game shows a generic joystick, not Xbox buttons | the computer paired with the phone under its old name | remove the pairing on the computer and pair again while the app is open (the phone is then named "Xbox Wireless Controller") |
+| Chrome stops seeing the pad after many reconnects | Chrome keeps stale pads in its four slots | restart Chrome |
+| Guide opens a Games overlay instead of reaching the game | macOS answers the Xbox button itself, as with a real pad | use Menu in games; Guide is for the system |
+| No click when pressing | Vibration is off or set to 0 % | Settings → Controls & feel → Vibration |
+| Steering off-centre | not calibrated | Recenter on the controller (hold still 1.5 s), or Settings → Calibrate steering |
+| A tap near a button doesn't press it | the tap was about equally close to two buttons (that presses neither, on purpose) | land a little closer to the button you mean; anything within ~20 dp of one button presses it |

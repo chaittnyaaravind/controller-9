@@ -3,15 +3,9 @@
 ## Permissions (complete list, as merged into the APK)
 | Permission | Why | When |
 |---|---|---|
-| `INTERNET` | TCP/UDP to the host on the LAN | always (normal permission) |
-| `WAKE_LOCK` | low-latency Wi-Fi lock (`WIFI_MODE_FULL_LOW_LATENCY`, Android 10+; high-perf lock before) held only while a Wi-Fi/USB/hotspot session is active and the controller is not paused — stops power-save batching that delayed input 300–440 ms on a real phone | normal permission; never keeps the CPU or screen awake |
-| `ACCESS_NETWORK_STATE` | detect Wi-Fi loss/return for fast reconnect | always |
-| `CHANGE_WIFI_MULTICAST_STATE` | receive DNS-SD replies (multicast lock) while the host list is open | only during discovery |
-| `CAMERA` | scan the pairing QR code | runtime prompt, only when the scanner opens |
+| `CAMERA` | scan a shared game's QR code | runtime prompt, only when the scanner opens |
 | `VIBRATE` | button clicks and game rumble | always |
-| `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT` (12+) / `BLUETOOTH`, `BLUETOOTH_ADMIN` (≤11) | Bluetooth LE fallback link: advertise and run the GATT server | runtime prompt only when the user enables Bluetooth pairing/fallback |
-| `NEARBY_WIFI_DEVICES` (13+, `neverForLocation`) / `ACCESS_FINE_LOCATION` (10–12 only, `maxSdkVersion 32`) | "Create a local network" (Wi-Fi Direct group) — Android requires it for Wi-Fi Direct | runtime prompt only when the user taps "Create network" |
-| `ACCESS_WIFI_STATE`, `CHANGE_WIFI_STATE` | Wi-Fi Direct group management | normal permissions |
+| `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT` (12+) / `BLUETOOTH`, `BLUETOOTH_ADMIN` (≤11) | the phone is a Bluetooth LE Xbox controller: advertise and run the HID GATT server | runtime prompt when the controller first starts (the app opens as the controller) |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE` (14+) | Bluetooth controller mode: a `connectedDevice` foreground service (`HidService`) keeps the controller registered while the app is closed — macOS cannot follow a changing GATT layout (docs/DIRECT_BLUETOOTH.md) | only while the mode is on; ongoing notification with a Stop action |
 | `POST_NOTIFICATIONS` (13+) | shows that ongoing notification | runtime prompt when the user starts the Bluetooth controller; the controller works if denied |
 | `ACCESS_NOTIFICATION_POLICY` | "Silence notifications while playing": only alarms interrupt while the controller screen is open; the previous Do Not Disturb filter is saved first and restored on leaving (and at the next launch if the app was killed) | the user grants Do Not Disturb access once in Android settings; without it nothing changes |
@@ -19,7 +13,7 @@
 
 | `BLUETOOTH_SCAN` (**debug builds only**, `src/debug/AndroidManifest.xml`, `neverForLocation`) | the TV-emulator host test (`HidSweep.bond`, `tools/tv-sim`) scans for the controller; the released app never scans | test rigs only |
 
-Location is requested only on Android 10–12 and only for Wi-Fi Direct (an OS requirement); it is never read. No contacts, storage or background-location permissions; the only background work is the Bluetooth controller's foreground service, visible as a notification. No analytics SDKs.
+No internet, network or location permissions (removed in 0.5.0 with the computer-app connection). No contacts, storage or background-location permissions; the only background work is the Bluetooth controller's foreground service, visible as a notification. No analytics SDKs.
 
 ## Behaviour notes
 - Quick Settings tile "Controller" (`net/ControllerTile.kt`) turns the Bluetooth controller on and off; it needs no permission (`BIND_QUICK_SETTINGS_TILE` only guards the service so the system alone can bind it). Without Bluetooth permission it opens the app instead.

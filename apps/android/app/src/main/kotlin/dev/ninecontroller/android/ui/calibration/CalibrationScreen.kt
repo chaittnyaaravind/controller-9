@@ -39,7 +39,6 @@ import dev.ninecontroller.android.NineApp
 import dev.ninecontroller.android.data.AppSettings
 import dev.ninecontroller.android.input.MotionSensor
 import dev.ninecontroller.android.input.SteeringRunner
-import dev.ninecontroller.android.net.ConnState
 import dev.ninecontroller.android.ui.Divider
 import dev.ninecontroller.android.ui.ListRow
 import dev.ninecontroller.android.ui.Metric
@@ -51,7 +50,6 @@ import dev.ninecontroller.android.ui.fmt
 import dev.ninecontroller.android.ui.theme.Nine
 import dev.ninecontroller.android.ui.theme.NineType
 import dev.ninecontroller.protocol.FLAG_CALIBRATING
-import dev.ninecontroller.protocol.FLAG_MOTION
 import dev.ninecontroller.protocol.HeldPose
 import dev.ninecontroller.protocol.InputState
 import dev.ninecontroller.protocol.MotionSettings
@@ -80,7 +78,7 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val s by app.settings.flow.collectAsState(AppSettings())
-    val conn by app.connection.state.collectAsState()
+    val hid by app.hid.state.collectAsState()
     val profiles by app.profiles.profiles.collectAsState()
     val profile = profiles.find { it.id == s.activeProfile }
     // Steering settings of the layout in use: controller presets share the tilt settings; profiles keep their own.
@@ -102,7 +100,7 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
     var output by remember { mutableDoubleStateOf(0.0) }
     var now by remember { mutableLongStateOf(System.nanoTime()) }
 
-    val connected = conn is ConnState.Connected
+    val connected = (hid as? dev.ninecontroller.android.net.HidGamepad.State.Connected)?.subscribed == true
     val sending = send && connected
     // Read on the sensor thread.
     val flags = remember { intArrayOf(0, 0) } // [0] sending, [1] calibrating
@@ -114,13 +112,13 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
         available = runner.start(s.sensorHz, result ?: neutral ?: s.steering, motion) { v ->
             if (flags[0] == 1) {
                 val a = axisFromUnit(v)
-                app.connection.submit(if (motion.axis == "rx") InputState(rx = a) else InputState(lx = a), FLAG_MOTION or flags[1])
+                app.hid.submit(if (motion.axis == "rx") InputState(rx = a) else InputState(lx = a))
                 sentAxis = a
             }
         }
-        onDispose { runner.stop(); app.connection.submit(InputState.NEUTRAL, 0) }
+        onDispose { runner.stop(); app.hid.submit(InputState.NEUTRAL) }
     }
-    LaunchedEffect(sending) { if (!sending) { app.connection.submit(InputState.NEUTRAL, 0); sentAxis = null } }
+    LaunchedEffect(sending) { if (!sending) { app.hid.submit(InputState.NEUTRAL); sentAxis = null } }
     LaunchedEffect(Unit) { while (true) { withFrameNanos { now = it }; angle = runner.angleDeg; output = runner.output } }
 
     fun hold(then: (HeldPose?) -> Unit) {
@@ -153,7 +151,7 @@ fun CalibrationScreen(app: NineApp, nav: NavController) {
             ListRow("Send to computer while testing", detail = when {
                 !connected -> "Not connected — preview only"
                 !send -> "Off — the computer sees a centered controller"
-                else -> "Sending ${if (motion.axis == "rx") "right" else "left"} stick X = ${sentAxis ?: 0} · computer replied ${(now - app.connection.lastAckNs) / 1_000_000} ms ago"
+                else -> "Sending ${if (motion.axis == "rx") "right" else "left"} stick X = ${sentAxis ?: 0}"
             }, detailColor = if (sending) LocalAccent.current.color else Nine.muted, trailing = {
                 Switch(send, { send = it }, enabled = connected, colors = SwitchDefaults.colors(checkedTrackColor = LocalAccent.current.color, checkedThumbColor = LocalAccent.current.ink))
             })

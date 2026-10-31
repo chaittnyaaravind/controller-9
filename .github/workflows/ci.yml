@@ -1,33 +1,13 @@
-# Development checks on native runners (macOS, Linux, Windows). Manual only: the repository is private
-# and macOS minutes count 10x, so this full suite runs on request (Actions → ci → Run workflow).
-# The iPhone app has its own, path-filtered workflow (ios.yml).
+# Android checks: unit tests and a debug build (tests/run_all.sh). Manual only (Actions → ci → Run workflow).
 name: ci
 on: { workflow_dispatch: {} }
 permissions: { contents: read }
 jobs:
-  macos:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "21" }
-      - uses: android-actions/setup-android@v3
-      - run: brew install xcodegen
-      - run: tests/run_all.sh
-  linux:
+  android:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-      # Native Linux build of every crate including BLE (BlueZ) and the uinput backend.
-      - run: cargo test --workspace
-      # Real uinput device creation needs /dev/uinput access on the runner.
-      - run: sudo modprobe uinput && sudo chmod 666 /dev/uinput && cargo test -p nine-pad-linux -- --ignored
-  windows:
-    runs-on: windows-2025
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: android-actions/setup-android@v3
+      - run: tests/run_all.sh

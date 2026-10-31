@@ -1,5 +1,7 @@
 # Controller-9 — implementation plan (Stage 1 build-out)
 
+> **Since 2026-10-30 the project is Android only:** the phone is a Bluetooth Xbox controller with nothing installed on the computer. The multiplatform plan below (iPhone, desktop companion, encrypted LAN protocol) is kept for history; that code is on the `archive/multiplatform` branch.
+
 Baseline: checkpoint `cc29be8` (Phase 0 feasibility, macOS vHID probe, UDP probe). Nothing in it is
 discarded; `tools/netprobe` stays as the v0 *test-only* instrument and is never promoted to production.
 

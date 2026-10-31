@@ -40,17 +40,15 @@ import dev.ninecontroller.android.ui.PrimaryButton
 import dev.ninecontroller.android.ui.Section
 import dev.ninecontroller.android.ui.theme.Nine
 import dev.ninecontroller.android.ui.theme.NineType
-import dev.ninecontroller.protocol.LinkKind
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(app: NineApp, nav: NavController) {
     val scope = rememberCoroutineScope()
     val s by app.settings.flow.collectAsState(AppSettings())
-    var confirm by remember { mutableStateOf<String?>(null) }
     fun set(f: (AppSettings) -> AppSettings) = scope.launch { app.settings.update(f) }
 
-    Page("Settings", "Controller-9", nav) {
+    Page("Controls & feel", "Settings", nav) {
         Section("Controls", footer = "Stick and tilt settings apply to the five controller layouts. Custom profiles keep their own (Layouts → Manage profiles).") {
             SliderRow("Stick dead zone", "${(s.stickDeadzone * 100).toInt()}%", s.stickDeadzone.toFloat(), 0f..0.3f) { v -> set { it.copy(stickDeadzone = v.toDouble()) } }
             Divider()
@@ -79,17 +77,9 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
             ListRow("Layouts", detail = s.padPreset?.name ?: "Custom profile", onClick = { nav.navigate("layouts") })
         }
 
-        Section("Connection", footer = "Automatic sends every input over Wi-Fi and Bluetooth LE at once, so the computer uses whichever arrives first and the controller keeps working if one link drops. One link uses a single link at a time and switches when it fails. A fixed link is for troubleshooting. USB is never used for input in Automatic.") {
-            FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                dev.ninecontroller.android.net.LinkChoices.all.forEach { o ->
-                    Choice(dev.ninecontroller.android.net.LinkChoices.label(o), s.linkOverride == o, { set { it.copy(linkOverride = o) } })
-                }
-            }
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                val ctx = androidx.compose.ui.platform.LocalContext.current
-                Divider()
-                ListRow("Add to Quick Settings", detail = "Turn the Bluetooth controller on or off from the notification panel", onClick = { requestTile(ctx) })
-            }
+        if (android.os.Build.VERSION.SDK_INT >= 33) Section("Quick Settings") {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            ListRow("Add to Quick Settings", detail = "Turn the controller on or off from the notification panel", onClick = { requestTile(ctx) })
         }
 
         Section("Feel") {
@@ -97,15 +87,6 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
             if (s.hapticsEnabled) {
                 Divider(); SliderRow("Vibration strength", "${(s.hapticStrength * 100).toInt()}%", s.hapticStrength.toFloat(), 0f..1f) { v -> set { it.copy(hapticStrength = v.toDouble()) } }
                 Divider(); ToggleRow("Trigger and steering feel", "A click at the pedal’s resistance point and at full press, a light detent at steering center and a bump at full lock. Made on this phone, not by the game.", s.feelEffects) { v -> set { it.copy(feelEffects = v) } }
-            }
-            Divider()
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("RGB light behind the controls", style = dev.ninecontroller.android.ui.theme.NineType.body)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    dev.ninecontroller.android.ui.pad.Rgb.entries.forEach { m ->
-                        dev.ninecontroller.android.ui.Choice(m.label, s.rgb == m.name, { set { it.copy(rgb = m.name) } })
-                    }
-                }
             }
         }
 
@@ -120,8 +101,6 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
             Divider()
             ToggleRow("Keep the screen on", null, s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
             Divider()
-            ToggleRow("Show latency on the controller", null, s.showStats) { v -> set { it.copy(showStats = v) } }
-            Divider()
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Motion sensor rate", style = NineType.body)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(100, 200).forEach { hz -> Choice("$hz Hz", s.sensorHz == hz, { set { it.copy(sensorHz = hz) } }) } }
@@ -129,36 +108,17 @@ fun SettingsScreen(app: NineApp, nav: NavController) {
             }
         }
 
-        Section("Advanced") {
-            ListRow("Connection check", detail = "Why won’t it connect? Finds the cause and the fix", onClick = { nav.navigate("doctor") })
-            Divider()
-            ListRow("Diagnostics", detail = "Latency, freshness, reconnects, disconnect reasons", onClick = { nav.navigate("diagnostics") })
-            Divider()
-            ListRow("Links", detail = "Which links are usable and why", onClick = { nav.navigate("connection") })
-        }
-
-        Section("Privacy", footer = "Controller-9 works only on your local network or Bluetooth. No account, no cloud service, no analytics. Your controller identity never leaves this phone and is excluded from backups.") {
-            ListRow("Forget all computers", detailColor = Nine.bad, onClick = { confirm = "hosts" }, trailing = { Text("Forget", style = NineType.small, color = Nine.bad) })
-            Divider()
-            ListRow("Reset controller identity", onClick = { confirm = "identity" }, trailing = { Text("Reset", style = NineType.small, color = Nine.bad) })
+        Section("Privacy", footer = "Controller-9 talks only to the computer it is paired with over Bluetooth. No account, no internet, no analytics.") {
+            ListRow("Paired computers", detail = "Managed in this phone\u2019s Bluetooth settings", onClick = {
+                app.startActivity(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            })
         }
 
         Section("About") {
-            ListRow("Controller-9 ${BuildConfig.VERSION_NAME}", detail = "Protocol 1 · Kotlin, Jetpack Compose and AndroidX (Apache 2.0), Bouncy Castle (MIT), ZXing (Apache 2.0), kotlinx (Apache 2.0)")
+            ListRow("Controller-9 ${BuildConfig.VERSION_NAME}", detail = "Kotlin, Jetpack Compose and AndroidX (Apache 2.0), Bouncy Castle (MIT), ZXing (Apache 2.0), kotlinx (Apache 2.0)")
         }
     }
 
-    confirm?.let { what ->
-        AlertDialog(onDismissRequest = { confirm = null },
-            title = { Text(if (what == "hosts") "Forget all computers?" else "Reset identity?") },
-            text = { Text(if (what == "hosts") "You will need to pair again." else "Every computer will treat this phone as new and it must pair again.") },
-            confirmButton = { PrimaryButton("Confirm", {
-                app.connection.disconnect()
-                if (what == "hosts") app.hosts.clear() else { app.identity.reset(); app.hosts.clear() }
-                confirm = null
-            }) },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel", color = Nine.text) } }, containerColor = Nine.s1)
-    }
 }
 
 @Composable

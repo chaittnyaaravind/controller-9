@@ -19,7 +19,7 @@ fun rememberXboxStart(app: NineApp): () -> Unit {
     val scope = rememberCoroutineScope()
     fun start() {
         if (app.hid.unavailableReason() != null) { app.hid.start(); return } // shows the reason, not remembered
-        app.connection.disconnect(); app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
+        app.hid.start(); scope.launch { app.settings.update { it.copy(hidMode = true) } }
     }
     val enableBt = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == android.app.Activity.RESULT_OK) start()

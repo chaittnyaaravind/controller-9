@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit
  * The phone as a Bluetooth controller with no app on the computer (docs/DIRECT_BLUETOOTH.md):
  * a HID-over-GATT peripheral that presents itself as an Xbox Wireless Controller, so the computer's
  * own Bluetooth HID stack creates the gamepad. The computer pairs from its Bluetooth settings.
- * Requires BLUETOOTH_ADVERTISE + BLUETOOTH_CONNECT (checked by [BlePeripheral.permissionsGranted]).
+ * Requires BLUETOOTH_ADVERTISE + BLUETOOTH_CONNECT (checked by [unavailableReason]).
  */
 @SuppressLint("MissingPermission")
 class HidGamepad(private val context: Context, private val haptics: Haptics) {
@@ -99,7 +99,18 @@ class HidGamepad(private val context: Context, private val haptics: Haptics) {
         }, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
-    fun unavailableReason(): String? = BlePeripheral(context).unavailableReason()
+    /** Why the phone can't be a Bluetooth controller right now, or null when it can. */
+    fun unavailableReason(): String? {
+        val adapter = manager.adapter
+        return when {
+            adapter == null -> "This phone has no Bluetooth"
+            Build.VERSION.SDK_INT >= 31 && listOf(android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT)
+                .any { androidx.core.content.ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED } -> "Bluetooth permission not granted"
+            !adapter.isEnabled -> "Bluetooth is off"
+            adapter.bluetoothLeAdvertiser == null || !adapter.isMultipleAdvertisementSupported -> "This phone can't act as a Bluetooth LE peripheral"
+            else -> null
+        }
+    }
 
     /** Start (or keep) the controller. Setup runs off the caller's thread: it may wait and retry. */
     fun start() {

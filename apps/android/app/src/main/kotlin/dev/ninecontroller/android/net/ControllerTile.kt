@@ -29,7 +29,7 @@ class ControllerTile : TileService() {
             return
         }
         val on = !hid.active
-        if (on) { app.connection.disconnect(); hid.start() } else hid.stop()
+        if (on) hid.start() else hid.stop()
         CoroutineScope(Dispatchers.IO).launch { app.settings.update { it.copy(hidMode = on) } }
         refresh(on)
     }

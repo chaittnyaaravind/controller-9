@@ -63,39 +63,6 @@ def card(p):
 SITE_URL = "https://controller-9.vercel.app"
 
 
-def write_altstore(ip, ipa_bytes):
-    """AltStore / SideStore source, generated from the IPA itself so its permissions always match
-    (AltStore refuses an install whose listed permissions differ from the app's Info.plist)."""
-    import io, plistlib, zipfile, datetime
-    z = zipfile.ZipFile(io.BytesIO(ipa_bytes))
-    info = plistlib.loads(z.read(next(n for n in z.namelist() if n.count("/") == 2 and n.endswith(".app/Info.plist"))))
-    privacy = {k: v for k, v in info.items() if k.startswith("NS") and k.endswith("UsageDescription")}
-    shots = sorted(x.name for x in (PUB / "assets" / "screens").glob("*.png")) if (PUB / "assets" / "screens").is_dir() else []
-    src = {
-        "name": "Controller-9", "subtitle": "Your phone is the controller", "identifier": "app.vercel.controller-9",
-        "sourceURL": f"{SITE_URL}/altstore.json", "website": SITE_URL, "iconURL": f"{SITE_URL}/brand/apple-touch-icon.png",
-        "tintColor": "#C6F432", "nsfw": False, "featuredApps": [info["CFBundleIdentifier"]],
-        "apps": [{
-            "name": "Controller-9", "bundleIdentifier": info["CFBundleIdentifier"], "developerName": "Controller-9",
-            "subtitle": "Your phone is the controller", "category": "utilities", "tintColor": "#C6F432",
-            "localizedDescription": ("Turn your iPhone into a game controller for your computer: five familiar layouts, grip-relative tilt "
-                                     "steering and rumble, over your own Wi-Fi or Bluetooth. No account, no cloud. Needs the free "
-                                     "Controller-9 companion on your Mac, Windows or Linux computer."),
-            "iconURL": f"{SITE_URL}/brand/apple-touch-icon.png",
-            "screenshots": [f"{SITE_URL}/assets/screens/{x}" for x in shots],
-            "versions": [{
-                "version": info["CFBundleShortVersionString"], "buildVersion": info["CFBundleVersion"],
-                "date": datetime.date.today().isoformat(), "downloadURL": f"{SITE_URL}/{ip['file']}", "size": len(ipa_bytes),
-                "minOSVersion": info.get("MinimumOSVersion", "17.0"),
-                "localizedDescription": ip.get("whatsNew", "Five controller layouts, tilt steering, rumble, Wi-Fi + Bluetooth."),
-            }],
-            "appPermissions": {"entitlements": [], "privacy": privacy},
-        }],
-        "news": [],
-    }
-    (PUB / "altstore.json").write_text(json.dumps(src, indent=2, ensure_ascii=False) + "\n")
-
-
 def main():
     rel = json.loads((SITE / "releases.json").read_text())
     pad = (PUB / "assets" / "pad-xbox.svg").read_text()
@@ -104,26 +71,13 @@ def main():
         f'<div class="card layout reveal"><div class="art"><img src="/assets/pad-{k}.svg" alt="{n} layout" loading="lazy" width="400" height="200"></div>'
         f'<div><h3>{n}</h3><p>{t}</p></div></div>' for k, n, t in LAYOUTS)
     by = {p["id"]: p for p in rel["platforms"]}
-    groups = [("Phone", ["android", "iphone"]), ("Computer", ["mac", "windows", "linux"])]
+    groups = [("Android", ["android"])]
     downloads = "".join(f'<div class="group"><div class="micro">{g}</div><div class="cards" style="--n:{len(ids)}">' + "".join(card(by[i]) for i in ids) + "</div></div>"
                         for g, ids in groups)
     page = (SITE / "src" / "index.html").read_text()
     page = page.replace("{{HERO_PAD}}", pad).replace("{{LAYOUT_CARDS}}", layouts).replace("{{DOWNLOADS}}", downloads)
     assert "{{" not in page, "unfilled placeholder"
     (PUB / "index.html").write_text(page)
-    # iPhone install guide: published only while the iPhone build is listed (never for "soon").
-    ip = by.get("iphone")
-    gdir = PUB / "iphone"
-    if ip and ip["status"] in ("available", "preview"):
-        data = (PUB / ip["file"]).read_bytes()
-        g = (SITE / "src" / "iphone.html").read_text()
-        g = (g.replace("{{IPA_FILE}}", html.escape(ip["file"])).replace("{{IPA_SIZE}}", human(len(data)))
-              .replace("{{IPA_SHA}}", hashlib.sha256(data).hexdigest()).replace("{{IPA_TESTED}}", html.escape(ip["tested"])).replace("{{SITE}}", SITE_URL))
-        assert "{{" not in g
-        gdir.mkdir(exist_ok=True); (gdir / "index.html").write_text(g)
-        write_altstore(ip, data)
-    elif (gdir / "index.html").exists():
-        (gdir / "index.html").unlink()
     print(f"wrote site/public/index.html ({len(page) // 1000} KB), {sum(p['status'] != 'soon' for p in rel['platforms'])} downloads")
 
 

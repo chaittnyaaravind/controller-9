@@ -1,5 +1,7 @@
 # Requirement → implementation → verification (Stage 3 completeness review)
 
+> **Since 2026-10-30 the project is Android only** (see README). Requirements about the iPhone app, the desktop companion and the LAN protocol are archived with that code on `archive/multiplatform`.
+
 States: **1** implemented, ready for acceptance testing · **2** implemented, blocked by an external
 dependency · **3** not implemented (reason + remaining work). "Verified" means the check ran.
 Last reviewed 2026-10-17 at the commit that adds this file.

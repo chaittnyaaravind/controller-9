@@ -48,7 +48,6 @@ object HidSweep {
 
     fun start(app: NineApp, sweep: Boolean) {
         Log.i(TAG, "hook: sweep=$sweep state=${app.hid.state.value}")
-        app.connection.disconnect()
         app.hid.start()
         if (!sweep) return
         Thread({

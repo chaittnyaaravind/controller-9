@@ -6,55 +6,10 @@
       "id": "android",
       "name": "Android",
       "status": "available",
-      "meta": "Android 8 or newer · APK · version 0.4.0",
-      "file": "downloads/Controller-9-0.4.0.apk",
-      "text": "Your phone is an Xbox controller. Open the app and it is one: pair it once from the computer's Bluetooth settings as \"Xbox Wireless Controller\" — nothing to install on the computer — and games, Steam and browser cloud gaming see a standard Xbox pad, with rumble. Matte-black controller with real button feel: a crisp click on every press, presses that never get lost however fast you tap, and a little forgiveness at the edge of each button. Gyro aim, turbo buttons, Controller Lock, layouts you can move and resize, and the Controller-9 computer app are in Settings. Open the file on your phone and allow installing from your browser when Android asks. Updates earlier versions in place; after updating, turn the computer's Bluetooth off and on once.",
-      "tested": "This exact file (signed release 0.4.0) was installed over 0.3.1 on a realme 12 5G (Android 16) and opened straight into the controller, already paired with a MacBook Air (macOS 27.0.1) as \"Xbox Wireless Controller\" (after turning the Mac's Bluetooth off and on once, as needed after any update). Read through Apple's GameController framework — what Mac games use — every control sent only itself: A, B, X, Y, both bumpers, both triggers, View, Menu, both stick clicks, the D-pad four ways and both sticks; a touch between Y and B sent nothing; Guide opened the Mac's Games overlay, as a real Xbox pad does. A game-style rumble from the Mac vibrated the phone."
-    },
-    {
-      "id": "mac",
-      "name": "Mac",
-      "status": "available",
-      "meta": "macOS 13 or newer · Apple silicon and Intel · keyboard & mouse mode",
-      "file": "downloads/Controller-9-0.1.1-mac-universal.dmg",
-      "text": "The phone plays your Mac games as keyboard and mouse: left stick is WASD, A is Space, the right stick moves the mouse, the triggers click. Allow it once under Privacy & Security → Accessibility. Games that only accept a controller can't see it yet — that needs a permission from Apple. Not notarized yet: after the first launch is blocked, open System Settings → Privacy & Security and choose Open Anyway.",
-      "tested": "Version 0.1.1, installed from this DMG and launched on macOS 27.0.1 (Apple silicon). Keyboard & mouse mode passed a live test: all 18 keys, pointer movement both ways on both axes, and both clicks, in order."
-    },
-    {
-      "id": "iphone",
-      "name": "iPhone",
-      "status": "preview",
-      "meta": "iOS 17 or newer · sideload · version 0.3.1",
-      "text": "Free with your own Apple ID. New in 0.3.1: when the Wi-Fi keeps your iPhone and computer apart, pairing switches to Bluetooth by itself; customised layouts keep the black-glass look of the layout they came from, and the in-game bar never covers the triggers. Also in 0.3: gyro aim, turbo and toggle buttons, move any button, share games by QR code with Android, Home Screen \"Play\" shortcuts, and a connection check. Add it to AltStore and it refreshes and updates itself; or install the file once with Sideloadly. Step-by-step in the guide.",
-      "file": "downloads/Controller-9-0.3.1-iphone-sideload.ipa",
-      "guide": "/iphone/",
-      "tested": "This exact file (0.3.1) was re-signed with a regular Apple ID the way Sideloadly does, installed and launched on an iPhone 15 running iOS 27.0.1, and stayed running. On that iPhone, the same 0.3.1 build passed the 20-of-20 touch-accuracy test against a computer, and gyro aim held by hand moved the aim stick through its full range in every direction with no stray buttons. The Bluetooth pairing fallback was not needed there (the Wi-Fi worked), so it is tested on Android and in unit tests only.",
-      "whatsNew": "Pairing falls back to Bluetooth when the Wi-Fi keeps devices apart; customised layouts drawn in black glass; the in-game bar fits between the triggers."
-    },
-    {
-      "id": "windows",
-      "name": "Windows",
-      "status": "available",
-      "meta": "Windows 10 or 11 · x64",
-      "text": "Games see an Xbox 360 controller, with rumble back to your phone. On first run, press Install driver once: it adds the free, signed ViGEmBus driver (Windows asks for permission). Not code-signed yet: if SmartScreen warns, choose More info → Run anyway.",
-      "file": "downloads/Controller-9-0.1.1-windows-x64-setup.exe"
-    },
-    {
-      "id": "linux",
-      "name": "Linux",
-      "status": "available",
-      "meta": "Debian / Ubuntu · x86_64 and arm64",
-      "text": "Games see a standard Xbox 360-style controller. The package adds a rule so your desktop session can create it — log out and back in once after installing.",
-      "files": [
-        {
-          "label": "x86_64 .deb",
-          "file": "downloads/Controller-9-0.1.1-linux-amd64.deb"
-        },
-        {
-          "label": "arm64 .deb",
-          "file": "downloads/Controller-9-0.1.1-linux-arm64.deb"
-        }
-      ]
+      "meta": "Android 8 or newer · APK · version 0.5.0",
+      "file": "downloads/Controller-9-0.5.0.apk",
+      "text": "Open the app and your phone is an Xbox controller. Pair it once from the computer's Bluetooth settings as \"Xbox Wireless Controller\" — nothing to install on the computer — and games, Steam and browser cloud gaming see a standard Xbox pad, with rumble. Matte-black controls with real button feel: a crisp click on every press, taps that are never lost however fast, and a little forgiveness at the edge of each button. Seven layouts you can move and resize, gyro aim, tilt steering, turbo, Controller Lock. No internet permission, no account, no ads. Open the file on your phone and allow installing from your browser when Android asks. Updates earlier versions in place; after updating, turn the computer's Bluetooth off and on once.",
+      "tested": "This exact file (signed release 0.5.0) was installed over 0.4.0 on a realme 12 5G (Android 16), opened straight into the controller and reconnected to a MacBook Air (macOS 27.0.1) as \"Xbox Wireless Controller\". Read through Apple's GameController framework, every control sent only itself (20/20) — A, B, X, Y, bumpers, triggers, View, Menu, stick clicks, the D-pad four ways and both sticks — a touch between Y and B sent nothing, Guide opened the Mac's Games overlay as a real Xbox pad does, and a game-style rumble vibrated the phone."
     }
   ]
 }

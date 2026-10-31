@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Main window: core events only; host commands are app commands.","local":true,"windows":["main"],"permissions":["core:default"]}}

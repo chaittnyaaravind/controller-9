@@ -1,3 +1,0 @@
-# Let the logged-in (seat) user create virtual gamepads via uinput, without root.
-# Install: sudo cp 60-9controller-uinput.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
-KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
